@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("io.github.takahirom.roborazzi")
 }
 
 // Optional stable release key, injected by CI (see README). Falls back to the debug key.
@@ -49,6 +50,8 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
     lint { checkReleaseBuilds = false; abortOnError = false }
+    // JVM screenshot tests (Robolectric + Roborazzi) render the real Compose UI to PNG in CI.
+    testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
 dependencies {
@@ -64,4 +67,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.40.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.40.1")
 }

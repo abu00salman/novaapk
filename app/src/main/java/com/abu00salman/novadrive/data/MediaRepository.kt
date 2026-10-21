@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
@@ -31,6 +32,10 @@ data class MediaInfo(
     val positionMs: Long,
     val positionAt: Long,
     val speed: Float,
+    /** The app's own play queue (e.g. album or playlist), when it publishes one. */
+    val queue: List<QueueEntry> = emptyList(),
+    val queueTitle: String? = null,
+    val activeQueueId: Long = -1,
 ) {
     fun positionNow(): Long {
         if (!playing || positionMs < 0) return positionMs.coerceAtLeast(0)
@@ -38,6 +43,9 @@ data class MediaInfo(
         return if (durationMs > 0) p.coerceAtMost(durationMs) else p
     }
 }
+
+@Immutable
+data class QueueEntry(val id: Long, val title: String, val subtitle: String?)
 
 class MediaRepository(private val ctx: Context) {
     private val main = Handler(Looper.getMainLooper())
@@ -81,6 +89,11 @@ class MediaRepository(private val ctx: Context) {
                     positionMs = st?.position ?: -1L,
                     positionAt = st?.lastPositionUpdateTime ?: SystemClock.elapsedRealtime(),
                     speed = st?.playbackSpeed ?: 1f,
+                    queue = c.queue.orEmpty().take(40).map { q ->
+                        QueueEntry(q.queueId, q.description.title?.toString() ?: "—", q.description.subtitle?.toString())
+                    },
+                    queueTitle = c.queueTitle?.toString(),
+                    activeQueueId = st?.activeQueueItemId ?: -1,
                 )
             )
         }
@@ -88,6 +101,7 @@ class MediaRepository(private val ctx: Context) {
         val callback = object : MediaController.Callback() {
             override fun onPlaybackStateChanged(state: PlaybackState?) = publish()
             override fun onMetadataChanged(metadata: MediaMetadata?) = publish()
+            override fun onQueueChanged(queue: MutableList<MediaSession.QueueItem>?) = publish()
             override fun onSessionDestroyed() {
                 current?.unregisterCallback(this); current = null; active = null; publish()
             }
@@ -135,6 +149,8 @@ class MediaRepository(private val ctx: Context) {
             else c.transportControls.play()
         } else key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
     }
+
+    fun playQueueItem(id: Long) { active?.transportControls?.skipToQueueItem(id) }
 
     fun play() { active?.transportControls?.play() ?: key(KeyEvent.KEYCODE_MEDIA_PLAY) }
     fun pause() { active?.transportControls?.pause() ?: key(KeyEvent.KEYCODE_MEDIA_PAUSE) }

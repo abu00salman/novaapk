@@ -88,9 +88,11 @@ import java.util.Locale
 private enum class Section { CAR, APPEARANCE, SHORTCUTS, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
 
 @Composable
-fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, onClose: () -> Unit) {
+fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: String? = null, onClose: () -> Unit) {
     val p = LocalNova.current
-    var section by rememberSaveable { mutableStateOf(Section.CAR) }
+    var section by rememberSaveable(start) {
+        mutableStateOf(when (start) { "vehicle" -> Section.VEHICLE; "shortcuts" -> Section.SHORTCUTS; "appearance" -> Section.APPEARANCE; else -> Section.CAR })
+    }
 
     Box(
         Modifier.fillMaxSize().background(p.bgBottom.copy(alpha = 0.97f))

@@ -115,6 +115,15 @@ class SettingsRepository(ctx: Context) {
         it.copy(favorites = if (key in it.favorites) it.favorites - key else it.favorites + key)
     }
 
+    /** Moves a favorite one step earlier (-1) or later (+1) in the dock/library order. */
+    fun moveFavorite(key: String, delta: Int) = update {
+        val list = it.favorites.toMutableList()
+        val i = list.indexOf(key)
+        val j = i + delta
+        if (i < 0 || j !in list.indices) it
+        else { list.removeAt(i); list.add(j, key); it.copy(favorites = list) }
+    }
+
     fun switchProfile(id: Int) {
         prefs.edit().putInt("profile", id).apply()
         _state.value = load()

@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -15,10 +14,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -39,20 +40,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.abu00salman.novadrive.data.AppEntry
 import com.abu00salman.novadrive.ui.theme.LocalNova
 import com.abu00salman.novadrive.ui.theme.NovaType
 
 /**
- * "Glass" without real-time blur: layered translucent gradients + a lit top edge.
- * Real blur (RenderEffect) is far too expensive for the Mali GPU in the A133.
+ * Glass panel without real-time blur: a translucent navy gradient, a faint diagonal sheen and
+ * a lit hairline edge. Real blur (RenderEffect) is far too expensive for the A133's Mali-G31.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Glass(
     modifier: Modifier = Modifier,
-    corner: Dp = 26.dp,
+    corner: Dp = 24.dp,
     tint: Color? = null,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
@@ -63,8 +63,8 @@ fun Glass(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        if (pressed) 0.955f else 1f,
-        spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium), label = "press"
+        if (pressed) 0.96f else 1f,
+        spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow), label = "press"
     )
     val haptics = LocalHapticFeedback.current
     val clickable = onClick != null || onLongClick != null
@@ -73,15 +73,15 @@ fun Glass(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape)
             .background(
-                if (tint != null) Brush.verticalGradient(listOf(tint.copy(alpha = 0.32f), tint.copy(alpha = 0.14f)))
+                if (tint != null) Brush.verticalGradient(listOf(tint.copy(alpha = 0.34f), tint.copy(alpha = 0.16f)))
                 else Brush.verticalGradient(listOf(p.glassTop, p.glassBottom))
             )
-            .background(Brush.linearGradient(0f to Color.White.copy(alpha = if (p.dark) 0.10f else 0.35f), 0.45f to Color.Transparent, 1f to Color.Transparent))
-            .border(1.dp, Brush.verticalGradient(listOf(p.strokeHi, p.stroke)), shape)
+            .background(Brush.linearGradient(0f to Color.White.copy(alpha = if (p.dark) 0.06f else 0.30f), 0.5f to Color.Transparent))
+            .border(1.dp, Brush.verticalGradient(listOf(if (tint != null) tint.copy(alpha = 0.7f) else p.strokeHi, p.stroke)), shape)
             .then(
                 if (clickable) Modifier.combinedClickable(
                     interactionSource = interaction,
-                    indication = LocalIndication.current,
+                    indication = null,
                     onClick = { onClick?.invoke() },
                     onLongClick = onLongClick?.let { lc -> { haptics.performHapticFeedback(HapticFeedbackType.LongPress); lc() } },
                 ) else Modifier
@@ -126,8 +126,8 @@ fun AppIcon(
 ) {
     val p = LocalNova.current
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Glass(Modifier.size(size), corner = size / 3, onClick = onClick, onLongClick = onLongClick) {
-            Image(app.icon, app.label, Modifier.align(Alignment.Center).size(size * 0.7f))
+        Glass(Modifier.size(size), corner = size * 0.28f, onClick = onClick, onLongClick = onLongClick) {
+            Image(app.icon, app.label, Modifier.align(Alignment.Center).size(size * 0.72f))
             if (starred) Box(
                 Modifier.align(Alignment.TopEnd).padding(7.dp).size(9.dp).clip(CircleShape).background(p.accent)
             )
@@ -141,56 +141,25 @@ fun AppIcon(
 
 @Composable
 fun Pill(text: String, color: Color, modifier: Modifier = Modifier, icon: ImageVector? = null, onClick: (() -> Unit)? = null) {
-    Glass(modifier.height(34.dp), corner = 17.dp, tint = color, onClick = onClick) {
-        androidx.compose.foundation.layout.Row(
+    Glass(modifier.height(36.dp), corner = 18.dp, tint = color, onClick = onClick) {
+        Row(
             Modifier.align(Alignment.Center).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (icon != null) {
-                Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.size(6.dp))
+                Icon(icon, null, tint = color, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(6.dp))
             }
             Text(text, style = NovaType.label, color = LocalNova.current.text, maxLines = 1)
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-/** iOS-style app glyph: gradient squircle, white symbol, lit top edge. */
+/** Round transport / action button with an optional accent fill. */
 @Composable
-fun GlyphTile(
-    icon: ImageVector,
-    label: String,
-    from: Color,
-    to: Color,
-    modifier: Modifier = Modifier,
-    size: Dp = 56.dp,
-    badge: Color? = null,
-    onLongClick: (() -> Unit)? = null,
-    onClick: () -> Unit,
-) {
+fun RoundButton(icon: ImageVector, description: String?, size: Dp, primary: Boolean = false, onClick: () -> Unit) {
     val p = LocalNova.current
-    val shape = RoundedCornerShape(size * 0.30f)
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.90f else 1f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium), label = "glyph")
-    val haptics = LocalHapticFeedback.current
-    Column(modifier.graphicsLayer { scaleX = scale; scaleY = scale }, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.size(size).clip(shape)
-                .background(Brush.linearGradient(listOf(from, to)))
-                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.28f), Color.Transparent), endY = size.value * 2.2f))
-                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.06f))), shape)
-                .combinedClickable(
-                    interactionSource = interaction, indication = null,
-                    onClick = onClick,
-                    onLongClick = onLongClick?.let { lc -> { haptics.performHapticFeedback(HapticFeedbackType.LongPress); lc() } },
-                )
-        ) {
-            Icon(icon, label, tint = Color.White, modifier = Modifier.align(Alignment.Center).size(size * 0.50f))
-            if (badge != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(9.dp).clip(CircleShape).background(badge).border(1.5.dp, Color.White, CircleShape))
-        }
-        Spacer(Modifier.height(5.dp))
-        Text(label, style = NovaType.label.copy(fontSize = 11.sp), color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+    Glass(Modifier.size(size), corner = size / 2, tint = if (primary) p.accent else null, onClick = onClick) {
+        Icon(icon, description, tint = if (primary) Color.White else p.text, modifier = Modifier.align(Alignment.Center).size(size * 0.48f))
     }
 }

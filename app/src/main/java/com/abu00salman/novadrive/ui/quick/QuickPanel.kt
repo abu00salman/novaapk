@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VerticalSplit
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.Brightness4
@@ -53,7 +55,7 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 
 @Composable
-fun QuickPanel(c: AppContainer, s: NovaSettings, onClose: () -> Unit, onSettings: () -> Unit) {
+fun QuickPanel(c: AppContainer, s: NovaSettings, onClose: () -> Unit, onSettings: () -> Unit, onSplit: () -> Unit, onVoice: () -> Unit) {
     val p = LocalNova.current
     val activity = LocalContext.current as? Activity
     var volume by remember { mutableFloatStateOf(c.controls.volume()) }
@@ -108,6 +110,8 @@ fun QuickPanel(c: AppContainer, s: NovaSettings, onClose: () -> Unit, onSettings
                         c.settings.update { it.copy(language = if (it.language == Lang.AR) Lang.EN else Lang.AR) }
                     }
                     IconTile(Icons.Rounded.Settings, tr("System", "النظام")) { c.controls.openSystemSettings() }
+                    IconTile(Icons.Rounded.VerticalSplit, tr("Split", "تقسيم"), onClick = onSplit)
+                    IconTile(Icons.Rounded.Mic, tr("Voice", "صوت"), onClick = onVoice)
                     IconTile(Icons.Rounded.Tune, tr("All settings", "كل الإعدادات"), onClick = onSettings)
                 }
             }

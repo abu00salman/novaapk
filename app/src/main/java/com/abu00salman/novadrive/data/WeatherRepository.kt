@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.data
 
+import android.location.Geocoder
 import android.content.Context
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.CoroutineScope
@@ -13,7 +14,10 @@ import java.net.URL
 import java.util.Locale
 
 @Immutable
-data class Weather(val tempC: Double, val code: Int, val isDay: Boolean, val fetchedAt: Long)
+data class Weather(
+    val tempC: Double, val code: Int, val isDay: Boolean, val fetchedAt: Long,
+    val maxC: Double? = null, val minC: Double? = null,
+)
 
 /** Open-Meteo (no API key). Cached on disk, so it shows instantly and offline. */
 class WeatherRepository(ctx: Context, private val scope: CoroutineScope) {
@@ -21,12 +25,36 @@ class WeatherRepository(ctx: Context, private val scope: CoroutineScope) {
     private val _weather = MutableStateFlow(loadCached())
     val weather: StateFlow<Weather?> = _weather
     @Volatile private var lastAttempt = 0L
+    private val appCtx = ctx.applicationContext
+    private val _city = MutableStateFlow(prefs.getString("city", null))
+    /** Locality name from Android's Geocoder, when the device has a geocoding backend. */
+    val city: StateFlow<String?> = _city
+    private var cityFor: Pair<Double, Double>? = null
+
+    fun maybeResolveCity(lat: Double, lon: Double, arabic: Boolean) {
+        val key = Pair(Math.round(lat * 20) / 20.0, Math.round(lon * 20) / 20.0)
+        if (key == cityFor || !Geocoder.isPresent()) return
+        cityFor = key
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val locale = if (arabic) Locale.forLanguageTag("ar") else Locale.US
+                @Suppress("DEPRECATION")
+                Geocoder(appCtx, locale).getFromLocation(lat, lon, 1)?.firstOrNull()
+                    ?.let { it.locality ?: it.subAdminArea ?: it.adminArea }
+            }.getOrNull()?.let { name ->
+                _city.value = name
+                prefs.edit().putString("city", name).apply()
+            }
+        }
+    }
 
     private fun loadCached(): Weather? {
         if (!prefs.contains("t")) return null
         return Weather(
             prefs.getFloat("t", 0f).toDouble(), prefs.getInt("c", 0),
-            prefs.getBoolean("d", true), prefs.getLong("at", 0L)
+            prefs.getBoolean("d", true), prefs.getLong("at", 0L),
+            prefs.getFloat("hi", Float.NaN).takeIf { !it.isNaN() }?.toDouble(),
+            prefs.getFloat("lo", Float.NaN).takeIf { !it.isNaN() }?.toDouble(),
         )
     }
 
@@ -40,7 +68,7 @@ class WeatherRepository(ctx: Context, private val scope: CoroutineScope) {
                 val url = URL(
                     String.format(
                         Locale.US,
-                        "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f&current=temperature_2m,weather_code,is_day",
+                        "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto",
                         lat, lon
                     )
                 )
@@ -49,10 +77,14 @@ class WeatherRepository(ctx: Context, private val scope: CoroutineScope) {
                 }
                 try {
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val cur = JSONObject(body).getJSONObject("current")
+                    val json = JSONObject(body)
+                    val cur = json.getJSONObject("current")
+                    val daily = json.optJSONObject("daily")
                     Weather(
                         cur.getDouble("temperature_2m"), cur.getInt("weather_code"),
-                        cur.optInt("is_day", 1) == 1, System.currentTimeMillis()
+                        cur.optInt("is_day", 1) == 1, System.currentTimeMillis(),
+                        daily?.optJSONArray("temperature_2m_max")?.optDouble(0)?.takeIf { !it.isNaN() },
+                        daily?.optJSONArray("temperature_2m_min")?.optDouble(0)?.takeIf { !it.isNaN() },
                     )
                 } finally {
                     conn.disconnect()
@@ -60,7 +92,8 @@ class WeatherRepository(ctx: Context, private val scope: CoroutineScope) {
             }.onSuccess { w ->
                 _weather.value = w
                 prefs.edit().putFloat("t", w.tempC.toFloat()).putInt("c", w.code)
-                    .putBoolean("d", w.isDay).putLong("at", w.fetchedAt).apply()
+                    .putBoolean("d", w.isDay).putLong("at", w.fetchedAt)
+                    .putFloat("hi", w.maxC?.toFloat() ?: Float.NaN).putFloat("lo", w.minC?.toFloat() ?: Float.NaN).apply()
             }
         }
     }

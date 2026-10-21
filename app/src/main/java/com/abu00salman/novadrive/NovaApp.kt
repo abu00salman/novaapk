@@ -15,6 +15,9 @@ import com.abu00salman.novadrive.data.LocationRepository
 import com.abu00salman.novadrive.data.MediaInfo
 import com.abu00salman.novadrive.data.MediaRepository
 import com.abu00salman.novadrive.data.ObdClient
+import com.abu00salman.novadrive.data.Link
+import com.abu00salman.novadrive.data.NetState
+import com.abu00salman.novadrive.data.StatusRepository
 import com.abu00salman.novadrive.data.SystemControls
 import com.abu00salman.novadrive.data.WeatherRepository
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +47,7 @@ class NovaApp : Application() {
 /** Lightweight manual DI: everything heavy is lazy so cold start stays fast. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppContainer(private val app: Application) {
+    val appContext: Context get() = app
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val safeMode: Boolean = CrashGuard.isSafeMode(app)
 
@@ -55,6 +59,7 @@ class AppContainer(private val app: Application) {
     val carPlay by lazy { CarPlayDetector(app) }
     val controls by lazy { SystemControls(app) }
     val obd by lazy { ObdClient(app, scope) }
+    val status by lazy { StatusRepository(app) }
 
     /** Emitted when the HOME button is pressed while we are already in front. */
     val homePressed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -91,6 +96,14 @@ class AppContainer(private val app: Application) {
     val mediaInfo: StateFlow<MediaInfo?> by lazy {
         permSignature.flatMapLatest { media.sessions() }
             .stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+    }
+
+    val bluetooth: StateFlow<Link> by lazy {
+        permSignature.flatMapLatest { status.bluetooth() }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), Link.OFF)
+    }
+
+    val network: StateFlow<NetState> by lazy {
+        status.network().stateIn(scope, SharingStarted.WhileSubscribed(5_000), NetState())
     }
 
     val iPhoneConnected: StateFlow<Boolean> by lazy {

@@ -30,6 +30,11 @@ data class VehicleData(
     val speedKmh: Int? = null,
     val coolantC: Int? = null,
     val voltage: Float? = null,
+    val fuelPct: Int? = null,
+    val loadPct: Int? = null,
+    /** Malfunction indicator (check-engine) lamp, from Mode 01 PID 01. */
+    val mil: Boolean? = null,
+    val dtcCount: Int? = null,
     val error: String? = null,
 ) {
     enum class State { OFF, CONNECTING, LIVE, ERROR }
@@ -109,7 +114,15 @@ class ObdClient(private val ctx: Context, private val scope: CoroutineScope) {
             val speed = bytes(command(out, input, "010D"), "0D")?.firstOrNull()
             val coolant = bytes(command(out, input, "0105"), "05")?.firstOrNull()?.minus(40)
             val volt = command(out, input, "ATRV").filter { it.isDigit() || it == '.' }.toFloatOrNull()
-            _data.value = VehicleData(VehicleData.State.LIVE, rpm, speed, coolant, volt)
+            // Optional PIDs: many cars don't report them, in which case they stay null ("unavailable").
+            val fuel = bytes(command(out, input, "012F"), "2F")?.firstOrNull()?.let { it * 100 / 255 }
+            val load = bytes(command(out, input, "0104"), "04")?.firstOrNull()?.let { it * 100 / 255 }
+            val status = bytes(command(out, input, "0101"), "01")?.firstOrNull()
+            _data.value = VehicleData(
+                VehicleData.State.LIVE, rpm, speed, coolant, volt,
+                fuelPct = fuel, loadPct = load,
+                mil = status?.let { it and 0x80 != 0 }, dtcCount = status?.let { it and 0x7F },
+            )
             delay(1_000)
         }
     }

@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.theme
 
+import android.content.Context
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
@@ -9,26 +10,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLayoutDirection
-import android.content.Context
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import com.abu00salman.novadrive.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
+import com.abu00salman.novadrive.R
 
 data class Accent(val color: Color, val second: Color, val en: String, val ar: String)
 
 val Accents = listOf(
-    Accent(Color(0xFF3DDCFF), Color(0xFF7C5CFF), "Nova Cyan", "سماوي نوفا"),
+    Accent(Color(0xFF3D8BFF), Color(0xFF8B5CFF), "Electric Blue", "أزرق كهربائي"),
     Accent(Color(0xFF8F7CFF), Color(0xFFFF5CC8), "Aurora", "شفق"),
-    Accent(Color(0xFF2EF2A0), Color(0xFF3DDCFF), "Electric Mint", "نعناع كهربائي"),
+    Accent(Color(0xFF2EE6C0), Color(0xFF3D8BFF), "Electric Mint", "نعناع كهربائي"),
     Accent(Color(0xFFFF9A3D), Color(0xFFFF4D6D), "Desert Sunset", "غروب الصحراء"),
     Accent(Color(0xFFE8C872), Color(0xFFB98A2E), "Royal Gold", "ذهبي ملكي"),
     Accent(Color(0xFFFF4D6D), Color(0xFFFF9A3D), "Racing Red", "أحمر السباق"),
@@ -48,7 +47,8 @@ data class NovaPalette(
     val accent: Color,
     val accent2: Color,
     val danger: Color = Color(0xFFFF5470),
-    val ok: Color = Color(0xFF2EF2A0),
+    val ok: Color = Color(0xFF34D399),
+    val warn: Color = Color(0xFFFFB547),
 )
 
 val LocalNova = staticCompositionLocalOf {
@@ -63,28 +63,37 @@ val LocalArabic = staticCompositionLocalOf { false }
 fun tr(en: String, ar: String): String = if (LocalArabic.current) ar else en
 
 @Composable
-private fun anim(c: Color) = animateColorAsState(c, tween(700), label = "palette").value
+private fun anim(c: Color) = animateColorAsState(c, tween(250), label = "palette").value
+
+/** Night: deep navy glass. Day: bright frosted panels with navy text for sunlight legibility. */
+fun novaPalette(dark: Boolean, accent: Accent) = NovaPalette(
+    dark = dark,
+    bgTop = if (dark) Color(0xFF0B1534) else Color(0xFFEFF3FB),
+    bgBottom = if (dark) Color(0xFF03060F) else Color(0xFFD5DEEE),
+    glassTop = if (dark) Color(0x33416AC8) else Color(0xF2FFFFFF),
+    glassBottom = if (dark) Color(0x1A16244D) else Color(0xCCFFFFFF),
+    stroke = if (dark) Color(0x1FFFFFFF) else Color(0x1A0B1630),
+    strokeHi = if (dark) Color(0x4D9CC2FF) else Color(0xFFFFFFFF),
+    text = if (dark) Color(0xFFF2F6FF) else Color(0xFF0B1630),
+    textDim = if (dark) Color(0xFF93A3C4) else Color(0xFF4A5878),
+    accent = accent.color,
+    accent2 = accent.second,
+)
 
 @Composable
 fun NovaTheme(dark: Boolean, accentIndex: Int, arabic: Boolean, content: @Composable () -> Unit) {
     NovaFonts.init(LocalContext.current)
-    val accent = Accents.getOrElse(accentIndex) { Accents[0] }
-    val p = NovaPalette(
-        dark = dark,
-        bgTop = anim(if (dark) Color(0xFF10151F) else Color(0xFFF4F6FA)),
-        bgBottom = anim(if (dark) Color(0xFF030509) else Color(0xFFD9E0EC)),
-        glassTop = anim(if (dark) Color(0x2BFFFFFF) else Color(0xD9FFFFFF)),
-        glassBottom = anim(if (dark) Color(0x0FFFFFFF) else Color(0xA6FFFFFF)),
-        stroke = anim(if (dark) Color(0x14FFFFFF) else Color(0x140B1430)),
-        strokeHi = anim(if (dark) Color(0x4DFFFFFF) else Color(0xFFFFFFFF)),
-        text = anim(if (dark) Color(0xFFEFF4FF) else Color(0xFF0B1220)),
-        textDim = anim(if (dark) Color(0xFF8C98B2) else Color(0xFF5B6680)),
-        accent = anim(accent.color),
-        accent2 = anim(accent.second),
+    val target = novaPalette(dark, Accents.getOrElse(accentIndex) { Accents[0] })
+    val p = target.copy(
+        bgTop = anim(target.bgTop), bgBottom = anim(target.bgBottom),
+        glassTop = anim(target.glassTop), glassBottom = anim(target.glassBottom),
+        stroke = anim(target.stroke), strokeHi = anim(target.strokeHi),
+        text = anim(target.text), textDim = anim(target.textDim),
+        accent = anim(target.accent), accent2 = anim(target.accent2),
     )
     val scheme = if (dark) darkColorScheme(
-        primary = p.accent, secondary = p.accent2, background = p.bgBottom, surface = Color(0xFF111827),
-        onPrimary = Color(0xFF02040A), onSurface = p.text, onBackground = p.text,
+        primary = p.accent, secondary = p.accent2, background = p.bgBottom, surface = Color(0xFF0E1630),
+        onPrimary = Color.White, onSurface = p.text, onBackground = p.text,
     ) else lightColorScheme(
         primary = p.accent, secondary = p.accent2, background = p.bgBottom, surface = Color.White,
         onPrimary = Color.White, onSurface = p.text, onBackground = p.text,
@@ -145,10 +154,11 @@ object NovaFonts {
 
 object NovaType {
     private val f get() = NovaFonts.family
-    val hero get() = TextStyle(fontFamily = f, fontSize = 96.sp, fontWeight = FontWeight.Light, letterSpacing = (-3).sp)
-    val display get() = TextStyle(fontFamily = f, fontSize = 44.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1).sp)
-    val title get() = TextStyle(fontFamily = f, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+    val hero get() = TextStyle(fontFamily = f, fontSize = 84.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-2).sp)
+    val display get() = TextStyle(fontFamily = f, fontSize = 40.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.5).sp)
+    val title get() = TextStyle(fontFamily = f, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
     val body get() = TextStyle(fontFamily = f, fontSize = 16.sp, fontWeight = FontWeight.Normal)
-    val label get() = TextStyle(fontFamily = f, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    val label get() = TextStyle(fontFamily = f, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    val small get() = TextStyle(fontFamily = f, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     val caps get() = TextStyle(fontFamily = f, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
 }
