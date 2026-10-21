@@ -96,7 +96,7 @@ class ScreenshotTest {
     private fun art(): Bitmap {
         val src = BitmapFactory.decodeResource(ctx.resources, R.drawable.scenic_road)
         val side = minOf(src.width, src.height)
-        return Bitmap.createScaledBitmap(Bitmap.createBitmap(src, 0, src.height / 6, side, side), 320, 320, true)
+        return Bitmap.createScaledBitmap(Bitmap.createBitmap(src, 0, (src.height - side) / 2, side, side), 320, 320, true)
     }
 
     private fun media(ar: Boolean) = MediaInfo(
