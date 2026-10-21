@@ -60,6 +60,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.abu00salman.novadrive.AppContainer
 import com.abu00salman.novadrive.BuildConfig
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.unit.sp
+import com.abu00salman.novadrive.core.CarBrands
+import com.abu00salman.novadrive.core.CarPaints
+import com.abu00salman.novadrive.core.carBrand
+import com.abu00salman.novadrive.core.carModel
+import com.abu00salman.novadrive.ui.home.drawCar
 import com.abu00salman.novadrive.core.CrashGuard
 import com.abu00salman.novadrive.core.Lang
 import com.abu00salman.novadrive.core.NovaSettings
@@ -78,12 +85,12 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 import java.util.Locale
 
-private enum class Section { APPEARANCE, SHORTCUTS, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
+private enum class Section { CAR, APPEARANCE, SHORTCUTS, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
 
 @Composable
 fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, onClose: () -> Unit) {
     val p = LocalNova.current
-    var section by rememberSaveable { mutableStateOf(Section.APPEARANCE) }
+    var section by rememberSaveable { mutableStateOf(Section.CAR) }
 
     Box(
         Modifier.fillMaxSize().background(p.bgBottom.copy(alpha = 0.97f))
@@ -102,6 +109,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, onClose: 
                 Spacer(Modifier.height(18.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val items = listOf(
+                        Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("My car", "سيارتي")),
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
                         Triple(Section.CARPLAY, Icons.Rounded.PhoneIphone, Pair("CarPlay", "كاربلاي")),
@@ -132,6 +140,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, onClose: 
                     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         item {
                             when (section) {
+                                Section.CAR -> CarSection(c, s)
                                 Section.APPEARANCE -> Appearance(c, s)
                                 Section.SHORTCUTS -> ShortcutsSection(c, s)
                                 Section.CARPLAY -> CarPlaySection(c, s)
@@ -235,6 +244,68 @@ private fun Field(label: String, value: String, onChange: (String) -> Unit) {
 }
 
 // ------------------------------------------------------------------ sections
+
+@Composable
+private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val p = LocalNova.current
+    Glass(Modifier.height(42.dp), corner = 21.dp, tint = if (selected) p.accent else null, onClick = onClick) {
+        Text(text, style = NovaType.label, color = p.text, maxLines = 1, modifier = Modifier.align(Alignment.Center).padding(horizontal = 18.dp))
+    }
+}
+
+@Composable
+private fun CarSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val brand = carBrand(s.carBrand)
+    val model = carModel(s.carBrand, s.carModel)
+    val paint = CarPaints.getOrElse(s.carPaint) { CarPaints[0] }
+    Column {
+        Header(tr("My car", "سيارتي"), tr("Shown on your dashboard.", "تظهر في لوحة القيادة."))
+        Glass(Modifier.fillMaxWidth().height(210.dp), corner = 26.dp) {
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                val w = minOf(size.width * 0.5f, size.height * 0.95f)
+                drawCar(model, paint.color, size.width / 2, size.height * 0.92f, w, p.dark, p.accent)
+            }
+            Text(
+                "${if (ar) brand.ar else brand.en}  ${model.name}  ·  ${if (ar) paint.ar else paint.en}",
+                style = NovaType.label, color = p.textDim, modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
+            )
+        }
+        Gap()
+        Header(tr("Brand", "الشركة"))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(CarBrands.size) { i ->
+                val b = CarBrands[i]
+                Chip(if (ar) b.ar else b.en, b.id == s.carBrand) {
+                    c.settings.update { it.copy(carBrand = b.id, carModel = b.models[0].id) }
+                }
+            }
+        }
+        Gap()
+        Header(tr("Model", "الموديل"))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(brand.models.size) { i ->
+                val m = brand.models[i]
+                Chip(m.name, m.id == model.id) { c.settings.update { it.copy(carModel = m.id) } }
+            }
+        }
+        Gap()
+        Header(tr("Color", "اللون"))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            CarPaints.forEachIndexed { i, cp ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier.size(48.dp).clip(CircleShape).background(cp.color)
+                            .border(if (s.carPaint == i) 3.dp else 1.dp, if (s.carPaint == i) p.accent else p.stroke, CircleShape)
+                            .clickable { c.settings.update { it.copy(carPaint = i) } }
+                    )
+                    Text(tr(cp.en, cp.ar), style = NovaType.label.copy(fontSize = 10.sp), color = p.textDim, maxLines = 1)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun Appearance(c: AppContainer, s: NovaSettings) {

@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.abu00salman.novadrive.data.AppEntry
 import com.abu00salman.novadrive.ui.theme.LocalNova
 import com.abu00salman.novadrive.ui.theme.NovaType
@@ -75,6 +76,7 @@ fun Glass(
                 if (tint != null) Brush.verticalGradient(listOf(tint.copy(alpha = 0.32f), tint.copy(alpha = 0.14f)))
                 else Brush.verticalGradient(listOf(p.glassTop, p.glassBottom))
             )
+            .background(Brush.linearGradient(0f to Color.White.copy(alpha = if (p.dark) 0.10f else 0.35f), 0.45f to Color.Transparent, 1f to Color.Transparent))
             .border(1.dp, Brush.verticalGradient(listOf(p.strokeHi, p.stroke)), shape)
             .then(
                 if (clickable) Modifier.combinedClickable(
@@ -150,5 +152,44 @@ fun Pill(text: String, color: Color, modifier: Modifier = Modifier, icon: ImageV
             }
             Text(text, style = NovaType.label, color = LocalNova.current.text, maxLines = 1)
         }
+    }
+}
+
+/** iOS-style app glyph: gradient squircle, white symbol, lit top edge. */
+@Composable
+fun GlyphTile(
+    icon: ImageVector,
+    label: String,
+    from: Color,
+    to: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 56.dp,
+    badge: Color? = null,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    val p = LocalNova.current
+    val shape = RoundedCornerShape(size * 0.30f)
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.90f else 1f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium), label = "glyph")
+    val haptics = LocalHapticFeedback.current
+    Column(modifier.graphicsLayer { scaleX = scale; scaleY = scale }, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(size).clip(shape)
+                .background(Brush.linearGradient(listOf(from, to)))
+                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.28f), Color.Transparent), endY = size.value * 2.2f))
+                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.06f))), shape)
+                .combinedClickable(
+                    interactionSource = interaction, indication = null,
+                    onClick = onClick,
+                    onLongClick = onLongClick?.let { lc -> { haptics.performHapticFeedback(HapticFeedbackType.LongPress); lc() } },
+                )
+        ) {
+            Icon(icon, label, tint = Color.White, modifier = Modifier.align(Alignment.Center).size(size * 0.50f))
+            if (badge != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(9.dp).clip(CircleShape).background(badge).border(1.5.dp, Color.White, CircleShape))
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(label, style = NovaType.label.copy(fontSize = 11.sp), color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
 }

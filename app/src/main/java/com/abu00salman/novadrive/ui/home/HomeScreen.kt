@@ -4,6 +4,16 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import com.abu00salman.novadrive.core.CarPaints
+import com.abu00salman.novadrive.core.carBrand
+import com.abu00salman.novadrive.core.carModel
+import com.abu00salman.novadrive.ui.components.GlyphTile
+import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -121,141 +131,107 @@ fun HomeScreen(
         }
     }
 
-    Row(Modifier.fillMaxSize().padding(14.dp)) {
-        // ---- Side rail ----
-        Column(
-            Modifier.width(84.dp).fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            BrandMark()
-            IconTile(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), size = 58.dp, onClick = onApps)
-            IconTile(
-                Icons.Rounded.PhoneIphone, "CarPlay", size = 58.dp, active = iPhone,
-                badge = if (iPhone) LocalNova.current.ok else null
-            ) { openApp(sc.carPlay, "CarPlay") }
-            IconTile(Icons.Rounded.Navigation, tr("Navi", "الملاحة"), size = 58.dp) { openApp(sc.nav, if (ar) "الملاحة" else "navigation") }
-            IconTile(Icons.Rounded.Phone, tr("Phone", "الهاتف"), size = 58.dp) {
-                if (sc.phone == null || !c.apps.launch(sc.phone)) c.controls.dial()
-            }
-            IconTile(Icons.Rounded.Mic, tr("Voice", "صوت"), size = 58.dp, onClick = onVoice)
-            IconTile(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), size = 58.dp, onClick = onSettings)
-        }
-        Spacer(Modifier.width(14.dp))
-
-        Column(Modifier.weight(1f).fillMaxHeight()) {
-            Header(settings, iPhone, driving, onQuick)
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.weight(1f).fillMaxWidth()) {
-                Column(Modifier.weight(0.36f).fillMaxHeight()) {
-                    ClockCard(settings.use24h, Modifier.weight(0.40f).fillMaxWidth())
-                    Spacer(Modifier.height(12.dp))
-                    val media by c.mediaInfo.collectAsStateWithLifecycle()
-                    val perms by c.permissions.collectAsStateWithLifecycle()
-                    val access = remember(perms) { MediaRepository.hasAccess(ctx) }
-                    MediaCard(
-                        info = media, hasAccess = access,
-                        onOpenApp = {
-                            val pkg = media?.packageName
-                            if (pkg == null || !c.apps.launchPackage(pkg)) openApp(sc.music, if (ar) "الموسيقى" else "music")
-                        },
-                        onGrantAccess = { c.controls.openNotificationAccess() },
-                        onPrev = c.media::previous, onPlayPause = c.media::playPause, onNext = c.media::next,
-                        modifier = Modifier.weight(0.60f).fillMaxWidth(),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                HeroCard(c, settings, onRequestLocation, Modifier.weight(0.64f).fillMaxHeight())
-            }
-            Spacer(Modifier.height(12.dp))
-            Dock(c, settings, sc, apps, driving, onSplit, ::openApp)
-        }
-    }
-}
-
-@Composable
-private fun BrandMark() {
-    val p = LocalNova.current
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("NOVA", style = NovaType.caps.copy(fontSize = 14.sp, letterSpacing = 4.sp), color = p.accent)
-        Text("DRIVE", style = NovaType.caps.copy(fontSize = 8.sp, letterSpacing = 4.sp), color = p.textDim)
-    }
-}
-
-@Composable
-private fun Header(s: NovaSettings, iPhone: Boolean, driving: Boolean, onQuick: () -> Unit) {
-    val p = LocalNova.current
-    val ar = LocalArabic.current
     val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
     val greet = when {
         hour < 12 -> if (ar) "صباح الخير" else "Good morning"
         hour < 17 -> if (ar) "مساء الخير" else "Good afternoon"
         else -> if (ar) "مساء الخير" else "Good evening"
-    }
-    Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("$greet، ${s.profileName}".let { if (ar) it else it.replace("،", ",") },
-            style = NovaType.title, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        Spacer(Modifier.width(14.dp))
-        AnimatedVisibility(iPhone, enter = fadeIn(), exit = fadeOut()) {
-            Pill(tr("iPhone connected", "الآيفون متصل"), p.ok, icon = Icons.Rounded.PhoneIphone, modifier = Modifier.padding(end = 8.dp))
+    }.let { "$it${if (ar) "، " else ", "}${settings.profileName}" }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+            Stage(c, settings, iPhone, driving, onRequestLocation, onQuick, Modifier.weight(0.60f).fillMaxHeight())
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(0.40f).fillMaxHeight()) {
+                ClockCard(settings.use24h, greet, Modifier.weight(0.38f).fillMaxWidth())
+                Spacer(Modifier.height(14.dp))
+                val media by c.mediaInfo.collectAsStateWithLifecycle()
+                val perms by c.permissions.collectAsStateWithLifecycle()
+                val access = remember(perms) { MediaRepository.hasAccess(ctx) }
+                MediaCard(
+                    info = media, hasAccess = access,
+                    onOpenApp = {
+                        val pkg = media?.packageName
+                        if (pkg == null || !c.apps.launchPackage(pkg)) openApp(sc.music, if (ar) "الموسيقى" else "music")
+                    },
+                    onGrantAccess = { c.controls.openNotificationAccess() },
+                    onPrev = c.media::previous, onPlayPause = c.media::playPause, onNext = c.media::next,
+                    modifier = Modifier.weight(0.62f).fillMaxWidth(),
+                )
+            }
         }
-        AnimatedVisibility(driving, enter = fadeIn(), exit = fadeOut()) {
-            Pill(tr("Driving mode", "وضع القيادة"), p.accent, icon = Icons.Rounded.DirectionsCar)
-        }
-        Spacer(Modifier.weight(1f))
-        Glass(Modifier.size(40.dp), corner = 14.dp, onClick = onQuick) {
-            androidx.compose.material3.Icon(Icons.Rounded.Tune, tr("Quick settings", "الإعدادات السريعة"), tint = p.text, modifier = Modifier.align(Alignment.Center).size(22.dp))
-        }
+        Spacer(Modifier.height(14.dp))
+        Dock(c, settings, sc, apps, iPhone, driving, onApps, onSettings, onQuick, onSplit, onVoice, ::openApp)
     }
 }
 
+/** The driving scene: chosen car on a live road, real GPS speed, weather and quick destinations. */
 @Composable
-private fun HeroCard(c: AppContainer, s: NovaSettings, onRequestLocation: () -> Unit, modifier: Modifier) {
+private fun Stage(
+    c: AppContainer, s: NovaSettings, iPhone: Boolean, driving: Boolean,
+    onRequestLocation: () -> Unit, onQuick: () -> Unit, modifier: Modifier,
+) {
     val p = LocalNova.current
+    val ar = LocalArabic.current
     val fix by c.fix.collectAsStateWithLifecycle()
     val weather by c.weather.weather.collectAsStateWithLifecycle()
     val vehicle by c.obd.data.collectAsStateWithLifecycle()
     val hasLocation = remember(c.permissions.collectAsStateWithLifecycle().value) { c.location.hasPermission() }
     val speed = fix?.speedKmh ?: 0f
+    val brand = carBrand(s.carBrand)
+    val model = carModel(s.carBrand, s.carModel)
+    val paint = CarPaints.getOrElse(s.carPaint) { CarPaints[0] }
+    val shape = RoundedCornerShape(36.dp)
 
-    Glass(modifier) {
-        HorizonCanvas(speed, Modifier.fillMaxSize())
-        // Speed
-        Row(Modifier.align(Alignment.TopStart).padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
-                SpeedArc(speed, Modifier.fillMaxSize())
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (fix?.fromGps == true || speed > 0f) "${speed.toInt()}" else "--", style = NovaType.display.copy(fontSize = 52.sp), color = p.text)
-                    Text(tr("km/h", "كم/س"), style = NovaType.label, color = p.textDim)
-                }
-            }
+    Box(
+        modifier.clip(shape)
+            .background(Brush.verticalGradient(listOf(p.glassTop.copy(alpha = p.glassTop.alpha * 0.55f), p.glassBottom.copy(alpha = p.glassBottom.alpha * 0.4f))))
+            .border(1.dp, Brush.verticalGradient(listOf(p.strokeHi, p.stroke)), shape)
+    ) {
+        HorizonCanvas(speed, model, paint.color, Modifier.fillMaxSize())
+
+        // Speed — the one big number
+        Column(Modifier.align(Alignment.TopStart).padding(start = 28.dp, top = 18.dp)) {
+            Text(if (fix?.fromGps == true || speed > 0f) "${speed.toInt()}" else "0", style = NovaType.hero, color = p.text)
+            Text(tr("km/h", "كم/س"), style = NovaType.label, color = p.textDim, modifier = Modifier.padding(start = 4.dp))
         }
-        // GPS status
-        Box(Modifier.align(Alignment.TopCenter).padding(top = 18.dp)) {
-            when {
-                !hasLocation -> Pill(tr("Enable GPS", "فعّل الموقع"), p.danger, icon = Icons.Rounded.GpsNotFixed, onClick = onRequestLocation)
-                fix?.fromGps != true -> Pill(tr("Searching GPS…", "جارٍ البحث عن GPS…"), p.textDim, icon = Icons.Rounded.GpsNotFixed)
-                else -> {}
+        // Car identity + status
+        Column(Modifier.align(Alignment.TopCenter).padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "${if (ar) brand.ar else brand.en}  ${model.name}".uppercase(Locale.ROOT).let { if (ar) "${brand.ar}  ${model.name}" else it },
+                style = NovaType.caps, color = p.textDim, maxLines = 1
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                when {
+                    !hasLocation -> Pill(tr("Enable GPS", "فعّل الموقع"), p.danger, icon = Icons.Rounded.GpsNotFixed, onClick = onRequestLocation)
+                    fix?.fromGps != true -> Pill(tr("Searching GPS…", "جارٍ البحث عن GPS…"), p.textDim, icon = Icons.Rounded.GpsNotFixed)
+                }
+                AnimatedVisibility(iPhone, enter = fadeIn(), exit = fadeOut()) {
+                    Pill(tr("iPhone connected", "الآيفون متصل"), p.ok, icon = Icons.Rounded.PhoneIphone)
+                }
+                AnimatedVisibility(driving, enter = fadeIn(), exit = fadeOut()) {
+                    Pill(tr("Driving", "قيادة"), p.accent, icon = Icons.Rounded.DirectionsCar)
+                }
             }
         }
         // Weather
         val w = weather
-        if (s.showWeather && w != null) WeatherBadge(w, Modifier.align(Alignment.TopEnd).padding(22.dp))
-        else if (fix?.fromGps == true) Box(Modifier.align(Alignment.TopEnd).padding(22.dp)) {
-            androidx.compose.material3.Icon(Icons.Rounded.GpsFixed, null, tint = p.ok)
-        }
+        if (s.showWeather && w != null) WeatherBadge(w, Modifier.align(Alignment.TopEnd).padding(end = 26.dp, top = 22.dp))
         // Quick destinations
-        Row(Modifier.align(Alignment.BottomStart).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.align(Alignment.BottomStart).padding(18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             val navPkg = s.navPackage ?: c.apps.guess(AppsRepository.NAV_PKGS, AppsRepository.NAV_KEYS)?.packageName
             if (s.homeAddress.isNotBlank()) Pill(tr("Home", "البيت"), p.accent, icon = Icons.Rounded.Home) { c.controls.navigateTo(s.homeAddress, navPkg) }
             if (s.workAddress.isNotBlank()) Pill(tr("Work", "العمل"), p.accent2, icon = Icons.Rounded.Work) { c.controls.navigateTo(s.workAddress, navPkg) }
         }
-        // Vehicle (OBD) — only when enabled and active
         if (s.obdEnabled && vehicle.state != VehicleData.State.OFF) {
-            VehicleStrip(vehicle, Modifier.align(Alignment.BottomEnd).padding(16.dp))
+            VehicleStrip(vehicle, Modifier.align(Alignment.BottomEnd).padding(18.dp))
         }
     }
 }
+
+private val Gray1 = Color(0xFF9AA5BD)
+private val Gray2 = Color(0xFF5A6580)
 
 @Composable
 private fun Dock(
@@ -263,30 +239,43 @@ private fun Dock(
     s: NovaSettings,
     sc: Shortcuts,
     apps: List<AppEntry>,
+    iPhone: Boolean,
     driving: Boolean,
+    onApps: () -> Unit,
+    onSettings: () -> Unit,
+    onQuick: () -> Unit,
     onSplit: () -> Unit,
+    onVoice: () -> Unit,
     openApp: (AppEntry?, String) -> Unit,
 ) {
     val p = LocalNova.current
     val ctx = LocalContext.current
     val ar = s.arabic
     val favorites = remember(s.favorites, apps) { s.favorites.mapNotNull { k -> apps.firstOrNull { it.key == k } } }
-    Glass(Modifier.fillMaxWidth().height(92.dp), corner = 30.dp) {
+    val gap = Modifier.padding(horizontal = 7.dp)
+    Glass(Modifier.fillMaxWidth().height(100.dp), corner = 34.dp) {
         Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            DockAction(Icons.Rounded.MusicNote, tr("Music", "موسيقى")) { openApp(sc.music, if (ar) "الموسيقى" else "music") }
-            DockAction(Icons.Rounded.Radio, tr("Radio", "راديو")) { openApp(sc.radio, if (ar) "الراديو" else "radio") }
-            DockAction(Icons.Rounded.VerticalSplit, tr("Split", "تقسيم"), onSplit)
-            Box(Modifier.padding(horizontal = 10.dp).width(1.dp).height(48.dp).background(p.stroke))
+            GlyphTile(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), Gray1, Gray2, gap, onClick = onApps)
+            GlyphTile(Icons.Rounded.PhoneIphone, "CarPlay", Color(0xFF3EE08F), Color(0xFF089A5B), gap, badge = if (iPhone) p.ok else null) { openApp(sc.carPlay, "CarPlay") }
+            GlyphTile(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), Color(0xFF5BA8FF), Color(0xFF1F55E0), gap) { openApp(sc.nav, if (ar) "الملاحة" else "navigation") }
+            GlyphTile(Icons.Rounded.Phone, tr("Phone", "الهاتف"), Color(0xFF55E07A), Color(0xFF16A34A), gap) {
+                if (sc.phone == null || !c.apps.launch(sc.phone)) c.controls.dial()
+            }
+            GlyphTile(Icons.Rounded.MusicNote, tr("Music", "موسيقى"), Color(0xFFFF6B88), Color(0xFFE11D48), gap) { openApp(sc.music, if (ar) "الموسيقى" else "music") }
+            GlyphTile(Icons.Rounded.Radio, tr("Radio", "راديو"), Color(0xFFFFB84D), Color(0xFFF2680F), gap) { openApp(sc.radio, if (ar) "الراديو" else "radio") }
+            GlyphTile(Icons.Rounded.VerticalSplit, tr("Split", "تقسيم"), Color(0xFF9A8BFF), Color(0xFF5B3DF5), gap, onClick = onSplit)
+            GlyphTile(Icons.Rounded.Mic, tr("Voice", "صوت"), Color(0xFFC07BFF), Color(0xFF7C3AED), gap, onClick = onVoice)
+            Box(Modifier.padding(horizontal = 8.dp).width(1.dp).height(52.dp).background(p.stroke))
             if (favorites.isEmpty()) {
                 Text(
                     tr("Long-press any app in the library to pin it here", "اضغط مطولاً على أي تطبيق لتثبيته هنا"),
-                    style = NovaType.label, color = p.textDim, modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                    style = NovaType.label, color = p.textDim, modifier = Modifier.weight(1f).padding(horizontal = 8.dp), maxLines = 2
                 )
             } else {
                 LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     items(favorites, key = { it.key }) { app ->
                         AppIcon(
-                            app, size = 58.dp, showLabel = false,
+                            app, size = 56.dp, showLabel = false,
                             onLongClick = {
                                 if (driving) toast(ctx, if (ar) "متاح عند التوقف" else "Available when parked")
                                 else c.settings.toggleFavorite(app.key)
@@ -295,11 +284,9 @@ private fun Dock(
                     }
                 }
             }
+            Box(Modifier.padding(horizontal = 8.dp).width(1.dp).height(52.dp).background(p.stroke))
+            GlyphTile(Icons.Rounded.Tune, tr("Quick", "سريع"), Gray1, Gray2, gap, onClick = onQuick)
+            GlyphTile(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), Gray1, Gray2, gap, onClick = onSettings)
         }
     }
-}
-
-@Composable
-private fun DockAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    IconTile(icon, label, size = 52.dp, modifier = Modifier.padding(horizontal = 5.dp), onClick = onClick)
 }

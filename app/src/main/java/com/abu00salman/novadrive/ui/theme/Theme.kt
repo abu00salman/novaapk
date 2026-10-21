@@ -13,7 +13,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import com.abu00salman.novadrive.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
@@ -62,15 +67,16 @@ private fun anim(c: Color) = animateColorAsState(c, tween(700), label = "palette
 
 @Composable
 fun NovaTheme(dark: Boolean, accentIndex: Int, arabic: Boolean, content: @Composable () -> Unit) {
+    NovaFonts.init(LocalContext.current)
     val accent = Accents.getOrElse(accentIndex) { Accents[0] }
     val p = NovaPalette(
         dark = dark,
-        bgTop = anim(if (dark) Color(0xFF0A1022) else Color(0xFFF3F6FC)),
-        bgBottom = anim(if (dark) Color(0xFF020308) else Color(0xFFDCE4F1)),
-        glassTop = anim(if (dark) Color(0x1FFFFFFF) else Color(0xCCFFFFFF)),
-        glassBottom = anim(if (dark) Color(0x0AFFFFFF) else Color(0x99FFFFFF)),
+        bgTop = anim(if (dark) Color(0xFF10151F) else Color(0xFFF4F6FA)),
+        bgBottom = anim(if (dark) Color(0xFF030509) else Color(0xFFD9E0EC)),
+        glassTop = anim(if (dark) Color(0x2BFFFFFF) else Color(0xD9FFFFFF)),
+        glassBottom = anim(if (dark) Color(0x0FFFFFFF) else Color(0xA6FFFFFF)),
         stroke = anim(if (dark) Color(0x14FFFFFF) else Color(0x140B1430)),
-        strokeHi = anim(if (dark) Color(0x33FFFFFF) else Color(0xFFFFFFFF)),
+        strokeHi = anim(if (dark) Color(0x4DFFFFFF) else Color(0xFFFFFFFF)),
         text = anim(if (dark) Color(0xFFEFF4FF) else Color(0xFF0B1220)),
         textDim = anim(if (dark) Color(0xFF8C98B2) else Color(0xFF5B6680)),
         accent = anim(accent.color),
@@ -92,11 +98,57 @@ fun NovaTheme(dark: Boolean, accentIndex: Int, arabic: Boolean, content: @Compos
     }
 }
 
+/**
+ * Typeface: Thmanyah (Sans) when its .ttf files are placed in app/src/main/assets/fonts/,
+ * otherwise IBM Plex Sans Arabic (bundled, OFL).
+ */
+object NovaFonts {
+    var family: FontFamily = FontFamily.Default
+        private set
+    private var ready = false
+
+    fun init(ctx: Context) {
+        if (ready) return
+        ready = true
+        family = runCatching { thmanyah(ctx) }.getOrNull() ?: plex()
+    }
+
+    private fun plex() = FontFamily(
+        Font(R.font.plex_light, FontWeight.Light),
+        Font(R.font.plex_regular, FontWeight.Normal),
+        Font(R.font.plex_medium, FontWeight.Medium),
+        Font(R.font.plex_semibold, FontWeight.SemiBold),
+        Font(R.font.plex_bold, FontWeight.Bold),
+    )
+
+    private fun thmanyah(ctx: Context): FontFamily? {
+        val files = ctx.assets.list("fonts")?.filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
+            ?.filter { it.contains("thmanyah", true) || it.contains("ثمانية") } ?: return null
+        if (files.isEmpty()) return null
+        val sans = files.filter { it.contains("sans", true) }.ifEmpty { files }
+        fun weight(n: String): FontWeight = n.lowercase().let {
+            when {
+                "thin" in it -> FontWeight.Thin
+                "extralight" in it || "ultralight" in it -> FontWeight.ExtraLight
+                "light" in it -> FontWeight.Light
+                "medium" in it -> FontWeight.Medium
+                "semibold" in it || "demibold" in it -> FontWeight.SemiBold
+                "extrabold" in it -> FontWeight.ExtraBold
+                "black" in it || "heavy" in it -> FontWeight.Black
+                "bold" in it -> FontWeight.Bold
+                else -> FontWeight.Normal
+            }
+        }
+        return FontFamily(sans.map { Font("fonts/$it", ctx.assets, weight(it)) })
+    }
+}
+
 object NovaType {
-    val hero = TextStyle(fontSize = 84.sp, fontWeight = FontWeight.Black, letterSpacing = (-2).sp)
-    val display = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.Bold, letterSpacing = (-1).sp)
-    val title = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-    val body = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium)
-    val label = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp)
-    val caps = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+    private val f get() = NovaFonts.family
+    val hero get() = TextStyle(fontFamily = f, fontSize = 96.sp, fontWeight = FontWeight.Light, letterSpacing = (-3).sp)
+    val display get() = TextStyle(fontFamily = f, fontSize = 44.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1).sp)
+    val title get() = TextStyle(fontFamily = f, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+    val body get() = TextStyle(fontFamily = f, fontSize = 16.sp, fontWeight = FontWeight.Normal)
+    val label get() = TextStyle(fontFamily = f, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    val caps get() = TextStyle(fontFamily = f, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
 }

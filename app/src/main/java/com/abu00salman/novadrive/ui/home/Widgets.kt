@@ -51,11 +51,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import com.abu00salman.novadrive.data.MediaInfo
 import com.abu00salman.novadrive.data.VehicleData
 import com.abu00salman.novadrive.data.Weather
@@ -76,7 +77,7 @@ fun uiLocale(arabic: Boolean): Locale =
     if (arabic) Locale.forLanguageTag("ar-SA-u-nu-latn") else Locale.US
 
 @Composable
-fun ClockCard(use24h: Boolean, modifier: Modifier = Modifier) {
+fun ClockCard(use24h: Boolean, greeting: String, modifier: Modifier = Modifier) {
     val p = LocalNova.current
     val ar = LocalArabic.current
     val now by produceState(System.currentTimeMillis()) {
@@ -89,43 +90,19 @@ fun ClockCard(use24h: Boolean, modifier: Modifier = Modifier) {
     cal.timeInMillis = now
     val pm = cal.get(Calendar.AM_PM) == Calendar.PM
 
-    Glass(modifier) {
-        Row(Modifier.fillMaxSize().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            AnalogClock(cal, Modifier.fillMaxHeight().aspectRatio(1f))
-            Spacer(Modifier.width(18.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(timeFmt.format(Date(now)), style = NovaType.display, color = p.text, maxLines = 1)
-                    if (!use24h) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (ar) (if (pm) "م" else "ص") else (if (pm) "PM" else "AM"),
-                            style = NovaType.title, color = p.accent, modifier = Modifier.padding(bottom = 8.dp))
-                    }
+    Glass(modifier, corner = 30.dp) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 14.dp), verticalArrangement = Arrangement.Center) {
+            Text(greeting, style = NovaType.label, color = p.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(timeFmt.format(Date(now)), style = NovaType.display.copy(fontSize = 64.sp, fontWeight = FontWeight.Light, letterSpacing = (-2).sp), color = p.text, maxLines = 1)
+                if (!use24h) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (ar) (if (pm) "م" else "ص") else (if (pm) "PM" else "AM"),
+                        style = NovaType.title, color = p.textDim, modifier = Modifier.padding(bottom = 14.dp))
                 }
-                Text(dateFmt.format(Date(now)), style = NovaType.body, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            Text(dateFmt.format(Date(now)), style = NovaType.body, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-    }
-}
-
-@Composable
-private fun AnalogClock(cal: Calendar, modifier: Modifier) {
-    val p = LocalNova.current
-    val h = cal.get(Calendar.HOUR) + cal.get(Calendar.MINUTE) / 60f
-    val m = cal.get(Calendar.MINUTE) + cal.get(Calendar.SECOND) / 60f
-    val s = cal.get(Calendar.SECOND).toFloat()
-    Canvas(modifier) {
-        val r = size.minDimension / 2
-        val c = center
-        drawCircle(Brush.radialGradient(listOf(p.accent.copy(alpha = 0.18f), p.accent.copy(alpha = 0f)), c, r), r, c)
-        drawCircle(p.text.copy(alpha = 0.12f), r - 2f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-        for (i in 0 until 12) rotate(i * 30f, c) {
-            drawLine(p.text.copy(alpha = if (i % 3 == 0) 0.7f else 0.25f), Offset(c.x, c.y - r + 6f), Offset(c.x, c.y - r + if (i % 3 == 0) 16f else 11f), 3f, StrokeCap.Round)
-        }
-        rotate(h * 30f, c) { drawLine(p.text, c, Offset(c.x, c.y - r * 0.48f), 7f, StrokeCap.Round) }
-        rotate(m * 6f, c) { drawLine(p.text.copy(alpha = 0.85f), c, Offset(c.x, c.y - r * 0.72f), 4.5f, StrokeCap.Round) }
-        rotate(s * 6f, c) { drawLine(p.accent, Offset(c.x, c.y + r * 0.12f), Offset(c.x, c.y - r * 0.80f), 2.5f, StrokeCap.Round) }
-        drawCircle(p.accent, 5f, c)
     }
 }
 
@@ -141,10 +118,10 @@ fun MediaCard(
     modifier: Modifier = Modifier,
 ) {
     val p = LocalNova.current
-    Glass(modifier) {
-        Column(Modifier.fillMaxSize().padding(18.dp)) {
+    Glass(modifier, corner = 30.dp) {
+        Column(Modifier.fillMaxSize().padding(20.dp)) {
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                Glass(Modifier.fillMaxHeight().aspectRatio(1f), corner = 18.dp, onClick = onOpenApp) {
+                Glass(Modifier.fillMaxHeight().aspectRatio(1f), corner = 22.dp, onClick = onOpenApp) {
                     val art = info?.art
                     if (art != null) Image(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     else Box(
@@ -153,7 +130,7 @@ fun MediaCard(
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(tr("NOW PLAYING", "يُشغَّل الآن"), style = NovaType.caps, color = p.accent)
+                    Text(tr("Now playing", "يُشغَّل الآن"), style = NovaType.label, color = p.accent)
                     Spacer(Modifier.height(4.dp))
                     AnimatedContent(info?.title ?: "", transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }, label = "title") { t ->
                         Text(t.ifEmpty { tr("Nothing playing", "لا يوجد تشغيل") }, style = NovaType.title, color = p.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -229,7 +206,7 @@ fun WeatherBadge(w: Weather, modifier: Modifier = Modifier) {
         Icon(weatherIcon(w), null, tint = p.accent, modifier = Modifier.size(34.dp))
         Spacer(Modifier.width(10.dp))
         Column {
-            Text("${Math.round(w.tempC)}°", style = NovaType.display, color = p.text)
+            Text("${Math.round(w.tempC)}°", style = NovaType.display.copy(fontWeight = FontWeight.Light), color = p.text)
             Text(WeatherRepository.label(w.code, ar), style = NovaType.label, color = p.textDim)
         }
     }

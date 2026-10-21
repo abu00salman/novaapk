@@ -29,6 +29,9 @@ data class NovaSettings(
     val workAddress: String = "",
     val obdEnabled: Boolean = false,
     val obdAddress: String? = null,
+    val carBrand: String = "hyundai",
+    val carModel: String = "sonata19",
+    val carPaint: Int = 0,
 ) {
     val profileName: String get() = profileNames.getOrElse(profileId) { "Driver" }
     val arabic: Boolean get() = language == Lang.AR
@@ -68,6 +71,9 @@ class SettingsRepository(ctx: Context) {
             workAddress = s("work") ?: "",
             obdEnabled = b("obd", false),
             obdAddress = s("obdAddr"),
+            carBrand = s("carBrand") ?: "hyundai",
+            carModel = s("carModel") ?: "sonata19",
+            carPaint = prefs.getInt(k(p, "carPaint"), 0),
         )
     }
 
@@ -93,6 +99,9 @@ class SettingsRepository(ctx: Context) {
             .putString(k(p, "work"), n.workAddress)
             .putBoolean(k(p, "obd"), n.obdEnabled)
             .putString(k(p, "obdAddr"), n.obdAddress)
+            .putString(k(p, "carBrand"), n.carBrand)
+            .putString(k(p, "carModel"), n.carModel)
+            .putInt(k(p, "carPaint"), n.carPaint)
             .apply()
     }
 
