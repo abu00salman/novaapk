@@ -51,6 +51,18 @@ jobs:
           name: NovaDrive-APK-debug
           path: app/build/outputs/apk/debug/*.apk
 
+      - name: Publish APK to the apk branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/apk/NovaDrive.apk"
+          cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/apk/NovaDrive-debug.apk"
+          cd "$RUNNER_TEMP/apk"
+          git init -q -b apk
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" add .
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -qm "APK for ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" apk
+
       - name: Attach APK to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2

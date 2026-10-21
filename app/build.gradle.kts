@@ -54,6 +54,12 @@ android {
     testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
+// Screenshot tests write PNGs Gradle doesn't track, so never skip or restore them from cache.
+tasks.withType<Test>().configureEach {
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
