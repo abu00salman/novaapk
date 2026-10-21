@@ -136,23 +136,23 @@ fun WeatherCard(weather: Weather?, city: String?, enabled: Boolean, modifier: Mo
             }
             return@Glass
         }
-        Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(weatherIcon(weather), null, tint = weatherTint(weather), modifier = Modifier.size(44.dp))
+                Icon(weatherIcon(weather), null, tint = weatherTint(weather), modifier = Modifier.size(40.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("${Math.round(weather.tempC)}°", style = NovaType.display.copy(fontSize = 42.sp), color = p.text, maxLines = 1)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(city ?: WeatherRepository.label(weather.code, ar), style = NovaType.title.copy(fontSize = 17.sp), color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (city != null) Text(WeatherRepository.label(weather.code, ar), style = NovaType.small, color = p.textDim, maxLines = 1)
-                }
+                Text("${Math.round(weather.tempC)}°", style = NovaType.display.copy(fontSize = 40.sp), color = p.text, maxLines = 1)
             }
+            Text(
+                listOfNotNull(city, WeatherRepository.label(weather.code, ar)).joinToString(" · "),
+                style = NovaType.label, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
             if (weather.maxC != null && weather.minC != null) {
-                Box(Modifier.clip(RoundedCornerShape(12.dp)).background(p.text.copy(alpha = 0.07f)).padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    Text(
-                        tr("High ", "العظمى ") + "${Math.round(weather.maxC)}°   |   " + tr("Low ", "الصغرى ") + "${Math.round(weather.minC)}°",
-                        style = NovaType.small.copy(fontSize = 13.sp), color = p.textDim, maxLines = 1
-                    )
+                Row(
+                    Modifier.clip(RoundedCornerShape(12.dp)).background(p.text.copy(alpha = 0.07f)).padding(horizontal = 10.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(tr("High", "العظمى") + " ${Math.round(weather.maxC)}°", style = NovaType.small, color = p.textDim, maxLines = 1)
+                    Text(tr("Low", "الصغرى") + " ${Math.round(weather.minC)}°", style = NovaType.small, color = p.textDim, maxLines = 1)
                 }
             }
         }

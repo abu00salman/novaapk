@@ -48,7 +48,9 @@ import com.abu00salman.novadrive.data.MediaInfo
 import com.abu00salman.novadrive.data.NavInfo
 import com.abu00salman.novadrive.data.VehicleData
 import com.abu00salman.novadrive.data.Weather
+import com.abu00salman.novadrive.ui.components.FixedLtr
 import com.abu00salman.novadrive.ui.components.Glass
+import com.abu00salman.novadrive.ui.components.UiDirection
 import com.abu00salman.novadrive.ui.components.Pill
 import com.abu00salman.novadrive.ui.theme.LocalNova
 import com.abu00salman.novadrive.ui.theme.NovaType
@@ -107,36 +109,36 @@ class DashActions(
 
 /** Home dashboard: speed · scenic guidance · weather/clock/media, over the app dock. */
 @Composable
-fun Dashboard(ui: DashUi, act: DashActions, modifier: Modifier = Modifier) {
+fun Dashboard(ui: DashUi, act: DashActions, modifier: Modifier = Modifier) = FixedLtr {
     Column(modifier.fillMaxSize()) {
         Row(Modifier.weight(1f).fillMaxWidth()) {
-            SpeedPanel(ui, act, Modifier.weight(0.29f).fillMaxHeight())
+            Box(Modifier.weight(0.29f).fillMaxHeight()) { UiDirection { SpeedPanel(ui, act, Modifier.fillMaxSize()) } }
             Spacer(Modifier.width(12.dp))
             Box(Modifier.weight(0.37f).fillMaxHeight().clip(RoundedCornerShape(24.dp))
                 .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.25f), Color.White.copy(alpha = 0.04f))), RoundedCornerShape(24.dp))
             ) {
                 ScenicBackdrop(Modifier.fillMaxSize())
-                NavCard(
+                UiDirection { NavCard(
                     ui.nav, ui.notificationAccess, ui.navAppLabel, ui.homeSet, ui.workSet,
                     onCard = act.onNavCard, onOpenNav = act.onOpenNav, onGrantAccess = act.onGrantAccess,
                     onHome = act.onHome, onWork = act.onWork,
                     modifier = Modifier.align(Alignment.TopCenter).padding(14.dp).fillMaxWidth(),
-                )
+                ) }
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(0.34f).fillMaxHeight()) {
                 Row(Modifier.fillMaxWidth().weight(0.36f)) {
-                    WeatherCard(ui.weather, ui.city, ui.showWeather, Modifier.weight(0.52f).fillMaxHeight())
+                    Box(Modifier.weight(0.56f).fillMaxHeight()) { UiDirection { WeatherCard(ui.weather, ui.city, ui.showWeather, Modifier.fillMaxSize()) } }
                     Spacer(Modifier.width(12.dp))
-                    ClockCard(ui.use24h, Modifier.weight(0.48f).fillMaxHeight())
+                    Box(Modifier.weight(0.44f).fillMaxHeight()) { UiDirection { ClockCard(ui.use24h, Modifier.fillMaxSize()) } }
                 }
                 Spacer(Modifier.height(12.dp))
-                MediaCard(
+                Box(Modifier.weight(0.64f).fillMaxWidth()) { UiDirection { MediaCard(
                     ui.media, ui.notificationAccess,
                     onOpenApp = act.onOpenMedia, onGrantAccess = act.onGrantAccess,
                     onPrev = act.onPrev, onPlayPause = act.onPlayPause, onNext = act.onNext,
-                    modifier = Modifier.weight(0.64f).fillMaxWidth(),
-                )
+                    modifier = Modifier.fillMaxSize(),
+                ) } }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -156,16 +158,12 @@ private fun SpeedPanel(ui: DashUi, act: DashActions, modifier: Modifier) {
                 Box(Modifier.size(dial), contentAlignment = Alignment.Center) {
                     Speedometer(ui.speedKmh ?: 0f, ui.car, ui.paint, Modifier.fillMaxSize())
                     Column(Modifier.offset(y = -dial * 0.10f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            ui.speedKmh?.toInt()?.toString() ?: "--",
+                        if (ui.hasLocation) Text(
+                            ui.speedKmh?.toInt()?.toString() ?: "0",
                             style = NovaType.hero.copy(fontSize = (dial.value * 0.25f).sp), color = p.text, maxLines = 1
-                        )
+                        ) else Pill(tr("Enable GPS", "فعّل الموقع"), p.danger, icon = Icons.Rounded.GpsNotFixed, onClick = act.onEnableLocation)
                         Text("km/h", style = NovaType.title.copy(fontWeight = FontWeight.Medium), color = p.textDim)
                     }
-                    if (!ui.hasLocation) Pill(
-                        tr("Enable GPS", "فعّل الموقع"), p.danger, icon = Icons.Rounded.GpsNotFixed,
-                        modifier = Modifier.align(Alignment.TopCenter).padding(top = dial * 0.18f), onClick = act.onEnableLocation
-                    )
                 }
             }
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = act.onVehicle).padding(vertical = 4.dp)) {
@@ -203,7 +201,7 @@ private fun Metric(icon: ImageVector, value: String, label: String, modifier: Mo
 @Composable
 fun Dock(slots: List<DockSlot>, act: DashActions, modifier: Modifier = Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        slots.forEach { s -> DockTile(s, { act.onDock(s) }, { act.onDockLong(s) }, Modifier.weight(1f).fillMaxHeight()) }
+        slots.forEach { s -> Box(Modifier.weight(1f).fillMaxHeight()) { UiDirection { DockTile(s, { act.onDock(s) }, { act.onDockLong(s) }, Modifier.fillMaxSize()) } } }
     }
 }
 
