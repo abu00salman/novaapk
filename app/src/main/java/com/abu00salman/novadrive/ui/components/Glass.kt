@@ -155,6 +155,7 @@ fun Pill(text: String, color: Color, modifier: Modifier = Modifier, icon: ImageV
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 /** iOS-style app glyph: gradient squircle, white symbol, lit top edge. */
 @Composable
 fun GlyphTile(

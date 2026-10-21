@@ -47,7 +47,7 @@ fun DrawScope.drawCar(model: CarModel, paint: Color, cx: Float, ground: Float, w
 
     // ground contact shadow + accent underglow
     drawOval(Color.Black.copy(alpha = if (dark) 0.75f else 0.30f), pt(-.56f, .035f), Size(1.12f * w, .07f * w))
-    drawOval(Brush.radialGradient(listOf(glow.copy(alpha = 0.50f), Color.Transparent), pt(0f, 0f), w * 0.62f), w * 0.62f, pt(0f, 0f), alpha = 0.55f)
+    drawCircle(Brush.radialGradient(listOf(glow.copy(alpha = 0.50f), Color.Transparent), pt(0f, 0f), w * 0.62f), w * 0.62f, pt(0f, 0f), alpha = 0.55f)
 
     // tyres
     for (sx in listOf(-1f, 1f)) {
