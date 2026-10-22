@@ -204,7 +204,7 @@ fun NovaRoot(onVoice: () -> Unit) {
                 ShellLayout(
                     railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
                     iconTint = com.abu00salman.novadrive.ui.components.IconTints.getOrNull(settings.iconTint),
-                    rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone) },
+                    rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone, onVoice = onVoice) },
                     topBar = {
                         TopBar(
                             bt = bt, net = net, gps = gps, dark = dark, themeMode = settings.themeMode, use24h = settings.use24h,

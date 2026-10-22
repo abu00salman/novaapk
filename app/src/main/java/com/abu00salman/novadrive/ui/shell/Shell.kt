@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BluetoothConnected
 import androidx.compose.material.icons.rounded.BluetoothDisabled
@@ -131,6 +132,7 @@ fun Rail(
     onSelect: (Screen) -> Unit,
     onMode: (HomeMode) -> Unit,
     onPhone: () -> Unit,
+    onVoice: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val home = current == Screen.HOME
@@ -144,6 +146,7 @@ fun Rail(
             RailItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), home && mode == HomeMode.NAVIGATION || current == Screen.NAV) { onMode(HomeMode.NAVIGATION) }
             RailItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), home && mode == HomeMode.MUSIC || current == Screen.MUSIC) { onMode(HomeMode.MUSIC) }
             RailItem(Icons.Rounded.Phone, tr("Phone", "الهاتف"), false, onPhone)
+            RailItem(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), false, onVoice, special = true)
             RailItem(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), current == Screen.VEHICLE) { onSelect(Screen.VEHICLE) }
             RailItem(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), current == Screen.APPS) { onSelect(Screen.APPS) }
             RailItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), current == Screen.SETTINGS) { onSelect(Screen.SETTINGS) }
@@ -152,13 +155,16 @@ fun Rail(
 }
 
 @Composable
-private fun RailItem(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
+private fun RailItem(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit, special: Boolean = false) {
     val p = LocalNova.current
     val shape = RoundedCornerShape(20.dp)
     Column(
-        Modifier.width(84.dp).height(84.dp).clip(shape)
+        Modifier.width(84.dp).height(78.dp).clip(shape)
             .then(
-                if (active) Modifier
+                if (special && !active) Modifier
+                    .background(Brush.linearGradient(listOf(p.accent2.copy(alpha = 0.85f), p.accent.copy(alpha = 0.85f))))
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), shape)
+                else if (active) Modifier
                     .background(Brush.verticalGradient(listOf(p.accent.copy(alpha = 0.95f), p.accent.copy(alpha = 0.55f))))
                     .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), p.accent.copy(alpha = 0.2f))), shape)
                 else Modifier
@@ -167,9 +173,9 @@ private fun RailItem(icon: ImageVector, label: String, active: Boolean, onClick:
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = if (active) Color.White else p.text.copy(alpha = 0.92f), modifier = Modifier.size(30.dp * LocalIconScale.current.coerceAtMost(1.25f)))
+        Icon(icon, null, tint = if (active || special) Color.White else p.text.copy(alpha = 0.92f), modifier = Modifier.size(30.dp * LocalIconScale.current.coerceAtMost(1.25f)))
         Spacer(Modifier.height(6.dp))
-        Text(label, style = NovaType.small.copy(fontSize = 13.sp), color = if (active) Color.White else p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = NovaType.small.copy(fontSize = 13.sp), color = if (active || special) Color.White else p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

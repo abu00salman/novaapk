@@ -74,6 +74,12 @@ class AppLogicTest {
         assertEquals(listOf("Spotify"), filterApps(apps, AppTab.ALL, emptyList(), "spo", false).map { it.label })
     }
 
+    @Test fun voiceNormalisationMatchesArabicVariants() {
+        assertEquals("افتح اليوتيوب", com.abu00salman.novadrive.data.VoiceCommands.normalize("إفتح اليُوتيوب من فضلك"))
+        assertEquals("قلل الاضاءه", com.abu00salman.novadrive.data.VoiceCommands.normalize("قلّل الإضاءة"))
+        assertEquals("كم الساعه", com.abu00salman.novadrive.data.VoiceCommands.normalize("كم الساعة"))
+    }
+
     @Test fun videoDetection() {
         assertTrue(isVideoApp("com.google.android.youtube", "YouTube"))
         assertTrue(isVideoApp("com.netflix.mediaclient", "Netflix"))

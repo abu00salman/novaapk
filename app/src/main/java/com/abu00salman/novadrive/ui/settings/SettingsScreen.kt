@@ -81,6 +81,7 @@ import com.abu00salman.novadrive.core.CUSTOM_PREFIX
 import com.abu00salman.novadrive.core.replaceDockEntry
 import com.abu00salman.novadrive.ui.home.dockTitle
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ArrowDownward
 import com.abu00salman.novadrive.core.Lang
 import com.abu00salman.novadrive.core.NovaSettings
@@ -99,7 +100,7 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 import java.util.Locale
 
-private enum class Section { CAR, APPEARANCE, SHORTCUTS, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
+private enum class Section { CAR, APPEARANCE, SHORTCUTS, VOICE, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
 
 @Composable
 fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: String? = null, onClose: () -> Unit) {
@@ -128,6 +129,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                         Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("Car", "السيارة")),
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
+                        Triple(Section.VOICE, Icons.Rounded.AutoAwesome, Pair("Ask me (voice)", "أمرني (الأوامر الصوتية)")),
                         Triple(Section.CARPLAY, Icons.Rounded.PhoneIphone, Pair("CarPlay", "كاربلاي")),
                         Triple(Section.DRIVING, Icons.Rounded.DirectionsCar, Pair("Driving", "القيادة")),
                         Triple(Section.VEHICLE, Icons.Rounded.Speed, Pair("Vehicle (OBD-II)", "المركبة (OBD-II)")),
@@ -159,6 +161,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                                 Section.CAR -> CarSection(c, s)
                                 Section.APPEARANCE -> Appearance(c, s)
                                 Section.SHORTCUTS -> ShortcutsSection(c, s)
+                                Section.VOICE -> VoiceSection(c, s)
                                 Section.CARPLAY -> CarPlaySection(c, s)
                                 Section.DRIVING -> DrivingSection(c, s)
                                 Section.VEHICLE -> VehicleSection(c, s)
@@ -697,4 +700,47 @@ private fun EditButton(icon: ImageVector, label: String, enabled: Boolean, tint:
         Modifier.size(48.dp).clip(CircleShape).then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) { Icon(icon, label, tint = if (!enabled) p.textDim.copy(alpha = 0.3f) else tint ?: p.text, modifier = Modifier.size(26.dp)) }
+}
+
+
+/** "أمرني": built-in examples plus the user's own phrase → app commands. */
+@Composable
+private fun VoiceSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val apps by c.apps.apps.collectAsStateWithLifecycle()
+    var phrase by remember { mutableStateOf("") }
+    var picking by remember { mutableStateOf(false) }
+    Column {
+        Header(tr("Ask me", "أمرني"), tr("Tap «Ask me» in the side bar and speak. NovaDrive answers out loud.",
+            "اضغط «أمرني» في القائمة الجانبية وتكلّم، ويرد عليك نوفا درايف بالصوت."))
+        Text(tr("Try:", "جرّب:"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val ex = if (ar) com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_AR else com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_EN
+            items(ex.size) { i -> Pill("«${ex[i]}»", p.accent) }
+        }
+        Gap()
+        Header(tr("My commands", "أوامري الخاصة"), tr("When you say the phrase, the chosen app opens.", "عندما تقول العبارة يُفتح التطبيق الذي اخترته."))
+        if (s.voiceCommands.isEmpty()) Text(tr("No custom commands yet.", "لا توجد أوامر خاصة بعد."), style = NovaType.label, color = p.textDim)
+        s.voiceCommands.forEach { cmd ->
+            val label = apps.firstOrNull { it.packageName == cmd.packageName }?.label ?: cmd.packageName
+            RowItem("«${cmd.phrase}»", tr("Opens ", "يفتح ") + label) {
+                Box(Modifier.size(48.dp).clip(CircleShape).clickable {
+                    c.settings.update { it.copy(voiceCommands = it.voiceCommands - cmd) }
+                }, contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Close, tr("Remove", "حذف"), tint = p.danger) }
+            }
+            Gap()
+        }
+        Gap()
+        Field(tr("Phrase, e.g. \"open my music\"", "العبارة، مثل: «شغل أغانيي»"), phrase) { phrase = it }
+        Gap()
+        Pill(tr("Choose app and save", "اختر التطبيق واحفظ"), p.accent) { if (phrase.isNotBlank()) picking = true }
+    }
+    if (picking) AppPickerDialog(tr("Open which app?", "أي تطبيق يُفتح؟"), apps, allowNone = false, onPick = { a ->
+        if (a != null) c.settings.update {
+            it.copy(voiceCommands = it.voiceCommands.filter { x -> x.phrase != phrase.trim() } + com.abu00salman.novadrive.data.CustomCommand(phrase.trim(), a.packageName))
+        }
+        phrase = ""; picking = false
+    }, onDismiss = { picking = false })
 }
