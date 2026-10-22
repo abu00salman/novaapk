@@ -70,6 +70,8 @@ import com.abu00salman.novadrive.ui.home.HomeModeViewModel
 import com.abu00salman.novadrive.core.HomeMode
 import com.abu00salman.novadrive.core.VIDEO_SLOTS
 import com.abu00salman.novadrive.core.isVideoApp
+import com.abu00salman.novadrive.core.replaceDockEntry
+import com.abu00salman.novadrive.ui.components.AppPickerDialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.map
 import com.abu00salman.novadrive.ui.home.DockSlot
@@ -258,8 +260,15 @@ private fun Routes(
 ) {
     val ctx = LocalContext.current
     when (s) {
-        Screen.HOME -> HomeScreen(c, settings, driving, mode, autoPromoted) { ui ->
+        Screen.HOME -> {
+          var dockPick by remember { mutableStateOf<String?>(null) }
+          HomeScreen(c, settings, driving, mode, autoPromoted) { ui ->
             HomeActions(
+                onDockLong = { slot ->
+                    if (slot.id == "apps") Unit
+                    else if (driving) toast(ctx, if (settings.arabic) "تغيير الشريط متاح عند التوقف" else "Dock editing is available when parked")
+                    else dockPick = slot.id
+                },
                 onMode = onMode,
                 onNavDetails = { go(Screen.NAV) },
                 onMusicDetails = { go(Screen.MUSIC) },
@@ -275,6 +284,20 @@ private fun Routes(
                 onPrev = c.media::previous, onPlayPause = c.media::playPause, onNext = c.media::next,
                 onDock = a::dock,
             )
+          }
+          dockPick?.let { id ->
+              AppPickerDialog(
+                  if (settings.arabic) "اختر تطبيقاً لهذا الزر" else "Choose an app for this button", apps, allowNone = false,
+                  onPick = { app ->
+                      if (app != null) c.settings.update { st ->
+                          val i = st.dock.indexOf(id)
+                          st.copy(dock = replaceDockEntry(st.dock, if (i < 0) st.dock.size else i, app.packageName))
+                      }
+                      dockPick = null
+                  },
+                  onDismiss = { dockPick = null },
+              )
+          }
         }
         Screen.NAV -> {
             val nav by NovaNotificationListener.navigation.collectAsStateWithLifecycle()
@@ -368,9 +391,12 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
         open(sc.music, "music", "الموسيقى")
     }
 
+    /** The chosen phone app, else the unit's own dialer (built-in Bluetooth phone). */
     fun phone() {
+        if (s.phonePackage != null && sc.phone != null && c.apps.launch(sc.phone)) return
+        if (c.controls.dial()) return
         if (sc.phone != null && c.apps.launch(sc.phone)) return
-        if (!c.controls.dial()) say("No phone app found", "لا يوجد تطبيق هاتف")
+        say("No phone app found — choose one in Settings › Shortcuts", "لا يوجد تطبيق هاتف — اختره من الإعدادات › الاختصارات")
     }
 
     /** Opens an installed app; video apps wait until the car is parked. */

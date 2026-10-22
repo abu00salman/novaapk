@@ -21,6 +21,7 @@ import com.abu00salman.novadrive.core.HomeMode
 import com.abu00salman.novadrive.core.NovaSettings
 import com.abu00salman.novadrive.core.carBrand
 import com.abu00salman.novadrive.core.carModel
+import com.abu00salman.novadrive.core.CUSTOM_PREFIX
 import com.abu00salman.novadrive.core.resolveDock
 import com.abu00salman.novadrive.data.AppEntry
 import com.abu00salman.novadrive.data.AppsRepository
@@ -39,7 +40,9 @@ fun rememberShortcuts(c: AppContainer, s: NovaSettings, apps: List<AppEntry>): S
         nav = r.byPackage(s.navPackage) ?: r.guess(AppsRepository.NAV_PKGS, AppsRepository.NAV_KEYS),
         music = r.byPackage(s.musicPackage) ?: r.guess(AppsRepository.MUSIC_PKGS, AppsRepository.MUSIC_KEYS),
         radio = r.byPackage(s.radioPackage) ?: r.guess(emptyList(), AppsRepository.RADIO_KEYS),
-        phone = r.byPackage(s.phonePackage) ?: r.guess(emptyList(), AppsRepository.PHONE_KEYS),
+        // Prefer the unit's own dialer (built-in BT phone) over any name-based guess.
+        phone = r.byPackage(s.phonePackage) ?: r.dialer() ?: r.guess(emptyList(), AppsRepository.PHONE_KEYS)
+            ?.takeUnless { it.label.contains("finder", true) || it.packageName.contains("finder", true) },
     )
 }
 
@@ -69,7 +72,7 @@ fun dockSlots(c: AppContainer, s: NovaSettings, sc: Shortcuts, apps: List<AppEnt
         val r = c.apps
         val androidAuto = r.byPackage(ANDROID_AUTO_PKG) ?: r.guess(emptyList(), listOf("android auto", "androidauto"))
             ?: sc.carPlay?.takeIf { it.packageName.contains("zlink", true) || it.packageName.contains("diplay", true) }
-        fun app(id: String): AppEntry? = when (id) {
+        fun app(id: String): AppEntry? = if (id.startsWith(CUSTOM_PREFIX)) r.byPackage(id.removePrefix(CUSTOM_PREFIX)) else when (id) {
             "maps" -> sc.nav
             "carplay" -> sc.carPlay
             "auto" -> androidAuto
@@ -81,14 +84,15 @@ fun dockSlots(c: AppContainer, s: NovaSettings, sc: Shortcuts, apps: List<AppEnt
             else -> null
         }
         resolveDock(s.dock, driving, packageOf = { app(it)?.packageName }) { id ->
+            val custom = id.startsWith(CUSTOM_PREFIX)
             DockSlot(
-                id, dockTitle(id, ar), app(id),
+                id, if (custom) app(id)?.label ?: id.removePrefix(CUSTOM_PREFIX) else dockTitle(id, ar), app(id),
                 when (id) {
                     "maps" -> Icons.Rounded.Map; "carplay" -> Icons.Rounded.PhoneIphone; "auto" -> Icons.Rounded.DirectionsCar
                     "music" -> Icons.Rounded.MusicNote; "phone" -> Icons.Rounded.Phone; "radio" -> Icons.Rounded.Radio
                     "youtube" -> Icons.Rounded.OndemandVideo; "netflix" -> Icons.Rounded.Movie; else -> Icons.Rounded.Apps
                 },
-                storePackage = when (id) {
+                storePackage = if (custom) id.removePrefix(CUSTOM_PREFIX) else when (id) {
                     "maps" -> "com.google.android.apps.maps"; "music" -> "com.spotify.music"; "auto" -> ANDROID_AUTO_PKG
                     "youtube" -> YOUTUBE_PKG; "netflix" -> NETFLIX_PKG; else -> null
                 },

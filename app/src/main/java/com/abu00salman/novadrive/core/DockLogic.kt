@@ -7,6 +7,18 @@ import com.abu00salman.novadrive.data.AppEntry
 val DOCK_CHOICES = listOf("maps", "carplay", "auto", "music", "phone", "radio", "youtube", "netflix", "apps")
 const val DOCK_MAX = 6
 
+/** A dock entry the user pointed at a specific installed app: "app:<package>". */
+const val CUSTOM_PREFIX = "app:"
+
+/** Replaces the dock entry at [index] with [packageName] (or appends it), never duplicating it. */
+fun replaceDockEntry(dock: List<String>, index: Int, packageName: String): List<String> {
+    val entry = CUSTOM_PREFIX + packageName
+    val list = dock.filter { it != entry }.toMutableList()
+    val at = index.coerceAtMost(list.size)
+    if (at in list.indices) list[at] = entry else if (list.size < DOCK_MAX) list.add(entry)
+    return list
+}
+
 /** Video apps are hidden from the dock and blocked from launching while driving. */
 val VIDEO_SLOTS = setOf("youtube", "netflix")
 
@@ -27,9 +39,10 @@ fun <T> resolveDock(ids: List<String>, driving: Boolean, packageOf: (String) -> 
     val seen = mutableSetOf<String>()
     val out = mutableListOf<T>()
     for (id in ids.distinct()) {
-        if (id !in DOCK_CHOICES) continue
+        if (id !in DOCK_CHOICES && !id.startsWith(CUSTOM_PREFIX)) continue
         if (driving && id in VIDEO_SLOTS) continue
         val pkg = packageOf(id)
+        if (driving && id.startsWith(CUSTOM_PREFIX) && isVideoApp(id.removePrefix(CUSTOM_PREFIX), "")) continue
         if (pkg != null && !seen.add(pkg)) continue
         out += build(id)
         if (out.size == DOCK_MAX) break

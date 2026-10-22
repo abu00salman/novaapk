@@ -135,6 +135,16 @@ class AppsRepository(private val ctx: Context, private val scope: CoroutineScope
         pkg?.let { p -> _apps.value.firstOrNull { it.packageName == p } }
 
     /** Best match by known package names, then by keywords in package or label. */
+    /**
+     * The head unit's own phone app: whatever handles ACTION_DIAL (on car units this is the
+     * built-in Bluetooth phone). Ignores the system chooser when several apps qualify.
+     */
+    fun dialer(): AppEntry? = runCatching {
+        val ri = ctx.packageManager.resolveActivity(Intent(Intent.ACTION_DIAL), PackageManager.MATCH_DEFAULT_ONLY)
+        val pkg = ri?.activityInfo?.packageName
+        if (pkg == null || pkg == "android" || pkg.contains("resolver")) null else byPackage(pkg)
+    }.getOrNull()
+
     fun guess(packages: List<String>, keywords: List<String>): AppEntry? {
         val all = _apps.value
         packages.forEach { p -> all.firstOrNull { it.packageName == p }?.let { return it } }
@@ -184,6 +194,6 @@ class AppsRepository(private val ctx: Context, private val scope: CoroutineScope
         val MUSIC_PKGS = listOf("com.anghami", "com.spotify.music", "com.google.android.apps.youtube.music", "com.apple.android.music")
         val MUSIC_KEYS = listOf("music", "موسيقى", "player")
         val RADIO_KEYS = listOf("radio", "راديو", ".fm", "tuner")
-        val PHONE_KEYS = listOf("btphone", "bt phone", "bluetooth phone", "phone", "dial", "هاتف", "اتصال")
+        val PHONE_KEYS = listOf("btphone", "bt phone", "bluetooth phone", "bluetoothphone", "dialer", "هاتف", "اتصال")
     }
 }

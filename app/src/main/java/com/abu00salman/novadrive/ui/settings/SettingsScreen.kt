@@ -75,6 +75,8 @@ import kotlinx.coroutines.withContext
 import com.abu00salman.novadrive.core.CrashGuard
 import com.abu00salman.novadrive.core.DOCK_CHOICES
 import com.abu00salman.novadrive.core.DOCK_MAX
+import com.abu00salman.novadrive.core.CUSTOM_PREFIX
+import com.abu00salman.novadrive.core.replaceDockEntry
 import com.abu00salman.novadrive.ui.home.dockTitle
 import androidx.compose.material.icons.rounded.ArrowUpward
 import com.abu00salman.novadrive.core.Lang
@@ -405,6 +407,15 @@ private fun ShortcutsSection(c: AppContainer, s: NovaSettings) {
             }
             Gap()
         }
+        s.dock.filter { it.startsWith(CUSTOM_PREFIX) }.forEach { id ->
+            val pkg = id.removePrefix(CUSTOM_PREFIX)
+            RowItem(apps.firstOrNull { it.packageName == pkg }?.label ?: pkg, tr("Position ", "الترتيب ") + (s.dock.indexOf(id) + 1),
+                onClick = { c.settings.update { it.copy(dock = it.dock - id) } }) {
+                Switch(true, null, colors = SwitchDefaults.colors(checkedTrackColor = LocalNova.current.accent, checkedThumbColor = LocalNova.current.bgBottom))
+            }
+            Gap()
+        }
+        if (s.dock.size < DOCK_MAX) { RowItem(tr("Add an app to the dock", "إضافة تطبيق للشريط"), tr("Or long-press a dock button on the home screen to replace it", "أو اضغط مطولاً على زر في الشريط لاستبداله"), onClick = { picking = "dock" }); Gap() }
         Header(tr("Saved places", "الأماكن المحفوظة"), tr("Shown as one-tap navigation buttons.", "تظهر كأزرار توجيه بلمسة واحدة."))
         Field(tr("Home address", "عنوان البيت"), s.homeAddress) { v -> c.settings.update { it.copy(homeAddress = v) } }
         Gap()
@@ -418,6 +429,7 @@ private fun ShortcutsSection(c: AppContainer, s: NovaSettings) {
                     "nav" -> it.copy(navPackage = pkg)
                     "music" -> it.copy(musicPackage = pkg)
                     "radio" -> it.copy(radioPackage = pkg)
+                    "dock" -> if (pkg == null) it else it.copy(dock = replaceDockEntry(it.dock, it.dock.size, pkg))
                     else -> it.copy(phonePackage = pkg)
                 }
             }

@@ -155,6 +155,8 @@ class HomeActions(
     val onNext: () -> Unit = {},
     val onSeek: (Long) -> Unit = {},
     val onDock: (DockSlot) -> Unit = {},
+    /** Long-press a dock tile to put a different installed app there. */
+    val onDockLong: (DockSlot) -> Unit = {},
 )
 
 /**
@@ -593,15 +595,15 @@ private fun CarMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
 @Composable
 fun Dock(slots: List<DockSlot>, act: HomeActions, modifier: Modifier = Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        slots.forEach { s -> Box(Modifier.weight(1f).fillMaxHeight()) { UiDirection { DockTile(s, { act.onDock(s) }, Modifier.fillMaxSize()) } } }
+        slots.forEach { s -> Box(Modifier.weight(1f).fillMaxHeight()) { UiDirection { DockTile(s, { act.onDock(s) }, { act.onDockLong(s) }, Modifier.fillMaxSize()) } } }
     }
 }
 
 @Composable
-private fun DockTile(s: DockSlot, onClick: () -> Unit, modifier: Modifier) {
+private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modifier: Modifier) {
     val p = LocalNova.current
     val available = s.app != null || s.builtIn
-    Glass(modifier, corner = 22.dp, onClick = onClick) {
+    Glass(modifier, corner = 22.dp, onClick = onClick, onLongClick = onLong) {
         Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             val app = s.app
             if (app != null) Image(app.icon, null, Modifier.size(54.dp))

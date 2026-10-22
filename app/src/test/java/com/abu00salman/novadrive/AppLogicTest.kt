@@ -9,6 +9,7 @@ import org.robolectric.annotation.GraphicsMode
 import com.abu00salman.novadrive.core.AppTab
 import com.abu00salman.novadrive.core.filterApps
 import com.abu00salman.novadrive.core.isVideoApp
+import com.abu00salman.novadrive.core.replaceDockEntry
 import com.abu00salman.novadrive.core.resolveDock
 import com.abu00salman.novadrive.data.AppCategory
 import com.abu00salman.novadrive.data.AppClassifier
@@ -41,6 +42,17 @@ class AppLogicTest {
         assertEquals(listOf("maps", "carplay", "youtube", "music"), parked)
         val driving = resolveDock(listOf("maps", "youtube", "netflix", "apps"), driving = true, packageOf = { pkg[it] }) { it }
         assertEquals(listOf("maps", "apps"), driving)
+    }
+
+    @Test fun dockCustomAppsReplaceSlotsWithoutDuplicates() {
+        val d = replaceDockEntry(listOf("maps", "carplay", "music"), 2, "com.anghami")
+        assertEquals(listOf("maps", "carplay", "app:com.anghami"), d)
+        // the same app chosen again for another slot moves rather than duplicates
+        assertEquals(listOf("app:com.anghami", "carplay"), replaceDockEntry(d, 0, "com.anghami"))
+        // appended when the index is past the end, but never beyond six entries
+        assertEquals(6, replaceDockEntry(listOf("a", "b", "c", "d", "e", "f"), 9, "x").size)
+        val resolved = resolveDock(listOf("maps", "app:com.anghami", "app:com.youtube.video"), driving = true, packageOf = { if (it.startsWith("app:")) it.removePrefix("app:") else "g.maps" }) { it }
+        assertEquals(listOf("maps", "app:com.anghami"), resolved)
     }
 
     @Test fun dockIsCappedAtSix() {
