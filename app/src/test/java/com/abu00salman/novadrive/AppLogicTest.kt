@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import com.abu00salman.novadrive.core.AppTab
 import com.abu00salman.novadrive.core.filterApps
 import com.abu00salman.novadrive.core.isVideoApp
@@ -18,9 +19,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], application = Application::class)
 class AppLogicTest {
-    private val icon = ImageBitmap(1, 1)
+    private val icon by lazy { ImageBitmap(1, 1) }
     private fun app(pkg: String, label: String, cat: AppCategory, system: Boolean = false) =
         AppEntry("$pkg/.Main", pkg, ".Main", label, icon, cat, system)
 
