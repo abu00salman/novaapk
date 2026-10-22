@@ -75,7 +75,24 @@ class SystemControls(private val ctx: Context) {
 
     fun openBluetooth() = start(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
     fun openSystemSettings() = start(Intent(Settings.ACTION_SETTINGS))
-    fun openNotificationAccess() = start(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+    /** Opens NovaDrive's own notification-access switch when the OS supports it (Android 11+). */
+    fun openNotificationAccess(): Boolean {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val detail = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                    ComponentName(ctx, com.abu00salman.novadrive.data.NovaNotificationListener::class.java).flattenToString())
+            if (start(detail)) return true
+        }
+        return start(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) || openAppDetails()
+    }
+
+    /**
+     * Opens [intent] in the adjacent multi-window pane next to NovaDrive. Android decides: on units
+     * without split-screen support the app simply opens full screen.
+     */
+    fun launchAdjacent(intent: Intent): Boolean = start(
+        Intent(intent).addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+    )
     fun openHomeSettings() = start(Intent(Settings.ACTION_HOME_SETTINGS)) || openSystemSettings()
     fun openLocationSettings() = start(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
     fun openAppDetails() = start(

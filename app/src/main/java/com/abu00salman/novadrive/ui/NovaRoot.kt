@@ -271,6 +271,7 @@ private fun Routes(
                 },
                 onMode = onMode,
                 onNavDetails = { go(Screen.NAV) },
+                onNavBeside = a::openNavBeside,
                 onMusicDetails = { go(Screen.MUSIC) },
                 onSeek = c.media::seekTo,
                 onEnableLocation = requestLocation,
@@ -365,6 +366,12 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
     }
 
     fun openNav() { open(sc.nav, "navigation", "الملاحة") }
+
+    /** Maps/Waze in the split-screen pane next to NovaDrive; full screen where the unit can't split. */
+    fun openNavBeside() {
+        val nav = sc.nav ?: return openNav()
+        if (!c.controls.launchAdjacent(c.apps.intentFor(nav))) openNav()
+    }
 
     fun navigate(address: String) {
         if (address.isBlank()) return

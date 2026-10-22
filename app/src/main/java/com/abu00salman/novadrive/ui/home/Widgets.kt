@@ -312,11 +312,16 @@ fun NavCard(
                     if (homeSet) Pill(tr("Home", "البيت"), p.accent, icon = Icons.Rounded.Home, onClick = onHome)
                     if (workSet) Pill(tr("Work", "العمل"), p.accent2, icon = Icons.Rounded.Work, onClick = onWork)
                 }
-                if (!hasAccess) Text(
-                    tr("Allow notification access to show turn-by-turn here ›", "اسمح بالوصول للإشعارات لعرض الاتجاهات هنا ›"),
-                    style = NovaType.small, color = Color(0xFF8FC3FF),
-                    modifier = Modifier.padding(top = 8.dp).clickable(onClick = onGrantAccess)
-                )
+                if (!hasAccess) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        tr("To show directions here and switch to Navigation automatically, allow notification access.",
+                            "لعرض الاتجاهات هنا والتحويل التلقائي للملاحة، فعّل «الوصول للإشعارات» لنوفا درايف."),
+                        style = NovaType.small, color = OnArtDim,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Pill(tr("Enable notification access", "تفعيل الوصول للإشعارات"), p.warn, onClick = onGrantAccess)
+                }
             }
         }
     }

@@ -145,6 +145,8 @@ class HomeActions(
     val onOpenNav: () -> Unit = {},
     val onNavCard: () -> Unit = {},
     val onNavDetails: () -> Unit = {},
+    /** Opens the navigation app in the split-screen pane beside NovaDrive (if the unit supports it). */
+    val onNavBeside: () -> Unit = {},
     val onHome: () -> Unit = {},
     val onWork: () -> Unit = {},
     val onGrantAccess: () -> Unit = {},
@@ -394,6 +396,12 @@ private fun NavHero(ui: HomeUi, act: HomeActions, modifier: Modifier, compact: B
                             (if (ui.nav != null) tr("Back to ", "العودة إلى ") else tr("Open ", "افتح ")) + (app?.label ?: tr("navigation", "الملاحة")),
                             style = NovaType.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
+                    }
+                }
+                if (ui.navApp != null) Glass(Modifier.height(64.dp), corner = 20.dp, onClick = act.onNavBeside) {
+                    Row(Modifier.align(Alignment.Center).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.VerticalSplit, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                        if (!compact) { Spacer(Modifier.width(8.dp)); Text(tr("Beside", "بجانب نوفا"), style = NovaType.label, color = Color.White, maxLines = 1) }
                     }
                 }
                 if (!compact) Glass(Modifier.size(64.dp), corner = 20.dp, onClick = act.onNavDetails) {
