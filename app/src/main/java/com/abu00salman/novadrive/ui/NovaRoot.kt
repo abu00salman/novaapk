@@ -203,6 +203,7 @@ fun NovaRoot(onVoice: () -> Unit) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ShellLayout(
                     railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
+                    iconTint = com.abu00salman.novadrive.ui.components.IconTints.getOrNull(settings.iconTint),
                     rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone) },
                     topBar = {
                         TopBar(

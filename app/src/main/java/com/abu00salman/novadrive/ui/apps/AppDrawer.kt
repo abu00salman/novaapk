@@ -65,6 +65,7 @@ import com.abu00salman.novadrive.core.filterApps
 import com.abu00salman.novadrive.data.AppEntry
 import com.abu00salman.novadrive.ui.components.Glass
 import com.abu00salman.novadrive.ui.components.LocalIconScale
+import com.abu00salman.novadrive.ui.components.iconFilter
 import com.abu00salman.novadrive.ui.components.Pill
 import com.abu00salman.novadrive.ui.components.RoundButton
 import com.abu00salman.novadrive.ui.theme.LocalNova
@@ -215,7 +216,7 @@ private fun AppTile(app: AppEntry, favorite: Boolean, selected: Boolean, onLong:
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
-            Image(app.icon, app.label, Modifier.size(72.dp * LocalIconScale.current))
+            Image(app.icon, app.label, Modifier.size(72.dp * LocalIconScale.current), colorFilter = iconFilter())
             if (favorite) Box(Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(p.accent), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.Star, null, tint = Color.White, modifier = Modifier.size(14.dp))
             }

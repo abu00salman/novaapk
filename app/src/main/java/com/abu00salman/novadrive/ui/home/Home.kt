@@ -88,6 +88,8 @@ import com.abu00salman.novadrive.ui.components.CarImage
 import com.abu00salman.novadrive.ui.components.FixedLtr
 import com.abu00salman.novadrive.ui.components.Glass
 import com.abu00salman.novadrive.ui.components.LocalIconScale
+import com.abu00salman.novadrive.ui.components.LocalIconTint
+import com.abu00salman.novadrive.ui.components.iconFilter
 import com.abu00salman.novadrive.ui.components.Pill
 import com.abu00salman.novadrive.ui.components.RoundButton
 import com.abu00salman.novadrive.ui.components.UiDirection
@@ -385,8 +387,7 @@ private fun NavHero(ui: HomeUi, act: HomeActions, modifier: Modifier, compact: B
     val p = LocalNova.current
     val ar = LocalArabic.current
     HeroPanel(modifier) {
-        ScenicBackdrop(Modifier.fillMaxSize(), route = false)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x33050A1C), Color(0xCC050A1C)))))
+        LiveRoad(if (ui.hasLocation) ui.speedKmh ?: 0f else 0f, Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             NavCard(
                 ui.nav, ui.notificationAccess, ui.navApp?.label, ui.homeSet, ui.workSet,
@@ -409,12 +410,12 @@ private fun NavHero(ui: HomeUi, act: HomeActions, modifier: Modifier, compact: B
                 }
                 if (ui.navApp != null) Glass(Modifier.height(64.dp), corner = 20.dp, onClick = act.onNavBeside) {
                     Row(Modifier.align(Alignment.Center).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.VerticalSplit, null, tint = Color.White, modifier = Modifier.size(24.dp))
-                        if (!compact) { Spacer(Modifier.width(8.dp)); Text(tr("Beside", "بجانب نوفا"), style = NovaType.label, color = Color.White, maxLines = 1) }
+                        Icon(Icons.Rounded.VerticalSplit, tr("Half screen", "نصف الشاشة"), tint = p.text, modifier = Modifier.size(24.dp))
+                        if (!compact) { Spacer(Modifier.width(8.dp)); Text(tr("Half screen", "نصف الشاشة"), style = NovaType.label, color = p.text, maxLines = 1) }
                     }
                 }
                 if (!compact) Glass(Modifier.size(64.dp), corner = 20.dp, onClick = act.onNavDetails) {
-                    Icon(Icons.Rounded.OpenInNew, tr("Destinations", "الوجهات"), tint = Color.White, modifier = Modifier.align(Alignment.Center))
+                    Icon(Icons.Rounded.OpenInNew, tr("Destinations", "الوجهات"), tint = p.text, modifier = Modifier.align(Alignment.Center))
                 }
             }
         }
@@ -479,7 +480,7 @@ private fun MusicHero(ui: HomeUi, act: HomeActions, modifier: Modifier, compact:
                     ui.video?.let { v -> Glass(Modifier.height(36.dp), corner = 18.dp, onClick = act.onVideoBeside) {
                         Row(Modifier.align(Alignment.Center).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Image(v.icon, null, Modifier.size(22.dp)); Spacer(Modifier.width(6.dp))
-                            Text(tr("YouTube beside", "يوتيوب بجانب نوفا"), style = NovaType.label, color = p.text, maxLines = 1)
+                            Text(tr("YouTube in half screen", "يوتيوب في نصف الشاشة"), style = NovaType.label, color = p.text, maxLines = 1)
                         }
                     } }
                 }
@@ -633,10 +634,19 @@ private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modif
     Glass(modifier, corner = 22.dp, onClick = onClick, onLongClick = onLong) {
         Column(Modifier.align(Alignment.Center).padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val app = s.app
-            if (app != null) Image(app.icon, null, Modifier.size(icon))
+            val tint = LocalIconTint.current
+            // The phone button always shows a phone, even when the unit's dialer uses a Bluetooth logo.
+            if (app != null && s.id != "phone") Image(app.icon, null, Modifier.size(icon), colorFilter = iconFilter())
             else Box(
                 Modifier.size(icon).clip(RoundedCornerShape(15.dp))
-                    .background(if (available) Brush.linearGradient(listOf(Color(0xFF5B7DB8), Color(0xFF2B3E68))) else Brush.linearGradient(listOf(p.text.copy(alpha = 0.10f), p.text.copy(alpha = 0.05f))))
+                    .background(
+                        when {
+                            !available -> Brush.linearGradient(listOf(p.text.copy(alpha = 0.10f), p.text.copy(alpha = 0.05f)))
+                            tint != null -> Brush.linearGradient(listOf(tint, tint.copy(alpha = 0.7f)))
+                            s.id == "phone" -> Brush.linearGradient(listOf(Color(0xFF4ADE80), Color(0xFF16A34A)))
+                            else -> Brush.linearGradient(listOf(Color(0xFF5B7DB8), Color(0xFF2B3E68)))
+                        }
+                    )
                     .alpha(if (available) 1f else 0.6f),
                 contentAlignment = Alignment.Center
             ) { Icon(s.fallback, null, tint = if (available) Color.White else p.textDim, modifier = Modifier.size(icon * 0.55f)) }

@@ -48,6 +48,8 @@ data class NovaSettings(
     /** Text and icon size multipliers (1.0 = default). */
     val textScale: Float = 1f,
     val iconScale: Float = 1f,
+    /** Index into IconTints (0 = apps' original colours). */
+    val iconTint: Int = 0,
 ) {
     companion object {
         val DEFAULT_DOCK = listOf("maps", "carplay", "auto", "music", "phone", "apps")
@@ -103,6 +105,7 @@ class SettingsRepository(ctx: Context) {
             railRight = b("railRight", false),
             textScale = prefs.getFloat(k(p, "textScale"), 1f),
             iconScale = prefs.getFloat(k(p, "iconScale"), 1f),
+            iconTint = prefs.getInt(k(p, "iconTint"), 0),
         )
     }
 
@@ -140,6 +143,7 @@ class SettingsRepository(ctx: Context) {
             .putBoolean(k(p, "railRight"), n.railRight)
             .putFloat(k(p, "textScale"), n.textScale)
             .putFloat(k(p, "iconScale"), n.iconScale)
+            .putInt(k(p, "iconTint"), n.iconTint)
             .apply()
     }
 

@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,6 +81,7 @@ import com.abu00salman.novadrive.core.CUSTOM_PREFIX
 import com.abu00salman.novadrive.core.replaceDockEntry
 import com.abu00salman.novadrive.ui.home.dockTitle
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.ArrowDownward
 import com.abu00salman.novadrive.core.Lang
 import com.abu00salman.novadrive.core.NovaSettings
 import com.abu00salman.novadrive.core.ThemeMode
@@ -369,6 +371,20 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
         Header(tr("Icon size", "حجم الأيقونات"))
         Choice(listOf(1f to "100%", 1.15f to "115%", 1.3f to "130%", 1.45f to "145%"), s.iconScale) { v -> c.settings.update { it.copy(iconScale = v) } }
         Gap()
+        Header(tr("Icon colour", "لون الأيقونات"), tr("Original keeps each app's own colours.", "«الأصلي» يُبقي ألوان التطبيقات كما هي."))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            com.abu00salman.novadrive.ui.components.IconTints.forEachIndexed { i, col ->
+                Box(
+                    Modifier.size(48.dp).clip(CircleShape)
+                        .background(if (col == null) androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color(0xFFFF4D6D), Color(0xFFFFC53D), Color(0xFF2EE6C0), Color(0xFF3D8BFF), Color(0xFF8B5CFF), Color(0xFFFF4D6D)))
+                            else androidx.compose.ui.graphics.SolidColor(col))
+                        .border(if (s.iconTint == i) 3.dp else 1.dp, if (s.iconTint == i) p.text else p.stroke, CircleShape)
+                        .clickable { c.settings.update { it.copy(iconTint = i) } },
+                    contentAlignment = Alignment.Center
+                ) { if (s.iconTint == i) Icon(Icons.Rounded.Check, null, tint = if (col == null) Color.White else Color(0xFF0B1630)) }
+            }
+        }
+        Gap()
         Header(tr("Language", "اللغة"))
         Choice(listOf(Lang.AR to "العربية", Lang.EN to "English"), s.language) { l -> c.settings.update { it.copy(language = l) } }
         Gap()
@@ -397,35 +413,10 @@ private fun ShortcutsSection(c: AppContainer, s: NovaSettings) {
         Gap(); RowItem(tr("Radio", "الراديو"), label(s.radioPackage, sc.radio), onClick = { picking = "radio" })
         Gap(); RowItem(tr("Phone", "الهاتف"), label(s.phonePackage, sc.phone), onClick = { picking = "phone" })
         Gap()
-        Header(tr("Dock", "الشريط السفلي"), tr("Up to 6 actions. Duplicates are skipped and video apps hide while driving.", "حتى 6 أزرار. تُتجاهل المكررات وتختفي تطبيقات الفيديو أثناء القيادة."))
-        DOCK_CHOICES.forEach { id ->
-            val on = id in s.dock
-            RowItem(dockTitle(id, ar), if (on) tr("Position ", "الترتيب ") + (s.dock.indexOf(id) + 1) else null, onClick = {
-                c.settings.update {
-                    when {
-                        id in it.dock -> it.copy(dock = it.dock - id)
-                        it.dock.size < DOCK_MAX -> it.copy(dock = it.dock + id)
-                        else -> it
-                    }
-                }
-            }) {
-                if (on && s.dock.indexOf(id) > 0) Icon(Icons.Rounded.ArrowUpward, tr("Move earlier", "تقديم"), tint = LocalNova.current.textDim,
-                    modifier = Modifier.size(40.dp).clip(CircleShape).clickable {
-                        c.settings.update { st -> val l = st.dock.toMutableList(); val i = l.indexOf(id); if (i > 0) { l.removeAt(i); l.add(i - 1, id) }; st.copy(dock = l) }
-                    }.padding(8.dp))
-                Switch(on, null, colors = SwitchDefaults.colors(checkedTrackColor = LocalNova.current.accent, checkedThumbColor = LocalNova.current.bgBottom))
-            }
-            Gap()
-        }
-        s.dock.filter { it.startsWith(CUSTOM_PREFIX) }.forEach { id ->
-            val pkg = id.removePrefix(CUSTOM_PREFIX)
-            RowItem(apps.firstOrNull { it.packageName == pkg }?.label ?: pkg, tr("Position ", "الترتيب ") + (s.dock.indexOf(id) + 1),
-                onClick = { c.settings.update { it.copy(dock = it.dock - id) } }) {
-                Switch(true, null, colors = SwitchDefaults.colors(checkedTrackColor = LocalNova.current.accent, checkedThumbColor = LocalNova.current.bgBottom))
-            }
-            Gap()
-        }
-        if (s.dock.size < DOCK_MAX) { RowItem(tr("Add an app to the dock", "إضافة تطبيق للشريط"), tr("Or long-press a dock button on the home screen to replace it", "أو اضغط مطولاً على زر في الشريط لاستبداله"), onClick = { picking = "dock" }); Gap() }
+        DockEditor(s, apps, ar,
+            onChange = { list -> c.settings.update { it.copy(dock = list) } },
+            onAddApp = { picking = "dock" })
+        Gap()
         Header(tr("Saved places", "الأماكن المحفوظة"), tr("Shown as one-tap navigation buttons.", "تظهر كأزرار توجيه بلمسة واحدة."))
         Field(tr("Home address", "عنوان البيت"), s.homeAddress) { v -> c.settings.update { it.copy(homeAddress = v) } }
         Gap()
@@ -654,4 +645,56 @@ private fun AboutSection(c: AppContainer) {
         Text(tr("Developed by abu00salman", "تطوير abu00salman"), style = NovaType.title, color = p.text)
         Text("github.com/abu00salman", style = NovaType.label, color = p.textDim)
     }
+}
+
+
+/**
+ * The dock in its real order: move each button with the arrows or remove it, and add any of the
+ * standard buttons or any installed app below. Max 6.
+ */
+@Composable
+private fun DockEditor(s: NovaSettings, apps: List<AppEntry>, ar: Boolean, onChange: (List<String>) -> Unit, onAddApp: () -> Unit) {
+    val p = LocalNova.current
+    fun title(id: String) = if (id.startsWith(CUSTOM_PREFIX)) apps.firstOrNull { it.packageName == id.removePrefix(CUSTOM_PREFIX) }?.label ?: id.removePrefix(CUSTOM_PREFIX)
+        else dockTitle(id, ar)
+    Header(tr("Dock buttons", "أزرار الشريط السفلي"), tr("In order from the driver's side. Up to 6.", "بالترتيب من جهة السائق. حتى 6 أزرار."))
+    s.dock.forEachIndexed { i, id ->
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.text.copy(alpha = 0.05f)).padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(34.dp).clip(CircleShape).background(p.accent.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+                Text("${i + 1}", style = NovaType.label, color = p.accent)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(title(id), style = NovaType.body, color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            EditButton(Icons.Rounded.ArrowUpward, tr("Move earlier", "تقديم"), enabled = i > 0) {
+                onChange(s.dock.toMutableList().also { l -> l.removeAt(i); l.add(i - 1, id) })
+            }
+            EditButton(Icons.Rounded.ArrowDownward, tr("Move later", "تأخير"), enabled = i < s.dock.lastIndex) {
+                onChange(s.dock.toMutableList().also { l -> l.removeAt(i); l.add(i + 1, id) })
+            }
+            EditButton(Icons.Rounded.Close, tr("Remove", "إزالة"), enabled = true, tint = p.danger) { onChange(s.dock - id) }
+        }
+        Spacer(Modifier.height(6.dp))
+    }
+    if (s.dock.size < DOCK_MAX) {
+        Spacer(Modifier.height(6.dp))
+        Text(tr("Add a button", "إضافة زر"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val missing = DOCK_CHOICES.filter { it !in s.dock }
+            items(missing.size) { i -> Pill("+ " + dockTitle(missing[i], ar), p.accent) { onChange(s.dock + missing[i]) } }
+            item { Pill(tr("+ Any app…", "+ تطبيق آخر…"), p.accent2, onClick = onAddApp) }
+        }
+    }
+}
+
+@Composable
+private fun EditButton(icon: ImageVector, label: String, enabled: Boolean, tint: androidx.compose.ui.graphics.Color? = null, onClick: () -> Unit) {
+    val p = LocalNova.current
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center
+    ) { Icon(icon, label, tint = if (!enabled) p.textDim.copy(alpha = 0.3f) else tint ?: p.text, modifier = Modifier.size(26.dp)) }
 }

@@ -69,6 +69,7 @@ import com.abu00salman.novadrive.ui.components.DesignViewport
 import com.abu00salman.novadrive.ui.components.FixedLtr
 import com.abu00salman.novadrive.ui.components.Glass
 import com.abu00salman.novadrive.ui.components.LocalIconScale
+import com.abu00salman.novadrive.ui.components.LocalIconTint
 import androidx.compose.runtime.CompositionLocalProvider
 import com.abu00salman.novadrive.ui.components.UiDirection
 import com.abu00salman.novadrive.ui.home.uiLocale
@@ -100,10 +101,11 @@ fun ShellLayout(
     railRight: Boolean = false,
     textScale: Float = 1f,
     iconScale: Float = 1f,
+    iconTint: Color? = null,
     content: @Composable () -> Unit,
 ) {
     DesignViewport(textScale = textScale) {
-      CompositionLocalProvider(LocalIconScale provides iconScale.coerceIn(0.8f, 1.6f)) {
+      CompositionLocalProvider(LocalIconScale provides iconScale.coerceIn(0.8f, 1.6f), LocalIconTint provides iconTint) {
         FixedLtr {
             Row(Modifier.fillMaxSize().padding(14.dp)) {
                 if (!railRight) { rail(); Spacer(Modifier.width(12.dp)) }

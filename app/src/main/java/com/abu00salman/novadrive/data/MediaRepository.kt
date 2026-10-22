@@ -106,10 +106,11 @@ class MediaRepository(private val ctx: Context) {
                         ?: md?.description?.subtitle?.toString()
                         ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM),
                     art = lastArt,
-                    playing = st?.state == PlaybackState.STATE_PLAYING,
+                    playing = isPlaying(c),
                     packageName = c.packageName,
                     durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
-                    positionMs = st?.position ?: -1L,
+                    // Unknown position (common for CarPlay/Bluetooth bridges) is -1 so the UI hides the timeline.
+                    positionMs = if (st == null || st.state == PlaybackState.STATE_NONE) -1L else st.position,
                     positionAt = st?.lastPositionUpdateTime ?: SystemClock.elapsedRealtime(),
                     speed = st?.playbackSpeed ?: 1f,
                     queue = c.queue.orEmpty().take(40).map { q ->
@@ -198,12 +199,23 @@ class MediaRepository(private val ctx: Context) {
     // Transport: sends to the session that is actually playing; if the app ignores the command
     // (state/track unchanged shortly after) the same action is retried as a system media key.
     // Media keys also cover the head unit's Bluetooth music without any permission.
+    /**
+     * Some bridges (ZLink/CarPlay, Bluetooth audio) never report PLAYING; if they don't claim to be
+     * paused and audio is actually coming out, treat them as playing.
+     */
+    private fun isPlaying(c: MediaController): Boolean {
+        val st = c.playbackState?.state
+        if (st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING) return true
+        if (st == PlaybackState.STATE_PAUSED) return false
+        return audio?.isMusicActive == true
+    }
+
     fun playPause() {
         val c = target()
         if (c == null) { key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE); return }
-        val wasPlaying = c.playbackState?.state == PlaybackState.STATE_PLAYING
+        val wasPlaying = isPlaying(c)
         if (wasPlaying) c.transportControls.pause() else c.transportControls.play()
-        verify(c, { (it.playbackState?.state == PlaybackState.STATE_PLAYING) != wasPlaying }, if (wasPlaying) KeyEvent.KEYCODE_MEDIA_PAUSE else KeyEvent.KEYCODE_MEDIA_PLAY)
+        escalate(c, { isPlaying(it) != wasPlaying }, if (wasPlaying) KeyEvent.KEYCODE_MEDIA_PAUSE else KeyEvent.KEYCODE_MEDIA_PLAY)
     }
 
     fun next() = skip(KeyEvent.KEYCODE_MEDIA_NEXT) { it.transportControls.skipToNext() }
@@ -212,13 +224,30 @@ class MediaRepository(private val ctx: Context) {
     private fun skip(code: Int, action: (MediaController) -> Unit) {
         val c = target()
         if (c == null) { key(code); return }
-        val before = c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) to c.playbackState?.position
+        val before = trackKey(c)
         action(c)
-        verify(c, { (it.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) to it.playbackState?.position) != before }, code)
+        escalate(c, { trackKey(it) != before }, code)
     }
 
-    private fun verify(c: MediaController, changed: (MediaController) -> Boolean, fallbackKey: Int) {
-        main.postDelayed({ if (!runCatching { changed(c) }.getOrDefault(false)) key(fallbackKey) }, 1500)
+    private fun trackKey(c: MediaController): Any? = c.metadata?.let {
+        (it.getString(MediaMetadata.METADATA_KEY_TITLE) ?: it.description?.title?.toString()) to it.getString(MediaMetadata.METADATA_KEY_ARTIST)
+    }
+
+    /**
+     * Apps differ in what they obey. If the transport command had no visible effect, the same
+     * action is sent as a media button to that session, then as a system-wide media key.
+     * Play/pause use the explicit PLAY or PAUSE keys so a late response can't toggle back.
+     */
+    private fun escalate(c: MediaController, changed: (MediaController) -> Boolean, code: Int) {
+        fun ok() = runCatching { changed(c) }.getOrDefault(false)
+        main.postDelayed({
+            if (ok()) return@postDelayed
+            runCatching {
+                c.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
+                c.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+            }
+            main.postDelayed({ if (!ok()) key(code) }, 1200)
+        }, 1200)
     }
 
     fun seekTo(ms: Long) { target()?.transportControls?.seekTo(ms.coerceAtLeast(0)) }

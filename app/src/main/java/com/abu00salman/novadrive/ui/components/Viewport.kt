@@ -48,3 +48,34 @@ fun UiDirection(content: @Composable () -> Unit) =
 
 /** User icon-size multiplier (Settings › Appearance) for app icons in the dock, library and rail. */
 val LocalIconScale = androidx.compose.runtime.staticCompositionLocalOf { 1f }
+
+/** Optional colour theme for app icons (null = the apps' original colours). */
+val LocalIconTint = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.ui.graphics.Color?> { null }
+
+/** Icon colour choices offered in Settings › Appearance (index 0 = original colours). */
+val IconTints = listOf(
+    null,
+    androidx.compose.ui.graphics.Color(0xFF3D8BFF),
+    androidx.compose.ui.graphics.Color(0xFF2EE6C0),
+    androidx.compose.ui.graphics.Color(0xFF8B5CFF),
+    androidx.compose.ui.graphics.Color(0xFFE8C872),
+    androidx.compose.ui.graphics.Color(0xFFFF4D6D),
+    androidx.compose.ui.graphics.Color(0xFFECEFF5),
+)
+
+/**
+ * Duotone filter: keeps each icon's shape and detail (luminance) but recolours it with the chosen
+ * tint, so every app icon matches. Null when original colours are selected.
+ */
+@Composable
+fun iconFilter(): androidx.compose.ui.graphics.ColorFilter? {
+    val t = LocalIconTint.current ?: return null
+    val r = t.red; val g = t.green; val b = t.blue
+    val k = 1.25f
+    return androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(
+        0.299f * r * k, 0.587f * r * k, 0.114f * r * k, 0f, 0f,
+        0.299f * g * k, 0.587f * g * k, 0.114f * g * k, 0f, 0f,
+        0.299f * b * k, 0.587f * b * k, 0.114f * b * k, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f,
+    )))
+}

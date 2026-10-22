@@ -98,9 +98,9 @@ fun uiLocale(arabic: Boolean): Locale =
     if (arabic) Locale.forLanguageTag("ar-SA-u-nu-latn") else Locale.US
 
 /** Dark glass used for cards that sit on top of the scenic artwork, in both themes. */
-private val CardOnArt = Color(0xC70A1230)
-private val OnArt = Color(0xFFF2F6FF)
-private val OnArtDim = Color(0xFFB4C1DD)
+private val CardOnArt: Color @Composable get() = if (LocalNova.current.dark) Color(0xD90A1230) else Color(0xEBFFFFFF)
+private val OnArt: Color @Composable get() = if (LocalNova.current.dark) Color(0xFFF2F6FF) else Color(0xFF0B1630)
+private val OnArtDim: Color @Composable get() = if (LocalNova.current.dark) Color(0xFFB4C1DD) else Color(0xFF4A5878)
 
 // ------------------------------------------------------------------------ weather
 
@@ -268,7 +268,7 @@ fun NavCard(
     val shape = RoundedCornerShape(22.dp)
     Box(
         modifier.clip(shape).background(CardOnArt)
-            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.28f), Color.White.copy(alpha = 0.06f))), shape)
+            .border(1.dp, Brush.verticalGradient(listOf(LocalNova.current.strokeHi, LocalNova.current.stroke)), shape)
             .clickable(onClick = if (nav != null) onCard else onOpenNav)
             .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
@@ -354,6 +354,8 @@ fun Artwork(info: MediaInfo?, size: Dp, corner: Dp, onClick: () -> Unit) {
 @Composable
 fun MediaProgress(info: MediaInfo?, modifier: Modifier = Modifier) {
     val p = LocalNova.current
+    // Sources that don't report a position (CarPlay/Bluetooth bridges) get no timeline rather than a frozen 0:00.
+    if (info != null && (info.positionMs < 0 || info.durationMs <= 0)) return
     val dur = info?.durationMs ?: 0L
     val pos by produceState(info?.positionNow() ?: 0L, info) {
         while (true) { value = info?.positionNow() ?: 0L; if (info?.playing != true) break; delay(1000) }
@@ -421,5 +423,60 @@ fun MediaCard(
             }
             MediaProgress(info, Modifier.fillMaxWidth())
         }
+    }
+}
+
+
+/**
+ * Stylised road for the navigation view, in the current theme. Lane markings move with real GPS
+ * speed and stop when the car stops (no animation while parked). It's scenery, not a map: the real
+ * route is in the navigation app.
+ */
+@Composable
+fun LiveRoad(speedKmh: Float, modifier: Modifier = Modifier) {
+    val p = LocalNova.current
+    val phase = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val speedRef = androidx.compose.runtime.rememberUpdatedState(speedKmh)
+    val moving = speedKmh > 0.5f
+    androidx.compose.runtime.LaunchedEffect(moving) {
+        if (!moving) return@LaunchedEffect
+        var last = 0L
+        while (true) androidx.compose.runtime.withFrameNanos { t ->
+            if (last != 0L) phase.floatValue = (phase.floatValue + (t - last) / 1e9f * (0.15f + speedRef.value / 45f)) % 1f
+            last = t
+        }
+    }
+    val sky = if (p.dark) listOf(Color(0xFF0C1838), Color(0xFF1B2D5E)) else listOf(Color(0xFFBFD8F6), Color(0xFFEAF2FC))
+    val ground = if (p.dark) listOf(Color(0xFF0A1226), Color(0xFF050912)) else listOf(Color(0xFFD5DEEA), Color(0xFFB9C6D8))
+    val asphalt = if (p.dark) listOf(Color(0xFF1D2740), Color(0xFF2A3554)) else listOf(Color(0xFF8C97AB), Color(0xFF5D687E))
+    Canvas(modifier) {
+        val w = size.width; val h = size.height
+        val horizon = h * 0.42f
+        val cx = w / 2
+        drawRect(Brush.verticalGradient(sky, endY = horizon), size = androidx.compose.ui.geometry.Size(w, horizon))
+        drawCircle(Brush.radialGradient(listOf(p.accent.copy(alpha = if (p.dark) 0.35f else 0.25f), Color.Transparent), Offset(cx, horizon), w * 0.5f), w * 0.5f, Offset(cx, horizon))
+        drawRect(Brush.verticalGradient(ground, startY = horizon, endY = h), topLeft = Offset(0f, horizon), size = androidx.compose.ui.geometry.Size(w, h - horizon))
+        val top = w * 0.02f; val bottom = w * 0.46f
+        val road = Path().apply { moveTo(cx - top, horizon); lineTo(cx + top, horizon); lineTo(cx + bottom, h); lineTo(cx - bottom, h); close() }
+        drawPath(road, Brush.verticalGradient(asphalt, startY = horizon, endY = h))
+        for (sx in listOf(-1f, 1f)) drawLine(
+            Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.2f), Color.White.copy(alpha = 0.9f)), startY = horizon, endY = h),
+            Offset(cx + sx * top * 0.9f, horizon), Offset(cx + sx * bottom * 0.92f, h), strokeWidth = 3f
+        )
+        val ph = phase.floatValue
+        for (i in 0 until 9) {
+            val t0 = (i + ph) / 9f; val t1 = t0 + 0.45f / 9f
+            if (t1 > 1f) continue
+            val y0 = horizon + (h - horizon) * t0.pow(2.1f); val y1 = horizon + (h - horizon) * t1.pow(2.1f)
+            drawLine(Color(0xFFFFD27A).copy(alpha = 0.35f + 0.6f * t0), Offset(cx, y0), Offset(cx, y1), strokeWidth = 2f + 9f * t0, cap = StrokeCap.Round)
+        }
+        // position marker
+        val m = Offset(cx, h * 0.86f); val r = w * 0.05f
+        drawCircle(p.accent.copy(alpha = 0.25f), r * 1.6f, m)
+        val arrow = Path().apply {
+            moveTo(m.x, m.y - r); lineTo(m.x + r * 0.8f, m.y + r * 0.6f); lineTo(m.x, m.y + r * 0.2f); lineTo(m.x - r * 0.8f, m.y + r * 0.6f); close()
+        }
+        drawPath(arrow, p.accent)
+        drawPath(arrow, Color.White, style = Stroke(r * 0.12f, join = StrokeJoin.Round))
     }
 }

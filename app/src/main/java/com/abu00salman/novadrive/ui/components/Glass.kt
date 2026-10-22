@@ -127,7 +127,7 @@ fun AppIcon(
     val p = LocalNova.current
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Glass(Modifier.size(size), corner = size * 0.28f, onClick = onClick, onLongClick = onLongClick) {
-            Image(app.icon, app.label, Modifier.align(Alignment.Center).size(size * 0.72f))
+            Image(app.icon, app.label, Modifier.align(Alignment.Center).size(size * 0.72f), colorFilter = iconFilter())
             if (starred) Box(
                 Modifier.align(Alignment.TopEnd).padding(7.dp).size(9.dp).clip(CircleShape).background(p.accent)
             )
