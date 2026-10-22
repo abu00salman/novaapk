@@ -602,28 +602,26 @@ private fun DockTile(s: DockSlot, onClick: () -> Unit, modifier: Modifier) {
     val p = LocalNova.current
     val available = s.app != null || s.builtIn
     Glass(modifier, corner = 22.dp, onClick = onClick) {
-        Row(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             val app = s.app
-            if (app != null) Image(app.icon, null, Modifier.size(60.dp))
+            if (app != null) Image(app.icon, null, Modifier.size(54.dp))
             else Box(
-                Modifier.size(60.dp).clip(RoundedCornerShape(16.dp))
+                Modifier.size(54.dp).clip(RoundedCornerShape(15.dp))
                     .background(if (available) Brush.linearGradient(listOf(Color(0xFF5B7DB8), Color(0xFF2B3E68))) else Brush.linearGradient(listOf(p.text.copy(alpha = 0.10f), p.text.copy(alpha = 0.05f))))
                     .alpha(if (available) 1f else 0.6f),
                 contentAlignment = Alignment.Center
-            ) { Icon(s.fallback, null, tint = if (available) Color.White else p.textDim, modifier = Modifier.size(32.dp)) }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(s.title, style = NovaType.label.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold), color = if (available) p.text else p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    when {
-                        app != null -> app.label
-                        s.builtIn -> ""
-                        s.storePackage != null -> tr("Tap to install", "اضغط للتثبيت")
-                        else -> tr("Not installed", "غير مثبت")
-                    },
-                    style = NovaType.small, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-            }
+            ) { Icon(s.fallback, null, tint = if (available) Color.White else p.textDim, modifier = Modifier.size(30.dp)) }
+            Spacer(Modifier.height(5.dp))
+            Text(s.title, style = NovaType.label.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = if (available) p.text else p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            Text(
+                when {
+                    app != null -> app.label
+                    s.builtIn -> ""
+                    s.storePackage != null -> tr("Tap to install", "اضغط للتثبيت")
+                    else -> tr("Not installed", "غير مثبت")
+                },
+                style = NovaType.small, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
+            )
         }
     }
 }
