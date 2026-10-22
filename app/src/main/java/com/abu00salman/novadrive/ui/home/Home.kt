@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.home
 
+import com.abu00salman.novadrive.core.carDisplayName
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -86,6 +87,7 @@ import com.abu00salman.novadrive.data.WeatherRepository
 import com.abu00salman.novadrive.ui.components.CarImage
 import com.abu00salman.novadrive.ui.components.FixedLtr
 import com.abu00salman.novadrive.ui.components.Glass
+import com.abu00salman.novadrive.ui.components.LocalIconScale
 import com.abu00salman.novadrive.ui.components.Pill
 import com.abu00salman.novadrive.ui.components.RoundButton
 import com.abu00salman.novadrive.ui.components.UiDirection
@@ -136,6 +138,8 @@ data class HomeUi(
     val use24h: Boolean,
     /** Settings › Car › custom image version; 0 shows the placeholder. */
     val carImageVersion: Long = 0,
+    /** Installed YouTube app, offered beside NovaDrive in the music view when parked. */
+    val video: AppEntry? = null,
 )
 
 class HomeActions(
@@ -147,6 +151,8 @@ class HomeActions(
     val onNavDetails: () -> Unit = {},
     /** Opens the navigation app in the split-screen pane beside NovaDrive (if the unit supports it). */
     val onNavBeside: () -> Unit = {},
+    /** Opens YouTube beside NovaDrive (parked only; Android decides if split-screen is possible). */
+    val onVideoBeside: () -> Unit = {},
     val onHome: () -> Unit = {},
     val onWork: () -> Unit = {},
     val onGrantAccess: () -> Unit = {},
@@ -301,14 +307,14 @@ private fun CarHero(ui: HomeUi, act: HomeActions, modifier: Modifier) {
                                     ui.speedKmh?.toInt()?.toString() ?: "--",
                                     style = NovaType.hero.copy(fontSize = (dial.value * 0.26f).sp), color = p.text, maxLines = 1
                                 ) else UiDirection { Pill(tr("Enable GPS", "فعّل الموقع"), p.danger, icon = Icons.Rounded.GpsNotFixed, onClick = act.onEnableLocation) }
-                                Text("km/h", style = NovaType.title.copy(fontWeight = FontWeight.Medium), color = p.textDim)
+                                Text(tr("km/h", "كم/س"), style = NovaType.title.copy(fontWeight = FontWeight.Medium), color = p.textDim)
                             }
                         }
                     }
                     Box(Modifier.weight(0.60f).fillMaxHeight().clickable(onClick = act.onVehicle)) {
                         UiDirection {
                             Column(Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp), horizontalAlignment = Alignment.End) {
-                                Text("${if (ar) ui.brand.ar else ui.brand.en} ${ui.car.name}", style = NovaType.title, color = p.text, maxLines = 1)
+                                Text(carDisplayName(ui.brand, ui.car, ar), style = NovaType.title, color = p.text, maxLines = 1)
                                 Text(if (ar) ui.paint.ar else ui.paint.en, style = NovaType.small, color = p.textDim)
                             }
                         }
@@ -316,8 +322,9 @@ private fun CarHero(ui: HomeUi, act: HomeActions, modifier: Modifier) {
                     }
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Engine readings only when an OBD-II adapter is set up; otherwise the car gets the space.
+            if (ui.obdEnabled) Spacer(Modifier.height(10.dp))
+            if (ui.obdEnabled) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Reading(Icons.Rounded.LocalGasStation, obdValue(ui, { it.fuelPct }) { "$it%" }, tr("Fuel level", "مستوى الوقود"), Modifier.weight(1f), act.onVehicle)
                 Reading(Icons.Rounded.Thermostat, obdValue(ui, { it.coolantC }) { "$it°C" }, tr("Coolant", "حرارة المحرك"), Modifier.weight(1f), act.onVehicle)
                 Reading(Icons.Rounded.BatteryChargingFull, obdValue(ui, { it.voltage }) { String.format(Locale.US, "%.1f V", it as Float) }, tr("Battery", "البطارية"), Modifier.weight(1f), act.onVehicle)
@@ -376,6 +383,7 @@ private fun ObdStatus(ui: HomeUi, modifier: Modifier, onClick: () -> Unit) {
 @Composable
 private fun NavHero(ui: HomeUi, act: HomeActions, modifier: Modifier, compact: Boolean = false) {
     val p = LocalNova.current
+    val ar = LocalArabic.current
     HeroPanel(modifier) {
         ScenicBackdrop(Modifier.fillMaxSize(), route = false)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x33050A1C), Color(0xCC050A1C)))))
@@ -393,7 +401,8 @@ private fun NavHero(ui: HomeUi, act: HomeActions, modifier: Modifier, compact: B
                         if (app != null) Image(app.icon, null, Modifier.size(32.dp)) else Icon(Icons.Rounded.Map, null, tint = Color.White, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            (if (ui.nav != null) tr("Back to ", "العودة إلى ") else tr("Open ", "افتح ")) + (app?.label ?: tr("navigation", "الملاحة")),
+                            if (ar) (if (ui.nav != null) "العودة للخرائط" else "افتح الخرائط")
+                            else (if (ui.nav != null) "Back to " else "Open ") + (app?.label ?: "navigation"),
                             style = NovaType.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -465,7 +474,15 @@ private fun MusicHero(ui: HomeUi, act: HomeActions, modifier: Modifier, compact:
             Column(Modifier.weight(1f)) {
                 content()
                 Spacer(Modifier.height(10.dp))
-                Text(tr("Queue & sources ›", "قائمة التشغيل والمصادر ›"), style = NovaType.label, color = p.accent, modifier = Modifier.clickable(onClick = act.onMusicDetails))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Pill(tr("Queue & sources", "قائمة التشغيل والمصادر"), p.accent, icon = Icons.Rounded.MusicNote, onClick = act.onMusicDetails)
+                    ui.video?.let { v -> Glass(Modifier.height(36.dp), corner = 18.dp, onClick = act.onVideoBeside) {
+                        Row(Modifier.align(Alignment.Center).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Image(v.icon, null, Modifier.size(22.dp)); Spacer(Modifier.width(6.dp))
+                            Text(tr("YouTube beside", "يوتيوب بجانب نوفا"), style = NovaType.label, color = p.text, maxLines = 1)
+                        }
+                    } }
+                }
             }
         }
     }
@@ -570,7 +587,7 @@ private fun NavMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(nav?.primary ?: tr("No active route", "لا يوجد توجيه نشط"), style = NovaType.title.copy(fontSize = if (nav != null) 24.sp else 17.sp), color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(nav?.secondary ?: (tr("Open ", "افتح ") + (ui.navApp?.label ?: tr("maps", "الخرائط"))), style = NovaType.small, color = p.textDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(nav?.secondary ?: tr("Open " + (ui.navApp?.label ?: "maps"), "افتح الخرائط"), style = NovaType.small, color = p.textDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
             nav?.eta?.let { Text(it, style = NovaType.small, color = p.textDim, modifier = Modifier.padding(top = 8.dp), maxLines = 1) }
@@ -586,9 +603,9 @@ private fun CarMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
         Column(Modifier.fillMaxSize().padding(14.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(if (ui.hasLocation) ui.speedKmh?.toInt()?.toString() ?: "--" else "--", style = NovaType.display.copy(fontSize = 38.sp, fontWeight = FontWeight.SemiBold), color = p.text)
-                Text(" km/h", style = NovaType.label, color = p.textDim, modifier = Modifier.padding(bottom = 6.dp))
+                Text(" " + tr("km/h", "كم/س"), style = NovaType.label, color = p.textDim, modifier = Modifier.padding(bottom = 6.dp))
                 Spacer(Modifier.weight(1f))
-                Text("${if (ar) ui.brand.ar else ui.brand.en} ${ui.car.name}", style = NovaType.small, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                Text(carDisplayName(ui.brand, ui.car, ar), style = NovaType.small, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(bottom = 6.dp).weight(1f, fill = false))
             }
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -611,26 +628,23 @@ fun Dock(slots: List<DockSlot>, act: HomeActions, modifier: Modifier = Modifier)
 private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modifier: Modifier) {
     val p = LocalNova.current
     val available = s.app != null || s.builtIn
+    val icon = 56.dp * LocalIconScale.current
+    // Icon + one title in the UI language, centred. App labels from other languages aren't mixed in.
     Glass(modifier, corner = 22.dp, onClick = onClick, onLongClick = onLong) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Column(Modifier.align(Alignment.Center).padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val app = s.app
-            if (app != null) Image(app.icon, null, Modifier.size(54.dp))
+            if (app != null) Image(app.icon, null, Modifier.size(icon))
             else Box(
-                Modifier.size(54.dp).clip(RoundedCornerShape(15.dp))
+                Modifier.size(icon).clip(RoundedCornerShape(15.dp))
                     .background(if (available) Brush.linearGradient(listOf(Color(0xFF5B7DB8), Color(0xFF2B3E68))) else Brush.linearGradient(listOf(p.text.copy(alpha = 0.10f), p.text.copy(alpha = 0.05f))))
                     .alpha(if (available) 1f else 0.6f),
                 contentAlignment = Alignment.Center
-            ) { Icon(s.fallback, null, tint = if (available) Color.White else p.textDim, modifier = Modifier.size(30.dp)) }
-            Spacer(Modifier.height(5.dp))
-            Text(s.title, style = NovaType.label.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = if (available) p.text else p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            ) { Icon(s.fallback, null, tint = if (available) Color.White else p.textDim, modifier = Modifier.size(icon * 0.55f)) }
+            Spacer(Modifier.height(6.dp))
             Text(
-                when {
-                    app != null -> app.label
-                    s.builtIn -> ""
-                    s.storePackage != null -> tr("Tap to install", "اضغط للتثبيت")
-                    else -> tr("Not installed", "غير مثبت")
-                },
-                style = NovaType.small, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
+                if (available) s.title else tr("Install ", "تثبيت ") + s.title,
+                style = NovaType.label.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = if (available) p.text else p.textDim,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
             )
         }
     }

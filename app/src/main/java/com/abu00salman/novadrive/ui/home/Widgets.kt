@@ -301,7 +301,7 @@ fun NavCard(
                     Column {
                         Text(tr("No active route", "لا يوجد توجيه نشط"), style = NovaType.title, color = OnArt, maxLines = 1)
                         Text(
-                            tr("Start a trip in ", "ابدأ رحلة في ") + (navAppLabel ?: tr("your maps app", "تطبيق الخرائط")),
+                            tr("Start a trip in " + (navAppLabel ?: "your maps app"), "ابدأ رحلة في تطبيق الخرائط"),
                             style = NovaType.small.copy(fontSize = 13.sp), color = OnArtDim, maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }

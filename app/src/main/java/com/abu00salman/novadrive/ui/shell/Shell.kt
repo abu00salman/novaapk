@@ -68,6 +68,8 @@ import com.abu00salman.novadrive.data.NetState
 import com.abu00salman.novadrive.ui.components.DesignViewport
 import com.abu00salman.novadrive.ui.components.FixedLtr
 import com.abu00salman.novadrive.ui.components.Glass
+import com.abu00salman.novadrive.ui.components.LocalIconScale
+import androidx.compose.runtime.CompositionLocalProvider
 import com.abu00salman.novadrive.ui.components.UiDirection
 import com.abu00salman.novadrive.ui.home.uiLocale
 import com.abu00salman.novadrive.ui.theme.LocalArabic
@@ -95,21 +97,26 @@ fun ShellLayout(
     rail: @Composable () -> Unit,
     topBar: @Composable () -> Unit,
     overlay: @Composable () -> Unit = {},
+    railRight: Boolean = false,
+    textScale: Float = 1f,
+    iconScale: Float = 1f,
     content: @Composable () -> Unit,
 ) {
-    DesignViewport {
+    DesignViewport(textScale = textScale) {
+      CompositionLocalProvider(LocalIconScale provides iconScale.coerceIn(0.8f, 1.6f)) {
         FixedLtr {
             Row(Modifier.fillMaxSize().padding(14.dp)) {
-                rail()
-                Spacer(Modifier.width(12.dp))
+                if (!railRight) { rail(); Spacer(Modifier.width(12.dp)) }
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     topBar()
                     Spacer(Modifier.height(10.dp))
                     Box(Modifier.weight(1f)) { UiDirection(content) }
                 }
+                if (railRight) { Spacer(Modifier.width(12.dp)); rail() }
             }
             UiDirection(overlay)
         }
+      }
     }
 }
 
@@ -158,7 +165,7 @@ private fun RailItem(icon: ImageVector, label: String, active: Boolean, onClick:
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = if (active) Color.White else p.text.copy(alpha = 0.92f), modifier = Modifier.size(30.dp))
+        Icon(icon, null, tint = if (active) Color.White else p.text.copy(alpha = 0.92f), modifier = Modifier.size(30.dp * LocalIconScale.current.coerceAtMost(1.25f)))
         Spacer(Modifier.height(6.dp))
         Text(label, style = NovaType.small.copy(fontSize = 13.sp), color = if (active) Color.White else p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

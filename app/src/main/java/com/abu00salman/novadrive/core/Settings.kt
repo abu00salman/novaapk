@@ -41,6 +41,13 @@ data class NovaSettings(
     val showSystemApps: Boolean = false,
     /** Bumped whenever the user picks or removes their car image (0 = none). */
     val carImageVersion: Long = 0,
+    /** Allow search, settings and dock editing while moving (video stays blocked). */
+    val editWhileDriving: Boolean = false,
+    /** Put the side rail on the right instead of the left. */
+    val railRight: Boolean = false,
+    /** Text and icon size multipliers (1.0 = default). */
+    val textScale: Float = 1f,
+    val iconScale: Float = 1f,
 ) {
     companion object {
         val DEFAULT_DOCK = listOf("maps", "carplay", "auto", "music", "phone", "apps")
@@ -92,6 +99,10 @@ class SettingsRepository(ctx: Context) {
             dock = s("dock")?.split('|')?.filter { it.isNotBlank() } ?: NovaSettings.DEFAULT_DOCK,
             showSystemApps = b("sysApps", false),
             carImageVersion = prefs.getLong("carImageVersion", 0L),
+            editWhileDriving = b("editDriving", false),
+            railRight = b("railRight", false),
+            textScale = prefs.getFloat(k(p, "textScale"), 1f),
+            iconScale = prefs.getFloat(k(p, "iconScale"), 1f),
         )
     }
 
@@ -125,6 +136,10 @@ class SettingsRepository(ctx: Context) {
             .putString(k(p, "dock"), n.dock.joinToString("|"))
             .putBoolean(k(p, "sysApps"), n.showSystemApps)
             .putLong("carImageVersion", n.carImageVersion)
+            .putBoolean(k(p, "editDriving"), n.editWhileDriving)
+            .putBoolean(k(p, "railRight"), n.railRight)
+            .putFloat(k(p, "textScale"), n.textScale)
+            .putFloat(k(p, "iconScale"), n.iconScale)
             .apply()
     }
 

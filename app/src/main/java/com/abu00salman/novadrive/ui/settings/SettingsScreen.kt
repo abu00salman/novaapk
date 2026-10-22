@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.settings
 
+import com.abu00salman.novadrive.core.carDisplayName
 import android.Manifest
 import android.app.role.RoleManager
 import android.os.Build
@@ -297,7 +298,7 @@ private fun CarSection(c: AppContainer, s: NovaSettings) {
             }
         }
         Gap()
-        Text("${if (ar) brand.ar else brand.en}  ${model.name}  ·  ${if (ar) paint.ar else paint.en}", style = NovaType.label, color = p.textDim)
+        Text("${carDisplayName(brand, model, ar)}  ·  ${if (ar) paint.ar else paint.en}", style = NovaType.label, color = p.textDim)
         Gap()
         Header(tr("Brand", "الشركة"))
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -313,7 +314,7 @@ private fun CarSection(c: AppContainer, s: NovaSettings) {
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(brand.models.size) { i ->
                 val m = brand.models[i]
-                Chip(m.name, m.id == model.id) { c.settings.update { it.copy(carModel = m.id) } }
+                Chip(if (ar) m.nameAr else m.name, m.id == model.id) { c.settings.update { it.copy(carModel = m.id) } }
             }
         }
         Gap()
@@ -358,6 +359,15 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
                 }
             }
         }
+        Gap()
+        Header(tr("Side bar position", "موضع القائمة الجانبية"))
+        Choice(listOf(false to tr("Left", "يسار"), true to tr("Right", "يمين")), s.railRight) { v -> c.settings.update { it.copy(railRight = v) } }
+        Gap()
+        Header(tr("Text size", "حجم الخط"))
+        Choice(listOf(1f to "100%", 1.15f to "115%", 1.3f to "130%", 1.45f to "145%"), s.textScale) { v -> c.settings.update { it.copy(textScale = v) } }
+        Gap()
+        Header(tr("Icon size", "حجم الأيقونات"))
+        Choice(listOf(1f to "100%", 1.15f to "115%", 1.3f to "130%", 1.45f to "145%"), s.iconScale) { v -> c.settings.update { it.copy(iconScale = v) } }
         Gap()
         Header(tr("Language", "اللغة"))
         Choice(listOf(Lang.AR to "العربية", Lang.EN to "English"), s.language) { l -> c.settings.update { it.copy(language = l) } }
@@ -479,6 +489,11 @@ private fun DrivingSection(c: AppContainer, s: NovaSettings) {
             tr("Switches home to Navigation when Maps/Waze starts guidance and back to Car when it ends. Pinned Music or Split stay.",
                 "ينتقل للملاحة عند بدء التوجيه في الخرائط أو Waze ويعود للسيارة عند انتهائه. وضعا الموسيقى والتقسيم المثبتان لا يتغيران."),
             s.autoNavMode) { v -> c.settings.update { it.copy(autoNavMode = v) } }
+        Gap()
+        Toggle(tr("Allow editing while moving", "السماح بالتعديل أثناء الحركة"),
+            tr("Search, settings and dock changes stay available above 8 km/h. Video apps remain blocked while moving.",
+                "يبقى البحث والإعدادات وتعديل الشريط متاحاً فوق 8 كم/س. تبقى تطبيقات الفيديو محجوبة أثناء الحركة."),
+            s.editWhileDriving) { v -> c.settings.update { it.copy(editWhileDriving = v) } }
     }
 }
 

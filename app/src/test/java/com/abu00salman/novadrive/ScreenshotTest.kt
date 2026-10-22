@@ -138,12 +138,14 @@ class ScreenshotTest {
         homeSet = true, workSet = true, dock = dock(ar), use24h = false,
     )
 
-    private fun shot(name: String, screen: Screen, mode: HomeMode = HomeMode.CAR, dark: Boolean = true, ar: Boolean = true, content: @Composable () -> Unit) {
+    private fun shot(name: String, screen: Screen, mode: HomeMode = HomeMode.CAR, dark: Boolean = true, ar: Boolean = true,
+                     railRight: Boolean = false, textScale: Float = 1f, iconScale: Float = 1f, content: @Composable () -> Unit) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             NovaTheme(dark = dark, accentIndex = 0, arabic = ar) {
                 Box(Modifier.fillMaxSize().novaBackdrop(LocalNova.current)) {
                     ShellLayout(
+                        railRight = railRight, textScale = textScale, iconScale = iconScale,
                         rail = { Rail(screen, mode, {}, {}, {}) },
                         topBar = {
                             TopBar(Link.CONNECTED, NetState(Link.CONNECTED, false), GpsState.FIX, dark, ThemeMode.AUTO, false,
@@ -188,6 +190,10 @@ class ScreenshotTest {
 
     @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
     fun split_1024() = home("14_split_1024x600_day_ar", HomeMode.SPLIT, dark = false)
+
+    @Test fun railRight_largeText() = shot("16_car_rail_right_large_text_night_ar", Screen.HOME, railRight = true, textScale = 1.3f, iconScale = 1.3f) {
+        HomeLayout(ui(true, obd = false, guiding = false), HomeMode.CAR, false, HomeActions())
+    }
 
     @Test fun vehicle() = shot("15_vehicle_night_ar", Screen.VEHICLE) {
         VehicleScreen(carBrand("hyundai"), carModel("hyundai", "sonata19"), CarPaints[0], true, live, {})

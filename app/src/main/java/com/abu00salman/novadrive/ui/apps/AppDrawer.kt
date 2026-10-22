@@ -64,6 +64,7 @@ import com.abu00salman.novadrive.core.AppTab
 import com.abu00salman.novadrive.core.filterApps
 import com.abu00salman.novadrive.data.AppEntry
 import com.abu00salman.novadrive.ui.components.Glass
+import com.abu00salman.novadrive.ui.components.LocalIconScale
 import com.abu00salman.novadrive.ui.components.Pill
 import com.abu00salman.novadrive.ui.components.RoundButton
 import com.abu00salman.novadrive.ui.theme.LocalNova
@@ -206,7 +207,7 @@ private fun AppTile(app: AppEntry, favorite: Boolean, selected: Boolean, onLong:
     val p = LocalNova.current
     val shape = RoundedCornerShape(22.dp)
     Column(
-        Modifier.fillMaxWidth().height(150.dp).clip(shape)
+        Modifier.fillMaxWidth().height(78.dp * LocalIconScale.current + 72.dp).clip(shape)
             .background(if (selected) p.accent.copy(alpha = 0.18f) else p.text.copy(alpha = if (p.dark) 0.04f else 0.35f))
             .border(1.dp, if (selected) p.accent else p.stroke, shape)
             .combinedClickable(onClick = onClick, onLongClick = onLong)
@@ -214,7 +215,7 @@ private fun AppTile(app: AppEntry, favorite: Boolean, selected: Boolean, onLong:
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
-            Image(app.icon, app.label, Modifier.size(76.dp))
+            Image(app.icon, app.label, Modifier.size(72.dp * LocalIconScale.current))
             if (favorite) Box(Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(p.accent), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.Star, null, tint = Color.White, modifier = Modifier.size(14.dp))
             }

@@ -21,11 +21,11 @@ import com.abu00salman.novadrive.ui.theme.LocalArabic
  * The longer axis keeps any extra room, which the weighted layouts absorb.
  */
 @Composable
-fun DesignViewport(designW: Dp = 1280.dp, designH: Dp = 720.dp, content: @Composable () -> Unit) {
+fun DesignViewport(designW: Dp = 1280.dp, designH: Dp = 720.dp, textScale: Float = 1f, content: @Composable () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val scale = minOf(maxWidth / designW, maxHeight / designH).coerceIn(0.4f, 3f)
         val d = LocalDensity.current
-        CompositionLocalProvider(LocalDensity provides Density(d.density * scale, d.fontScale.coerceIn(0.85f, 1.15f))) {
+        CompositionLocalProvider(LocalDensity provides Density(d.density * scale, d.fontScale.coerceIn(0.85f, 1.15f) * textScale.coerceIn(0.8f, 1.6f))) {
             Box(Modifier.requiredSize(maxWidth / scale, maxHeight / scale)) { content() }
         }
     }
@@ -45,3 +45,6 @@ fun UiDirection(content: @Composable () -> Unit) =
         LocalLayoutDirection provides if (LocalArabic.current) LayoutDirection.Rtl else LayoutDirection.Ltr,
         content = content,
     )
+
+/** User icon-size multiplier (Settings › Appearance) for app icons in the dock, library and rail. */
+val LocalIconScale = androidx.compose.runtime.staticCompositionLocalOf { 1f }

@@ -116,6 +116,9 @@ fun NovaRoot(onVoice: () -> Unit) {
     // Driving: derived so speed updates don't recompose the whole tree.
     val drivingRaw by remember { derivedStateOf { (fixState.value?.speedKmh ?: 0f) > 8f } }
     val driving = drivingRaw && settings.drivingMode
+    // Typing/search/settings/dock editing while moving is the user's choice (Settings › Driving);
+    // video apps stay blocked while moving either way.
+    val lockEdits = driving && !settings.editWhileDriving
 
     val minute by produceState(System.currentTimeMillis()) {
         while (true) { delay(60_000); value = System.currentTimeMillis() }
@@ -199,6 +202,7 @@ fun NovaRoot(onVoice: () -> Unit) {
         Box(Modifier.fillMaxSize().novaBackdrop(p)) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ShellLayout(
+                    railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
                     rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone) },
                     topBar = {
                         TopBar(
@@ -233,7 +237,7 @@ fun NovaRoot(onVoice: () -> Unit) {
                     },
                 ) {
                     Crossfade(screen, animationSpec = tween(200), label = "screen") { s ->
-                        Routes(s, c, settings, sc, apps, driving, actions, go, openSettings, settingsStart, requestLocation, modeState.mode, modeState.autoPromoted, onMode)
+                        Routes(s, c, settings, sc, apps, driving, lockEdits, actions, go, openSettings, settingsStart, requestLocation, modeState.mode, modeState.autoPromoted, onMode)
                     }
                 }
             }
@@ -249,6 +253,7 @@ private fun Routes(
     sc: Shortcuts,
     apps: List<AppEntry>,
     driving: Boolean,
+    lockEdits: Boolean,
     a: Actions,
     go: (Screen) -> Unit,
     openSettings: (String?) -> Unit,
@@ -266,12 +271,13 @@ private fun Routes(
             HomeActions(
                 onDockLong = { slot ->
                     if (slot.id == "apps") Unit
-                    else if (driving) toast(ctx, if (settings.arabic) "تغيير الشريط متاح عند التوقف" else "Dock editing is available when parked")
+                    else if (lockEdits) toast(ctx, if (settings.arabic) "تغيير الشريط متاح عند التوقف" else "Dock editing is available when parked")
                     else dockPick = slot.id
                 },
                 onMode = onMode,
                 onNavDetails = { go(Screen.NAV) },
                 onNavBeside = a::openNavBeside,
+                onVideoBeside = { ui.video?.let(a::openBeside) },
                 onMusicDetails = { go(Screen.MUSIC) },
                 onSeek = c.media::seekTo,
                 onEnableLocation = requestLocation,
@@ -309,7 +315,7 @@ private fun Routes(
             NavigationScreen(
                 nav = nav, hasAccess = remember(perms) { MediaRepository.hasAccess(ctx) },
                 navApp = sc.nav, navApps = navApps,
-                homeAddress = settings.homeAddress, workAddress = settings.workAddress, driving = driving,
+                homeAddress = settings.homeAddress, workAddress = settings.workAddress, driving = lockEdits,
                 onCard = { a.openGuidance(nav) }, onOpenNav = a::openNav,
                 onGrantAccess = { c.controls.openNotificationAccess() },
                 onNavigate = a::navigate, onLaunchApp = { c.apps.launch(it) },
@@ -343,14 +349,14 @@ private fun Routes(
             )
         }
         Screen.APPS -> AppsScreen(
-            apps = apps, favorites = settings.favorites, showSystem = settings.showSystemApps, driving = driving,
+            apps = apps, favorites = settings.favorites, showSystem = settings.showSystemApps, driving = lockEdits,
             onLaunch = a::launch,
             onToggleFavorite = c.settings::toggleFavorite,
             onMoveFavorite = c.settings::moveFavorite,
             onShowSystem = { v -> c.settings.update { it.copy(showSystemApps = v) } },
             onParkedOnly = { toast(ctx, if (settings.arabic) "متاح عند التوقف" else "Available when parked") },
         )
-        Screen.SETTINGS -> SettingsScreen(c, settings, driving, settingsStart) { go(Screen.HOME) }
+        Screen.SETTINGS -> SettingsScreen(c, settings, lockEdits, settingsStart) { go(Screen.HOME) }
     }
 }
 
@@ -366,6 +372,11 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
     }
 
     fun openNav() { open(sc.nav, "navigation", "الملاحة") }
+
+    fun openBeside(app: AppEntry) {
+        if (driving && isVideoApp(app.packageName, app.label)) { say("Video is available when parked", "الفيديو متاح عند التوقف"); return }
+        if (!c.controls.launchAdjacent(c.apps.intentFor(app))) launch(app)
+    }
 
     /** Maps/Waze in the split-screen pane next to NovaDrive; full screen where the unit can't split. */
     fun openNavBeside() {

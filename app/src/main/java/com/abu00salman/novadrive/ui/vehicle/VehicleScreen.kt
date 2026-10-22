@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.vehicle
 
+import com.abu00salman.novadrive.core.carDisplayName
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -79,7 +80,7 @@ fun VehicleScreen(
         Spacer(Modifier.width(12.dp))
         Glass(Modifier.weight(0.44f).fillMaxHeight()) {
             Column(Modifier.fillMaxSize().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${if (ar) brand.ar else brand.en} ${model.name}", style = NovaType.title.copy(fontSize = 22.sp), color = p.text, maxLines = 1)
+                Text(carDisplayName(brand, model, ar), style = NovaType.title.copy(fontSize = 22.sp), color = p.text, maxLines = 1)
                 Text(if (ar) paint.ar else paint.en, style = NovaType.label, color = p.textDim)
                 Spacer(Modifier.height(6.dp))
                 StatusChip(obdEnabled, data)
