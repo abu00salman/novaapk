@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -82,6 +83,7 @@ import com.abu00salman.novadrive.data.NavInfo
 import com.abu00salman.novadrive.data.VehicleData
 import com.abu00salman.novadrive.data.Weather
 import com.abu00salman.novadrive.data.WeatherRepository
+import com.abu00salman.novadrive.ui.components.CarImage
 import com.abu00salman.novadrive.ui.components.FixedLtr
 import com.abu00salman.novadrive.ui.components.Glass
 import com.abu00salman.novadrive.ui.components.Pill
@@ -132,6 +134,8 @@ data class HomeUi(
     val workSet: Boolean,
     val dock: List<DockSlot>,
     val use24h: Boolean,
+    /** Settings › Car › custom image version; 0 shows the placeholder. */
+    val carImageVersion: Long = 0,
 )
 
 class HomeActions(
@@ -250,7 +254,7 @@ private fun ModeButton(icon: ImageVector, label: String, active: Boolean, badge:
 
 /** Rounded panel for the hero area; [night]/[day] gradients keep contrast in both themes. */
 @Composable
-private fun HeroPanel(modifier: Modifier, content: @Composable () -> Unit) {
+private fun HeroPanel(modifier: Modifier, content: @Composable BoxScope.() -> Unit) {
     val p = LocalNova.current
     val shape = RoundedCornerShape(24.dp)
     Box(
@@ -272,7 +276,6 @@ private fun obdValue(ui: HomeUi, pick: (VehicleData) -> Any?, fmt: (Any) -> Stri
 private fun CarHero(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     val p = LocalNova.current
     val ar = LocalArabic.current
-    val isSonata = ui.brand.id == "hyundai" && ui.car.id == "sonata19"
     HeroPanel(modifier) {
         // horizon glow behind the car
         Canvas(Modifier.fillMaxSize()) {
@@ -305,12 +308,7 @@ private fun CarHero(ui: HomeUi, act: HomeActions, modifier: Modifier) {
                                 Text(if (ar) ui.paint.ar else ui.paint.en, style = NovaType.small, color = p.textDim)
                             }
                         }
-                        if (isSonata) Image(
-                            painterResource(R.drawable.sonata_2019_white), tr("Hyundai Sonata 2019, white", "هيونداي سوناتا 2019 بيضاء"),
-                            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 6.dp), contentScale = ContentScale.FillWidth
-                        ) else Canvas(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.8f)) {
-                            drawCar(ui.car, ui.paint.color, size.width / 2, size.height * 0.95f, minOf(size.width * 0.55f, size.height * 1.05f), p.dark, p.accent)
-                        }
+                        CarImage(ui.carImageVersion, Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.82f).padding(bottom = 4.dp))
                     }
                 }
             }
@@ -574,7 +572,6 @@ private fun NavMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
 private fun CarMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     val p = LocalNova.current
     val ar = LocalArabic.current
-    val isSonata = ui.brand.id == "hyundai" && ui.car.id == "sonata19"
     Glass(modifier, onClick = { act.onMode(HomeMode.CAR) }) {
         Column(Modifier.fillMaxSize().padding(14.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
@@ -585,8 +582,7 @@ private fun CarMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
                     modifier = Modifier.padding(bottom = 6.dp).weight(1f, fill = false))
             }
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                if (isSonata) Image(painterResource(R.drawable.sonata_2019_white), null, Modifier.fillMaxWidth(0.92f), contentScale = ContentScale.FillWidth)
-                else Canvas(Modifier.fillMaxSize()) { drawCar(ui.car, ui.paint.color, size.width / 2, size.height * 0.95f, minOf(size.width * 0.45f, size.height * 1.1f), p.dark, p.accent) }
+                CarImage(ui.carImageVersion, Modifier.fillMaxSize(), hint = false)
             }
         }
     }

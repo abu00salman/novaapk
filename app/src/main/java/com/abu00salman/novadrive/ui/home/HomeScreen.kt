@@ -141,6 +141,7 @@ fun HomeScreen(
         workSet = settings.workAddress.isNotBlank(),
         dock = dock,
         use24h = settings.use24h,
+        carImageVersion = settings.carImageVersion,
     )
     HomeLayout(ui, mode, autoPromoted, remember(ui) { actions(ui) })
 }

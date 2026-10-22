@@ -66,7 +66,12 @@ import com.abu00salman.novadrive.core.CarBrands
 import com.abu00salman.novadrive.core.CarPaints
 import com.abu00salman.novadrive.core.carBrand
 import com.abu00salman.novadrive.core.carModel
-import com.abu00salman.novadrive.ui.home.drawCar
+import com.abu00salman.novadrive.core.CarImageStore
+import com.abu00salman.novadrive.ui.components.CarImage
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.abu00salman.novadrive.core.CrashGuard
 import com.abu00salman.novadrive.core.DOCK_CHOICES
 import com.abu00salman.novadrive.core.DOCK_MAX
@@ -115,7 +120,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                 Spacer(Modifier.height(18.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val items = listOf(
-                        Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("My car", "سيارتي")),
+                        Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("Car", "السيارة")),
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
                         Triple(Section.CARPLAY, Icons.Rounded.PhoneIphone, Pair("CarPlay", "كاربلاي")),
@@ -267,17 +272,30 @@ private fun CarSection(c: AppContainer, s: NovaSettings) {
     val model = carModel(s.carBrand, s.carModel)
     val paint = CarPaints.getOrElse(s.carPaint) { CarPaints[0] }
     Column {
-        Header(tr("My car", "سيارتي"), tr("Shown on your dashboard.", "تظهر في لوحة القيادة."))
-        Glass(Modifier.fillMaxWidth().height(210.dp), corner = 26.dp) {
-            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                val w = minOf(size.width * 0.5f, size.height * 0.95f)
-                drawCar(model, paint.color, size.width / 2, size.height * 0.92f, w, p.dark, p.accent)
+        val ctx = LocalContext.current
+        val scope = rememberCoroutineScope()
+        val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) scope.launch {
+                val ok = withContext(Dispatchers.IO) { CarImageStore.import(ctx, uri) }
+                if (ok) c.settings.update { it.copy(carImageVersion = System.currentTimeMillis()) }
+                else com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تعذّر قراءة الصورة" else "Couldn't read that image")
             }
-            Text(
-                "${if (ar) brand.ar else brand.en}  ${model.name}  ·  ${if (ar) paint.ar else paint.en}",
-                style = NovaType.label, color = p.textDim, modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
-            )
         }
+        Header(tr("Customize car image", "تخصيص صورة السيارة"),
+            tr("PNG or WebP with a transparent background works best. Shown fitted, never cropped.",
+                "يفضّل PNG أو WebP بخلفية شفافة. تُعرض كاملة دون قص أو تشويه."))
+        Glass(Modifier.fillMaxWidth().height(220.dp), corner = 26.dp) {
+            CarImage(s.carImageVersion, Modifier.fillMaxSize().padding(16.dp))
+        }
+        Gap()
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Choose image", "اختيار صورة"), p.accent) { picker.launch(arrayOf("image/png", "image/webp", "image/jpeg", "image/*")) }
+            if (s.carImageVersion != 0L) Pill(tr("Remove image", "إزالة الصورة"), p.danger) {
+                CarImageStore.clear(ctx); c.settings.update { it.copy(carImageVersion = 0L) }
+            }
+        }
+        Gap()
+        Text("${if (ar) brand.ar else brand.en}  ${model.name}  ·  ${if (ar) paint.ar else paint.en}", style = NovaType.label, color = p.textDim)
         Gap()
         Header(tr("Brand", "الشركة"))
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

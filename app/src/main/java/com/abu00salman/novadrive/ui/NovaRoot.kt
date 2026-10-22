@@ -315,6 +315,7 @@ private fun Routes(
                 brand = carBrand(settings.carBrand), model = carModel(settings.carBrand, settings.carModel),
                 paint = CarPaints.getOrElse(settings.carPaint) { CarPaints[0] },
                 obdEnabled = settings.obdEnabled, data = data, onSetup = { openSettings("vehicle") },
+                carImageVersion = settings.carImageVersion,
             )
         }
         Screen.APPS -> AppsScreen(

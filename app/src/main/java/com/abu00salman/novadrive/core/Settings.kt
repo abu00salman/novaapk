@@ -39,6 +39,8 @@ data class NovaSettings(
     /** Ordered dock actions (see ui/home/Dock). */
     val dock: List<String> = DEFAULT_DOCK,
     val showSystemApps: Boolean = false,
+    /** Bumped whenever the user picks or removes their car image (0 = none). */
+    val carImageVersion: Long = 0,
 ) {
     companion object {
         val DEFAULT_DOCK = listOf("maps", "carplay", "auto", "music", "phone", "apps")
@@ -89,6 +91,7 @@ class SettingsRepository(ctx: Context) {
             autoNavMode = b("autoNav", true),
             dock = s("dock")?.split('|')?.filter { it.isNotBlank() } ?: NovaSettings.DEFAULT_DOCK,
             showSystemApps = b("sysApps", false),
+            carImageVersion = prefs.getLong("carImageVersion", 0L),
         )
     }
 
@@ -121,6 +124,7 @@ class SettingsRepository(ctx: Context) {
             .putBoolean(k(p, "autoNav"), n.autoNavMode)
             .putString(k(p, "dock"), n.dock.joinToString("|"))
             .putBoolean(k(p, "sysApps"), n.showSystemApps)
+            .putLong("carImageVersion", n.carImageVersion)
             .apply()
     }
 

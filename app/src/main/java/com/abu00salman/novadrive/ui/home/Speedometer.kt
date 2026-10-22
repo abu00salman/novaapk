@@ -121,6 +121,5 @@ fun Speedometer(speedKmh: Float, car: CarModel, paint: Color, modifier: Modifier
             val y1 = top + (bottom - top) * t1.pow(1.8f)
             drawLine(p.text.copy(alpha = 0.15f + 0.5f * t0), Offset(c.x, y0), Offset(c.x, y1), strokeWidth = 1.5f + 4f * t0, cap = StrokeCap.Round)
         }
-        if (showCar) drawCar(car, paint, c.x, c.y + r * 0.93f, r * 0.50f, p.dark, p.accent)
     }
 }
