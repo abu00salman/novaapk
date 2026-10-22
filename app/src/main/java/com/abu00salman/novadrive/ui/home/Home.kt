@@ -142,6 +142,8 @@ data class HomeUi(
     val carImageVersion: Long = 0,
     /** Installed YouTube app, offered beside NovaDrive in the music view when parked. */
     val video: AppEntry? = null,
+    /** Settings › Appearance › layout style: the fixed "simple" layout instead of modes. */
+    val simple: Boolean = false,
 )
 
 class HomeActions(
@@ -167,6 +169,8 @@ class HomeActions(
     val onDock: (DockSlot) -> Unit = {},
     /** Long-press a dock tile to put a different installed app there. */
     val onDockLong: (DockSlot) -> Unit = {},
+    /** Tapping the clock/weather card opens quick controls (volume, brightness, theme). */
+    val onQuick: () -> Unit = {},
 )
 
 /**
@@ -176,6 +180,7 @@ class HomeActions(
  */
 @Composable
 fun HomeLayout(ui: HomeUi, mode: HomeMode, autoPromoted: Boolean, act: HomeActions, modifier: Modifier = Modifier) = FixedLtr {
+    if (ui.simple) { SimpleLayout(ui, act, modifier); return@FixedLtr }
     Column(modifier.fillMaxSize()) {
         Row(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(0.69f).fillMaxHeight()) {
@@ -198,7 +203,7 @@ fun HomeLayout(ui: HomeUi, mode: HomeMode, autoPromoted: Boolean, act: HomeActio
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(0.31f).fillMaxHeight()) {
-                UiDirection { TimeWeatherCard(ui, Modifier.fillMaxWidth().height(128.dp)) }
+                UiDirection { TimeWeatherCard(ui, Modifier.fillMaxWidth().height(128.dp), act.onQuick) }
                 Spacer(Modifier.height(12.dp))
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     UiDirection {
@@ -515,7 +520,7 @@ private fun SeekBar(m: MediaInfo, onSeek: (Long) -> Unit) {
 // ============================================================================ side column
 
 @Composable
-private fun TimeWeatherCard(ui: HomeUi, modifier: Modifier) {
+private fun TimeWeatherCard(ui: HomeUi, modifier: Modifier, onClick: () -> Unit = {}) {
     val p = LocalNova.current
     val ar = LocalArabic.current
     val now = rememberMinuteClock()
@@ -524,7 +529,7 @@ private fun TimeWeatherCard(ui: HomeUi, modifier: Modifier) {
     val pm = remember(now) { Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.AM_PM) == Calendar.PM }
     val date = remember(now, ar) { SimpleDateFormat(if (ar) "EEEE d MMMM" else "EEE, d MMM", loc).format(Date(now)) }
     val w = ui.weather
-    Glass(modifier) {
+    Glass(modifier, onClick = onClick) {
         Row(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 if (ui.showWeather && w != null) {
@@ -597,10 +602,10 @@ private fun NavMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
 }
 
 @Composable
-private fun CarMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
+private fun CarMini(ui: HomeUi, act: HomeActions, modifier: Modifier, toVehicle: Boolean = false) {
     val p = LocalNova.current
     val ar = LocalArabic.current
-    Glass(modifier, onClick = { act.onMode(HomeMode.CAR) }) {
+    Glass(modifier, onClick = { if (toVehicle) act.onVehicle() else act.onMode(HomeMode.CAR) }) {
         Column(Modifier.fillMaxSize().padding(14.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(if (ui.hasLocation) ui.speedKmh?.toInt()?.toString() ?: "--" else "--", style = NovaType.display.copy(fontSize = 38.sp, fontWeight = FontWeight.SemiBold), color = p.text)
@@ -619,24 +624,26 @@ private fun CarMini(ui: HomeUi, act: HomeActions, modifier: Modifier) {
 // ============================================================================ dock
 
 @Composable
-fun Dock(slots: List<DockSlot>, act: HomeActions, modifier: Modifier = Modifier) {
+fun Dock(slots: List<DockSlot>, act: HomeActions, modifier: Modifier = Modifier, large: Boolean = false) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        slots.forEach { s -> Box(Modifier.weight(1f).fillMaxHeight()) { UiDirection { DockTile(s, { act.onDock(s) }, { act.onDockLong(s) }, Modifier.fillMaxSize()) } } }
+        slots.forEach { s -> Box(Modifier.weight(1f).fillMaxHeight()) { UiDirection { DockTile(s, { act.onDock(s) }, { act.onDockLong(s) }, Modifier.fillMaxSize(), large) } } }
     }
 }
 
 @Composable
-private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modifier: Modifier) {
+private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modifier: Modifier, large: Boolean = false) {
     val p = LocalNova.current
     val available = s.app != null || s.builtIn
-    val icon = 56.dp * LocalIconScale.current
+    val icon = (if (large) 70.dp else 56.dp) * LocalIconScale.current
     // Icon + one title in the UI language, centred. App labels from other languages aren't mixed in.
     Glass(modifier, corner = 22.dp, onClick = onClick, onLongClick = onLong) {
         Column(Modifier.align(Alignment.Center).padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val app = s.app
             val tint = LocalIconTint.current
             // The phone button always shows a phone, even when the unit's dialer uses a Bluetooth logo.
-            if (app != null && s.id != "phone") Image(app.icon, null, Modifier.size(icon), colorFilter = iconFilter())
+            // CarPlay shows the CarPlay mark (it still launches the unit's ZLink/DiPlay app).
+            if (s.id == "carplay" && app != null) Image(painterResource(R.drawable.carplay_icon), null, Modifier.size(icon).clip(RoundedCornerShape(icon * 0.22f)), colorFilter = iconFilter())
+            else if (app != null && s.id != "phone") Image(app.icon, null, Modifier.size(icon), colorFilter = iconFilter())
             else Box(
                 Modifier.size(icon).clip(RoundedCornerShape(15.dp))
                     .background(
@@ -653,9 +660,34 @@ private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modif
             Spacer(Modifier.height(6.dp))
             Text(
                 if (available) s.title else tr("Install ", "تثبيت ") + s.title,
-                style = NovaType.label.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = if (available) p.text else p.textDim,
+                style = NovaType.label.copy(fontSize = if (large) 18.sp else 15.sp, fontWeight = FontWeight.SemiBold), color = if (available) p.text else p.textDim,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
             )
         }
+    }
+}
+
+
+/**
+ * «الواجهة البسيطة»: one fixed screen — live guidance, the music player and time/weather with the
+ * car — over a large dock. Every card is a working control (guidance → maps, artwork → music app,
+ * car → vehicle info, clock → quick controls).
+ */
+@Composable
+private fun SimpleLayout(ui: HomeUi, act: HomeActions, modifier: Modifier) {
+    Column(modifier.fillMaxSize()) {
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+            UiDirection { NavHero(ui, act, Modifier.weight(0.34f).fillMaxHeight(), compact = true) }
+            Spacer(Modifier.width(12.dp))
+            UiDirection { MusicHero(ui, act, Modifier.weight(0.34f).fillMaxHeight(), compact = true) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(0.32f).fillMaxHeight()) {
+                UiDirection { TimeWeatherCard(ui, Modifier.fillMaxWidth().height(140.dp), act.onQuick) }
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.weight(1f).fillMaxWidth()) { UiDirection { CarMini(ui, act, Modifier.fillMaxSize(), toVehicle = true) } }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Dock(ui.dock, act, Modifier.fillMaxWidth().height(132.dp), large = true)
     }
 }

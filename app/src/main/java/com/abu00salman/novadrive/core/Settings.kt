@@ -52,6 +52,10 @@ data class NovaSettings(
     val iconTint: Int = 0,
     /** "أمرني" custom phrases → apps. */
     val voiceCommands: List<com.abu00salman.novadrive.data.CustomCommand> = emptyList(),
+    /** "smart" (modes + switcher) or "simple" (fixed navigation · music · weather/car layout). */
+    val uiStyle: String = "smart",
+    /** «أمرني» speaks its replies aloud. */
+    val voiceReply: Boolean = true,
 ) {
     companion object {
         val DEFAULT_DOCK = listOf("maps", "carplay", "auto", "music", "phone", "apps")
@@ -108,6 +112,8 @@ class SettingsRepository(ctx: Context) {
             textScale = prefs.getFloat(k(p, "textScale"), 1f),
             iconScale = prefs.getFloat(k(p, "iconScale"), 1f),
             iconTint = prefs.getInt(k(p, "iconTint"), 0),
+            uiStyle = s("uiStyle") ?: "smart",
+            voiceReply = b("voiceReply", true),
             voiceCommands = (s("voiceCmds") ?: "").split('\u001E').mapNotNull { e ->
                 val parts = e.split('\u001F'); if (parts.size == 2 && parts[0].isNotBlank()) com.abu00salman.novadrive.data.CustomCommand(parts[0], parts[1]) else null
             },
@@ -149,6 +155,8 @@ class SettingsRepository(ctx: Context) {
             .putFloat(k(p, "textScale"), n.textScale)
             .putFloat(k(p, "iconScale"), n.iconScale)
             .putInt(k(p, "iconTint"), n.iconTint)
+            .putString(k(p, "uiStyle"), n.uiStyle)
+            .putBoolean(k(p, "voiceReply"), n.voiceReply)
             .putString(k(p, "voiceCmds"), n.voiceCommands.joinToString("\u001E") { it.phrase.replace("\u001E", " ").replace("\u001F", " ") + "\u001F" + it.packageName })
             .apply()
     }

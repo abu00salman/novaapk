@@ -198,6 +198,18 @@ fun NovaRoot(onVoice: () -> Unit) {
         val modeState by modeVm.state.collectAsStateWithLifecycle()
         val onMode: (HomeMode) -> Unit = { modeVm.select(it); screen = Screen.HOME; settingsStart = null }
         val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) })
+        // In-app voice actions ("show the map", "open settings", "simple interface") from «أمرني».
+        LaunchedEffect(Unit) {
+            c.voiceActions.collect { cmd ->
+                quick = false; split = false
+                when {
+                    cmd.startsWith("mode:") -> runCatching { HomeMode.valueOf(cmd.removePrefix("mode:")) }.getOrNull()?.let(onMode)
+                    cmd.startsWith("screen:") -> runCatching { Screen.valueOf(cmd.removePrefix("screen:")) }.getOrNull()?.let(go)
+                    cmd == "quick" -> quick = true
+                    cmd == "split" -> split = true
+                }
+            }
+        }
 
         Box(Modifier.fillMaxSize().novaBackdrop(p)) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -238,7 +250,7 @@ fun NovaRoot(onVoice: () -> Unit) {
                     },
                 ) {
                     Crossfade(screen, animationSpec = tween(200), label = "screen") { s ->
-                        Routes(s, c, settings, sc, apps, driving, lockEdits, actions, go, openSettings, settingsStart, requestLocation, modeState.mode, modeState.autoPromoted, onMode)
+                        Routes(s, c, settings, sc, apps, driving, lockEdits, actions, go, openSettings, settingsStart, requestLocation, modeState.mode, modeState.autoPromoted, onMode, onQuick = { quick = true })
                     }
                 }
             }
@@ -263,6 +275,7 @@ private fun Routes(
     mode: HomeMode,
     autoPromoted: Boolean,
     onMode: (HomeMode) -> Unit,
+    onQuick: () -> Unit,
 ) {
     val ctx = LocalContext.current
     when (s) {
@@ -291,6 +304,7 @@ private fun Routes(
                 onOpenMedia = { a.openMedia(ui.media?.packageName) },
                 onPrev = c.media::previous, onPlayPause = c.media::playPause, onNext = c.media::next,
                 onDock = a::dock,
+                onQuick = onQuick,
             )
           }
           dockPick?.let { id ->

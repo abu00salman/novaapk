@@ -195,6 +195,12 @@ class ScreenshotTest {
         HomeLayout(ui(true, obd = false, guiding = false), HomeMode.CAR, false, HomeActions())
     }
 
+    @Test fun simple_night() = home("17_simple_night_ar", HomeMode.CAR, dark = true, ui = ui(true).copy(simple = true))
+    @Test fun simple_day_noRoute() = home("18_simple_day_ar_no_route", HomeMode.CAR, dark = false, ui = ui(true, guiding = false).copy(simple = true))
+
+    @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
+    fun simple_1024() = home("19_simple_1024x600_night_ar", HomeMode.CAR, dark = true, ui = ui(true).copy(simple = true))
+
     @Test fun vehicle() = shot("15_vehicle_night_ar", Screen.VEHICLE) {
         VehicleScreen(carBrand("hyundai"), carModel("hyundai", "sonata19"), CarPaints[0], true, live, {})
     }

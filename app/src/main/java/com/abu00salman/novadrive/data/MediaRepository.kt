@@ -177,6 +177,13 @@ class MediaRepository(private val ctx: Context) {
     /** The session to control right now (re-evaluated at tap time, not cached from a stale pick). */
     private fun target(): MediaController? = best(listSessions()) ?: active
 
+    /** Title and artist of the session the controls would act on, for «أمرني» ("what's playing"). */
+    fun nowPlaying(): Pair<String, String?>? = runCatching {
+        val md = target()?.metadata ?: return null
+        val t = md.getString(MediaMetadata.METADATA_KEY_TITLE) ?: md.description?.title?.toString() ?: return null
+        t to (md.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md.description?.subtitle?.toString())
+    }.getOrNull()
+
     private fun loadArt(uri: String): ImageBitmap? = runCatching {
         val u = Uri.parse(uri)
         if (u.scheme != "content" && u.scheme != "file" && u.scheme != "android.resource") return null

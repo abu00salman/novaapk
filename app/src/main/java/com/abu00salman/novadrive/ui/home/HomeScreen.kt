@@ -146,6 +146,7 @@ fun HomeScreen(
         dock = dock,
         use24h = settings.use24h,
         carImageVersion = settings.carImageVersion,
+        simple = settings.uiStyle == "simple",
         video = if (driving) null else c.apps.byPackage(YOUTUBE_PKG),
     )
     HomeLayout(ui, mode, autoPromoted, remember(ui) { actions(ui) })

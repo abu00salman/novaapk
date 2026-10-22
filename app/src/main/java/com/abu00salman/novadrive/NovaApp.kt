@@ -61,6 +61,10 @@ class AppContainer(private val app: Application) {
     val obd by lazy { ObdClient(app, scope) }
     val status by lazy { StatusRepository(app) }
 
+    /** Screen/mode changes requested by «أمرني» voice commands, handled by the UI. */
+    val voiceActions = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val speaker by lazy { com.abu00salman.novadrive.data.Speaker(app) }
+
     /** Emitted when the HOME button is pressed while we are already in front. */
     val homePressed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 

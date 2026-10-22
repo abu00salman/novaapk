@@ -343,6 +343,13 @@ private fun CarSection(c: AppContainer, s: NovaSettings) {
 private fun Appearance(c: AppContainer, s: NovaSettings) {
     val p = LocalNova.current
     Column {
+        Header(tr("Interface style", "نمط الواجهة"),
+            tr("Smart switches between car, map and music. Simple shows everything at once.",
+                "الذكية تتبدل بين السيارة والخريطة والموسيقى، والبسيطة تعرض كل شيء معًا."))
+        Choice(listOf("smart" to tr("Smart", "الواجهة الذكية"), "simple" to tr("Simple", "الواجهة البسيطة")), s.uiStyle) { v ->
+            c.settings.update { it.copy(uiStyle = v) }
+        }
+        Gap()
         Header(tr("Theme", "السمة"), tr("Auto follows sunrise and sunset at your location.", "التلقائي يتبع الشروق والغروب حسب موقعك."))
         Choice(
             listOf(ThemeMode.AUTO to tr("Auto", "تلقائي"), ThemeMode.LIGHT to tr("Day", "نهاري"),
@@ -719,6 +726,18 @@ private fun VoiceSection(c: AppContainer, s: NovaSettings) {
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val ex = if (ar) com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_AR else com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_EN
             items(ex.size) { i -> Pill("«${ex[i]}»", p.accent) }
+        }
+        Gap()
+        Toggle(tr("Answer out loud", "الرد بالصوت"),
+            tr("Uses the unit's text-to-speech. Install the Arabic voice from voice settings if replies sound English.",
+                "يستخدم محرك النطق في الجهاز. إذا كان الرد بلكنة إنجليزية ثبّت الصوت العربي من إعدادات النطق."),
+            s.voiceReply) { v -> c.settings.update { it.copy(voiceReply = v) } }
+        Gap()
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Test voice", "تجربة الصوت"), p.accent) {
+                c.speaker.speak(if (ar) "مرحباً، أنا نوفا. جاهز لأوامرك." else "Hi, I'm Nova. Ready when you are.", ar)
+            }
+            Pill(tr("Voice settings", "إعدادات النطق"), p.textDim) { c.speaker.openSettings() }
         }
         Gap()
         Header(tr("My commands", "أوامري الخاصة"), tr("When you say the phrase, the chosen app opens.", "عندما تقول العبارة يُفتح التطبيق الذي اخترته."))

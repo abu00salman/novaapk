@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Simple interface & spoken «أمرني»
+
+- New **Simple interface** (Settings › Appearance › Interface style): navigation, music, clock/weather and car info side by side above a large dock. The choice is saved per profile and survives restarts.
+- CarPlay dock button uses the CarPlay icon; it still launches ZLink/DiPlay exactly as before.
+- «أمرني» now answers out loud (device text-to-speech, Arabic when installed) with a toggle, a voice test and a shortcut to voice settings.
+- Many new voice commands: show map/music/split, simple/smart interface, settings, apps, vehicle, quick controls, Bluetooth, Wi-Fi, ETA and next turn (from the navigation app's own guidance), where am I, what's playing, mute, volume level, full/minimum brightness, auto theme, greetings and help.
+
 ## 2.0.0 — NovaDrive NEXT (2026-10)
 - Home modes **Car / Navigation / Music / Split** driven by a ViewModel state machine with a saved
   preference. A verified route (the navigation app's guidance notification) promotes Car → Navigation;

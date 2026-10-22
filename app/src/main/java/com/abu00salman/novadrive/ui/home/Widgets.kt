@@ -471,7 +471,7 @@ fun LiveRoad(speedKmh: Float, modifier: Modifier = Modifier) {
             drawLine(Color(0xFFFFD27A).copy(alpha = 0.35f + 0.6f * t0), Offset(cx, y0), Offset(cx, y1), strokeWidth = 2f + 9f * t0, cap = StrokeCap.Round)
         }
         // position marker
-        val m = Offset(cx, h * 0.86f); val r = w * 0.05f
+        val m = Offset(cx, h * 0.66f); val r = w * 0.045f
         drawCircle(p.accent.copy(alpha = 0.25f), r * 1.6f, m)
         val arrow = Path().apply {
             moveTo(m.x, m.y - r); lineTo(m.x + r * 0.8f, m.y + r * 0.6f); lineTo(m.x, m.y + r * 0.2f); lineTo(m.x - r * 0.8f, m.y + r * 0.6f); close()

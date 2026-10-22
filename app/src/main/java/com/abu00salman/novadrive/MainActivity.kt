@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
-import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,33 +22,13 @@ class MainActivity : ComponentActivity() {
         speak(reply)
     }
 
-    // Spoken replies for "أمرني" via the device's text-to-speech engine (Arabic when installed).
-    private var tts: TextToSpeech? = null
-    private var ttsReady = false
-    private var pending: String? = null
-
     private fun speak(text: String) {
-        val engine = tts
-        if (engine == null) {
-            pending = text
-            tts = TextToSpeech(this) { status ->
-                ttsReady = status == TextToSpeech.SUCCESS
-                if (ttsReady) pending?.let { say(it) }
-                pending = null
-            }
-        } else if (ttsReady) say(text) else pending = text
-    }
-
-    private fun say(text: String) {
-        val engine = tts ?: return
-        val arabic = nova.settings.current.arabic
-        val lang = if (arabic) java.util.Locale.forLanguageTag("ar") else java.util.Locale.US
-        if (engine.isLanguageAvailable(lang) >= TextToSpeech.LANG_AVAILABLE) engine.language = lang
-        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nova-reply")
+        val st = nova.settings.current
+        if (st.voiceReply) nova.speaker.speak(text, st.arabic)
     }
 
     override fun onDestroy() {
-        tts?.shutdown(); tts = null
+        if (isFinishing) nova.speaker.shutdown()
         super.onDestroy()
     }
 
