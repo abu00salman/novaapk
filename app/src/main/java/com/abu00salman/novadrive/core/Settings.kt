@@ -32,7 +32,18 @@ data class NovaSettings(
     val carBrand: String = "hyundai",
     val carModel: String = "sonata19",
     val carPaint: Int = 0,
+    /** Last manually chosen home mode (HomeMode name). */
+    val homeMode: String = "CAR",
+    /** Switch to NAVIGATION automatically while a route is being guided. */
+    val autoNavMode: Boolean = true,
+    /** Ordered dock actions (see ui/home/Dock). */
+    val dock: List<String> = DEFAULT_DOCK,
+    val showSystemApps: Boolean = false,
 ) {
+    companion object {
+        val DEFAULT_DOCK = listOf("maps", "carplay", "auto", "music", "phone", "apps")
+    }
+
     val profileName: String get() = profileNames.getOrElse(profileId) { "Driver" }
     val arabic: Boolean get() = language == Lang.AR
 }
@@ -74,6 +85,10 @@ class SettingsRepository(ctx: Context) {
             carBrand = s("carBrand") ?: "hyundai",
             carModel = s("carModel") ?: "sonata19",
             carPaint = prefs.getInt(k(p, "carPaint"), 0),
+            homeMode = s("homeMode") ?: "CAR",
+            autoNavMode = b("autoNav", true),
+            dock = s("dock")?.split('|')?.filter { it.isNotBlank() } ?: NovaSettings.DEFAULT_DOCK,
+            showSystemApps = b("sysApps", false),
         )
     }
 
@@ -102,6 +117,10 @@ class SettingsRepository(ctx: Context) {
             .putString(k(p, "carBrand"), n.carBrand)
             .putString(k(p, "carModel"), n.carModel)
             .putInt(k(p, "carPaint"), n.carPaint)
+            .putString(k(p, "homeMode"), n.homeMode)
+            .putBoolean(k(p, "autoNav"), n.autoNavMode)
+            .putString(k(p, "dock"), n.dock.joinToString("|"))
+            .putBoolean(k(p, "sysApps"), n.showSystemApps)
             .apply()
     }
 

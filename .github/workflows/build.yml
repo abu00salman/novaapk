@@ -2,7 +2,7 @@ name: Build NOVA DRIVE APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -30,7 +30,10 @@ jobs:
           if [ -n "$NOVA_KEYSTORE_BASE64" ]; then
             echo "$NOVA_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/nova.jks"
             echo "NOVA_KEYSTORE_FILE=$RUNNER_TEMP/nova.jks" >> "$GITHUB_ENV"
+            echo "NOVA_SIGNED=true" >> "$GITHUB_ENV"
           fi
+          # Branch-specific names for the published APK/screenshots branches.
+          if [ "$GITHUB_REF_NAME" = "main" ]; then echo "SUFFIX=" >> "$GITHUB_ENV"; else echo "SUFFIX=-$(echo "$GITHUB_REF_NAME" | tr '/' '-')" >> "$GITHUB_ENV"; fi
 
       - name: Build debug and release APKs
         env:
@@ -41,7 +44,9 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:assembleDebug :app:assembleRelease --no-daemon
 
+      # A release APK is only published when a stable signing key is configured in secrets.
       - uses: actions/upload-artifact@v4
+        if: env.NOVA_SIGNED == 'true'
         with:
           name: NovaDrive-APK
           path: app/build/outputs/apk/release/*.apk
@@ -52,16 +57,16 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Publish APK to the apk branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         run: |
           mkdir -p "$RUNNER_TEMP/apk"
-          cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/apk/NovaDrive.apk"
+          if [ "$NOVA_SIGNED" = "true" ]; then cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/apk/NovaDrive.apk"; fi
           cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/apk/NovaDrive-debug.apk"
           cd "$RUNNER_TEMP/apk"
-          git init -q -b apk
+          git init -q -b "apk$SUFFIX"
           git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" add .
           git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -qm "APK for ${GITHUB_SHA}"
-          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" apk
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" "apk$SUFFIX"
 
       - name: Attach APK to release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -83,7 +88,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Render screenshots
+      - name: Unit tests and screenshots
         run: |
           chmod +x gradlew
           ./gradlew :app:recordRoborazziDebug --no-daemon
@@ -101,8 +106,9 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           mkdir -p "$RUNNER_TEMP/shots" && cp app/build/screenshots/*.png "$RUNNER_TEMP/shots/"
+          if [ "$GITHUB_REF_NAME" = "main" ]; then B=screenshots; else B="screenshots-$(echo "$GITHUB_REF_NAME" | tr '/' '-')"; fi
           cd "$RUNNER_TEMP/shots"
-          git init -q -b screenshots
+          git init -q -b "$B"
           git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" add .
           git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -qm "Screenshots for ${GITHUB_SHA}"
-          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" screenshots
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" "$B"

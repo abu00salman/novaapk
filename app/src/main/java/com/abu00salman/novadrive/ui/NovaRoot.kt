@@ -65,7 +65,13 @@ import com.abu00salman.novadrive.data.NovaNotificationListener
 import com.abu00salman.novadrive.nova
 import com.abu00salman.novadrive.ui.apps.AppsScreen
 import com.abu00salman.novadrive.ui.components.Pill
-import com.abu00salman.novadrive.ui.home.DashActions
+import com.abu00salman.novadrive.ui.home.HomeActions
+import com.abu00salman.novadrive.ui.home.HomeModeViewModel
+import com.abu00salman.novadrive.core.HomeMode
+import com.abu00salman.novadrive.core.VIDEO_SLOTS
+import com.abu00salman.novadrive.core.isVideoApp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.map
 import com.abu00salman.novadrive.ui.home.DockSlot
 import com.abu00salman.novadrive.ui.home.HomeScreen
 import com.abu00salman.novadrive.ui.home.Shortcuts
@@ -179,12 +185,19 @@ fun NovaRoot(onVoice: () -> Unit) {
                 else -> GpsState.SEARCHING
             }
         }
-        val actions = Actions(c, settings, sc, onApps = { go(Screen.APPS) })
+        // Home mode lives in a ViewModel: it survives recomposition/config changes and reacts to
+        // verified route start/end from the navigation app's guidance notification.
+        val modeVm: HomeModeViewModel = viewModel(
+            factory = remember { HomeModeViewModel.Factory(c.settings, NovaNotificationListener.navigation.map { it != null }) }
+        )
+        val modeState by modeVm.state.collectAsStateWithLifecycle()
+        val onMode: (HomeMode) -> Unit = { modeVm.select(it); screen = Screen.HOME; settingsStart = null }
+        val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) })
 
         Box(Modifier.fillMaxSize().novaBackdrop(p)) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ShellLayout(
-                    rail = { Rail(screen, go, onPhone = actions::phone) },
+                    rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone) },
                     topBar = {
                         TopBar(
                             bt = bt, net = net, gps = gps, dark = dark, themeMode = settings.themeMode, use24h = settings.use24h,
@@ -218,7 +231,7 @@ fun NovaRoot(onVoice: () -> Unit) {
                     },
                 ) {
                     Crossfade(screen, animationSpec = tween(200), label = "screen") { s ->
-                        Routes(s, c, settings, sc, apps, driving, actions, go, openSettings, settingsStart, requestLocation)
+                        Routes(s, c, settings, sc, apps, driving, actions, go, openSettings, settingsStart, requestLocation, modeState.mode, modeState.autoPromoted, onMode)
                     }
                 }
             }
@@ -239,11 +252,18 @@ private fun Routes(
     openSettings: (String?) -> Unit,
     settingsStart: String?,
     requestLocation: () -> Unit,
+    mode: HomeMode,
+    autoPromoted: Boolean,
+    onMode: (HomeMode) -> Unit,
 ) {
     val ctx = LocalContext.current
     when (s) {
-        Screen.HOME -> HomeScreen(c, settings) { ui ->
-            DashActions(
+        Screen.HOME -> HomeScreen(c, settings, driving, mode, autoPromoted) { ui ->
+            HomeActions(
+                onMode = onMode,
+                onNavDetails = { go(Screen.NAV) },
+                onMusicDetails = { go(Screen.MUSIC) },
+                onSeek = c.media::seekTo,
                 onEnableLocation = requestLocation,
                 onVehicle = { go(Screen.VEHICLE) },
                 onOpenNav = a::openNav,
@@ -298,10 +318,11 @@ private fun Routes(
             )
         }
         Screen.APPS -> AppsScreen(
-            apps = apps, favorites = settings.favorites, driving = driving,
-            onLaunch = { c.apps.launch(it) },
+            apps = apps, favorites = settings.favorites, showSystem = settings.showSystemApps, driving = driving,
+            onLaunch = a::launch,
             onToggleFavorite = c.settings::toggleFavorite,
             onMoveFavorite = c.settings::moveFavorite,
+            onShowSystem = { v -> c.settings.update { it.copy(showSystemApps = v) } },
             onParkedOnly = { toast(ctx, if (settings.arabic) "متاح عند التوقف" else "Available when parked") },
         )
         Screen.SETTINGS -> SettingsScreen(c, settings, driving, settingsStart) { go(Screen.HOME) }
@@ -309,7 +330,7 @@ private fun Routes(
 }
 
 /** Every outward action, each falling back gracefully when an app or service is missing. */
-private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val onApps: () -> Unit) {
+private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val driving: Boolean, val onApps: () -> Unit) {
     private val ar get() = s.arabic
     private fun say(en: String, a: String) = toast(c.appContext, if (ar) a else en)
 
@@ -351,12 +372,19 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
         if (!c.controls.dial()) say("No phone app found", "لا يوجد تطبيق هاتف")
     }
 
+    /** Opens an installed app; video apps wait until the car is parked. */
+    fun launch(app: AppEntry) {
+        if (driving && isVideoApp(app.packageName, app.label)) { say("Video is available when parked", "الفيديو متاح عند التوقف"); return }
+        if (!c.apps.launch(app)) say("Couldn't open ${app.label}", "تعذّر فتح ${app.label}")
+    }
+
     fun dock(slot: DockSlot) {
         val app = slot.app
+        if (driving && slot.id in VIDEO_SLOTS) { say("Video is available when parked", "الفيديو متاح عند التوقف"); return }
         when {
             slot.id == "apps" -> onApps()
             slot.id == "phone" -> phone()
-            app != null -> if (!c.apps.launch(app)) say("Couldn't open ${app.label}", "تعذّر فتح ${app.label}")
+            app != null -> launch(app)
             slot.storePackage != null -> {
                 val pkg = slot.storePackage
                 val ok = c.controls.start(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))) ||

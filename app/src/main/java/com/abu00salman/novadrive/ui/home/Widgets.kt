@@ -366,16 +366,13 @@ fun MediaProgress(info: MediaInfo?, modifier: Modifier = Modifier) {
     }
 }
 
+/** Static level bars (no infinite animation — the head unit's GPU budget goes to the map app). */
 @Composable
 fun EqBars(modifier: Modifier) {
     val p = LocalNova.current
-    val inf = rememberInfiniteTransition(label = "eq")
-    val a by inf.animateFloat(0.25f, 1f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "a")
-    val b by inf.animateFloat(1f, 0.3f, infiniteRepeatable(tween(530), RepeatMode.Reverse), label = "b")
-    val c by inf.animateFloat(0.4f, 0.95f, infiniteRepeatable(tween(360), RepeatMode.Reverse), label = "c")
     Canvas(modifier) {
         val bw = size.width / 5
-        listOf(a, b, c).forEachIndexed { i, v ->
+        listOf(0.55f, 1f, 0.75f).forEachIndexed { i, v ->
             val x = bw * (i * 2) + bw / 2
             drawLine(p.accent, Offset(x, size.height), Offset(x, size.height * (1 - v)), bw, StrokeCap.Round)
         }

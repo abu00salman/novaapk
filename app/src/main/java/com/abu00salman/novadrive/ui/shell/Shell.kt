@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.abu00salman.novadrive.R
+import com.abu00salman.novadrive.core.HomeMode
 import com.abu00salman.novadrive.core.ThemeMode
 import com.abu00salman.novadrive.data.Link
 import com.abu00salman.novadrive.data.NetState
@@ -115,17 +116,25 @@ fun ShellLayout(
 // ---------------------------------------------------------------- side rail
 
 @Composable
-fun Rail(current: Screen, onSelect: (Screen) -> Unit, onPhone: () -> Unit, modifier: Modifier = Modifier) {
+fun Rail(
+    current: Screen,
+    mode: HomeMode,
+    onSelect: (Screen) -> Unit,
+    onMode: (HomeMode) -> Unit,
+    onPhone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val home = current == Screen.HOME
     Glass(modifier.width(100.dp).fillMaxHeight(), corner = 28.dp) {
         Column(
             Modifier.fillMaxSize().padding(vertical = 10.dp, horizontal = 8.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            RailItem(Icons.Rounded.Home, tr("Home", "الرئيسية"), current == Screen.HOME) { onSelect(Screen.HOME) }
-            RailItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), current == Screen.NAV) { onSelect(Screen.NAV) }
-            RailItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), current == Screen.MUSIC) { onSelect(Screen.MUSIC) }
-            RailItem(Icons.Rounded.Phone, tr("Phone", "الاتصالات"), false, onPhone)
+            RailItem(Icons.Rounded.Home, tr("Home", "الرئيسية"), home && (mode == HomeMode.CAR || mode == HomeMode.SPLIT)) { onMode(HomeMode.CAR) }
+            RailItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), home && mode == HomeMode.NAVIGATION || current == Screen.NAV) { onMode(HomeMode.NAVIGATION) }
+            RailItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), home && mode == HomeMode.MUSIC || current == Screen.MUSIC) { onMode(HomeMode.MUSIC) }
+            RailItem(Icons.Rounded.Phone, tr("Phone", "الهاتف"), false, onPhone)
             RailItem(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), current == Screen.VEHICLE) { onSelect(Screen.VEHICLE) }
             RailItem(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), current == Screen.APPS) { onSelect(Screen.APPS) }
             RailItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), current == Screen.SETTINGS) { onSelect(Screen.SETTINGS) }

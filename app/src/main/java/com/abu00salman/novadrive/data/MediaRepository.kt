@@ -36,6 +36,8 @@ data class MediaInfo(
     val queue: List<QueueEntry> = emptyList(),
     val queueTitle: String? = null,
     val activeQueueId: Long = -1,
+    /** The session advertises ACTION_SEEK_TO, so a seek bar may be offered. */
+    val canSeek: Boolean = false,
 ) {
     fun positionNow(): Long {
         if (!playing || positionMs < 0) return positionMs.coerceAtLeast(0)
@@ -94,6 +96,7 @@ class MediaRepository(private val ctx: Context) {
                     },
                     queueTitle = c.queueTitle?.toString(),
                     activeQueueId = st?.activeQueueItemId ?: -1,
+                    canSeek = (st?.actions ?: 0L) and PlaybackState.ACTION_SEEK_TO != 0L,
                 )
             )
         }
@@ -149,6 +152,8 @@ class MediaRepository(private val ctx: Context) {
             else c.transportControls.play()
         } else key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
     }
+
+    fun seekTo(ms: Long) { active?.transportControls?.seekTo(ms.coerceAtLeast(0)) }
 
     fun playQueueItem(id: Long) { active?.transportControls?.skipToQueueItem(id) }
 

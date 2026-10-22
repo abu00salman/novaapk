@@ -28,13 +28,49 @@ data class AppEntry(
     val className: String,
     val label: String,
     val icon: ImageBitmap,
+    val category: AppCategory = AppCategory.OTHER,
+    /** Pre-installed and never updated by the user: hidden from the library unless asked for. */
+    val system: Boolean = false,
 )
+
+enum class AppCategory { NAVIGATION, MEDIA, CAR, TOOLS, OTHER }
+
+/**
+ * Categorises by Android's own app category first (API 26+), then by well-known package names
+ * and keywords. Car-box apps (ZLink, DiPlay, radio, BT phone) are never treated as "system".
+ */
+object AppClassifier {
+    private val NAV = listOf("maps", "waze", "navi", "here", "sygic", "osmand", "خرائط", "ملاحة")
+    private val MEDIA = listOf("music", "spotify", "anghami", "youtube", "netflix", "radio", "fm", "podcast", "video", "player", "iptv", "موسيقى", "راديو", "فيديو")
+    private val CAR = listOf("zlink", "carplay", "diplay", "autokit", "carlink", "carbit", "gearhead", "android auto", "obd", "torque", "btphone", "bluetooth", "dvr", "camera", "avm", "tpms", "canbus", "سيارة", "كاربلاي")
+    private val TOOLS = listOf("settings", "file", "calculator", "clock", "browser", "chrome", "store", "vending", "installer", "manager", "weather", "calendar", "إعدادات", "ملفات")
+
+    fun classify(pkg: String, label: String, androidCategory: Int): AppCategory {
+        val hay = "$pkg $label".lowercase()
+        if (CAR.any { hay.contains(it) }) return AppCategory.CAR
+        when (androidCategory) {
+            android.content.pm.ApplicationInfo.CATEGORY_MAPS -> return AppCategory.NAVIGATION
+            android.content.pm.ApplicationInfo.CATEGORY_AUDIO, android.content.pm.ApplicationInfo.CATEGORY_VIDEO -> return AppCategory.MEDIA
+            android.content.pm.ApplicationInfo.CATEGORY_PRODUCTIVITY -> return AppCategory.TOOLS
+        }
+        return when {
+            NAV.any { hay.contains(it) } -> AppCategory.NAVIGATION
+            MEDIA.any { hay.contains(it) } -> AppCategory.MEDIA
+            TOOLS.any { hay.contains(it) } -> AppCategory.TOOLS
+            else -> AppCategory.OTHER
+        }
+    }
+
+    /** Only plain pre-installed extras count as system; anything car- or media-related stays visible. */
+    fun isHiddenSystem(systemFlag: Boolean, category: AppCategory): Boolean =
+        systemFlag && category != AppCategory.CAR && category != AppCategory.MEDIA && category != AppCategory.NAVIGATION
+}
 
 class AppsRepository(private val ctx: Context, private val scope: CoroutineScope) {
     private val _apps = MutableStateFlow<List<AppEntry>>(emptyList())
     val apps: StateFlow<List<AppEntry>> = _apps
     private var job: Job? = null
-    private val iconPx = 112
+    private val iconPx = 144
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) = refresh(debounce = true)
@@ -73,12 +109,19 @@ class AppsRepository(private val ctx: Context, private val scope: CoroutineScope
             .mapNotNull { ri ->
                 runCatching {
                     val ai = ri.activityInfo
+                    val label = ri.loadLabel(pm).toString()
+                    val appInfo = ai.applicationInfo
+                    val cat = AppClassifier.classify(ai.packageName, label, if (Build.VERSION.SDK_INT >= 26) appInfo.category else -1)
+                    val sysFlag = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0 &&
+                        appInfo.flags and android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP == 0
                     AppEntry(
                         key = "${ai.packageName}/${ai.name}",
                         packageName = ai.packageName,
                         className = ai.name,
-                        label = ri.loadLabel(pm).toString(),
+                        label = label,
                         icon = ri.loadIcon(pm).toBitmap(iconPx, iconPx).asImageBitmap(),
+                        category = cat,
+                        system = AppClassifier.isHiddenSystem(sysFlag, cat),
                     )
                 }.getOrNull()
             }

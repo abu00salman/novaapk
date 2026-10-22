@@ -68,6 +68,10 @@ import com.abu00salman.novadrive.core.carBrand
 import com.abu00salman.novadrive.core.carModel
 import com.abu00salman.novadrive.ui.home.drawCar
 import com.abu00salman.novadrive.core.CrashGuard
+import com.abu00salman.novadrive.core.DOCK_CHOICES
+import com.abu00salman.novadrive.core.DOCK_MAX
+import com.abu00salman.novadrive.ui.home.dockTitle
+import androidx.compose.material.icons.rounded.ArrowUpward
 import com.abu00salman.novadrive.core.Lang
 import com.abu00salman.novadrive.core.NovaSettings
 import com.abu00salman.novadrive.core.ThemeMode
@@ -363,6 +367,26 @@ private fun ShortcutsSection(c: AppContainer, s: NovaSettings) {
         Gap(); RowItem(tr("Radio", "الراديو"), label(s.radioPackage, sc.radio), onClick = { picking = "radio" })
         Gap(); RowItem(tr("Phone", "الهاتف"), label(s.phonePackage, sc.phone), onClick = { picking = "phone" })
         Gap()
+        Header(tr("Dock", "الشريط السفلي"), tr("Up to 6 actions. Duplicates are skipped and video apps hide while driving.", "حتى 6 أزرار. تُتجاهل المكررات وتختفي تطبيقات الفيديو أثناء القيادة."))
+        DOCK_CHOICES.forEach { id ->
+            val on = id in s.dock
+            RowItem(dockTitle(id, ar), if (on) tr("Position ", "الترتيب ") + (s.dock.indexOf(id) + 1) else null, onClick = {
+                c.settings.update {
+                    when {
+                        id in it.dock -> it.copy(dock = it.dock - id)
+                        it.dock.size < DOCK_MAX -> it.copy(dock = it.dock + id)
+                        else -> it
+                    }
+                }
+            }) {
+                if (on && s.dock.indexOf(id) > 0) Icon(Icons.Rounded.ArrowUpward, tr("Move earlier", "تقديم"), tint = LocalNova.current.textDim,
+                    modifier = Modifier.size(40.dp).clip(CircleShape).clickable {
+                        c.settings.update { st -> val l = st.dock.toMutableList(); val i = l.indexOf(id); if (i > 0) { l.removeAt(i); l.add(i - 1, id) }; st.copy(dock = l) }
+                    }.padding(8.dp))
+                Switch(on, null, colors = SwitchDefaults.colors(checkedTrackColor = LocalNova.current.accent, checkedThumbColor = LocalNova.current.bgBottom))
+            }
+            Gap()
+        }
         Header(tr("Saved places", "الأماكن المحفوظة"), tr("Shown as one-tap navigation buttons.", "تظهر كأزرار توجيه بلمسة واحدة."))
         Field(tr("Home address", "عنوان البيت"), s.homeAddress) { v -> c.settings.update { it.copy(homeAddress = v) } }
         Gap()
@@ -420,6 +444,11 @@ private fun DrivingSection(c: AppContainer, s: NovaSettings) {
         Toggle(tr("Driving mode", "وضع القيادة"), tr("Uses real GPS speed", "يعتمد على سرعة GPS الحقيقية"), s.drivingMode) { v ->
             c.settings.update { it.copy(drivingMode = v) }
         }
+        Gap()
+        Toggle(tr("Show navigation while guiding", "عرض الملاحة أثناء التوجيه"),
+            tr("Switches home to Navigation when Maps/Waze starts guidance and back to Car when it ends. Pinned Music or Split stay.",
+                "ينتقل للملاحة عند بدء التوجيه في الخرائط أو Waze ويعود للسيارة عند انتهائه. وضعا الموسيقى والتقسيم المثبتان لا يتغيران."),
+            s.autoNavMode) { v -> c.settings.update { it.copy(autoNavMode = v) } }
     }
 }
 
