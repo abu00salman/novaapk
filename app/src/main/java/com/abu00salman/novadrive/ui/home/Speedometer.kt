@@ -38,7 +38,7 @@ private const val MAX_KMH = 220f
  * open lower sector. Lane dashes move only while the car moves — nothing animates when parked.
  */
 @Composable
-fun Speedometer(speedKmh: Float, car: CarModel, paint: Color, modifier: Modifier = Modifier) {
+fun Speedometer(speedKmh: Float, car: CarModel, paint: Color, modifier: Modifier = Modifier, showCar: Boolean = true) {
     val p = LocalNova.current
     val measurer = rememberTextMeasurer()
     val v by animateFloatAsState((speedKmh / MAX_KMH).coerceIn(0f, 1f), tween(600), label = "gauge")
@@ -121,6 +121,5 @@ fun Speedometer(speedKmh: Float, car: CarModel, paint: Color, modifier: Modifier
             val y1 = top + (bottom - top) * t1.pow(1.8f)
             drawLine(p.text.copy(alpha = 0.15f + 0.5f * t0), Offset(c.x, y0), Offset(c.x, y1), strokeWidth = 1.5f + 4f * t0, cap = StrokeCap.Round)
         }
-        drawCar(car, paint, c.x, c.y + r * 0.93f, r * 0.50f, p.dark, p.accent)
     }
 }

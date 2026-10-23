@@ -32,7 +32,35 @@ data class NovaSettings(
     val carBrand: String = "hyundai",
     val carModel: String = "sonata19",
     val carPaint: Int = 0,
+    /** Last manually chosen home mode (HomeMode name). */
+    val homeMode: String = "CAR",
+    /** Switch to NAVIGATION automatically while a route is being guided. */
+    val autoNavMode: Boolean = true,
+    /** Ordered dock actions (see ui/home/Dock). */
+    val dock: List<String> = DEFAULT_DOCK,
+    val showSystemApps: Boolean = false,
+    /** Bumped whenever the user picks or removes their car image (0 = none). */
+    val carImageVersion: Long = 0,
+    /** Allow search, settings and dock editing while moving (video stays blocked). */
+    val editWhileDriving: Boolean = false,
+    /** Put the side rail on the right instead of the left. */
+    val railRight: Boolean = true,
+    /** Text and icon size multipliers (1.0 = default). */
+    val textScale: Float = 1f,
+    val iconScale: Float = 1f,
+    /** Index into IconTints (0 = apps' original colours). */
+    val iconTint: Int = 0,
+    /** "أمرني" custom phrases → apps. */
+    val voiceCommands: List<com.abu00salman.novadrive.data.CustomCommand> = emptyList(),
+    /** "smart" (modes + switcher) or "simple" (fixed navigation · music · weather/car layout). */
+    val uiStyle: String = "smart",
+    /** «أمرني» speaks its replies aloud. */
+    val voiceReply: Boolean = true,
 ) {
+    companion object {
+        val DEFAULT_DOCK = listOf("maps", "carplay", "auto", "music", "phone", "apps")
+    }
+
     val profileName: String get() = profileNames.getOrElse(profileId) { "Driver" }
     val arabic: Boolean get() = language == Lang.AR
 }
@@ -74,6 +102,21 @@ class SettingsRepository(ctx: Context) {
             carBrand = s("carBrand") ?: "hyundai",
             carModel = s("carModel") ?: "sonata19",
             carPaint = prefs.getInt(k(p, "carPaint"), 0),
+            homeMode = s("homeMode") ?: "CAR",
+            autoNavMode = b("autoNav", true),
+            dock = s("dock")?.split('|')?.filter { it.isNotBlank() } ?: NovaSettings.DEFAULT_DOCK,
+            showSystemApps = b("sysApps", false),
+            carImageVersion = prefs.getLong("carImageVersion", 0L),
+            editWhileDriving = b("editDriving", false),
+            railRight = b("railRight2", true),
+            textScale = prefs.getFloat(k(p, "textScale"), 1f),
+            iconScale = prefs.getFloat(k(p, "iconScale"), 1f),
+            iconTint = prefs.getInt(k(p, "iconTint"), 0),
+            uiStyle = s("uiStyle") ?: "smart",
+            voiceReply = b("voiceReply", true),
+            voiceCommands = (s("voiceCmds") ?: "").split('\u001E').mapNotNull { e ->
+                val parts = e.split('\u001F'); if (parts.size == 2 && parts[0].isNotBlank()) com.abu00salman.novadrive.data.CustomCommand(parts[0], parts[1]) else null
+            },
         )
     }
 
@@ -102,6 +145,19 @@ class SettingsRepository(ctx: Context) {
             .putString(k(p, "carBrand"), n.carBrand)
             .putString(k(p, "carModel"), n.carModel)
             .putInt(k(p, "carPaint"), n.carPaint)
+            .putString(k(p, "homeMode"), n.homeMode)
+            .putBoolean(k(p, "autoNav"), n.autoNavMode)
+            .putString(k(p, "dock"), n.dock.joinToString("|"))
+            .putBoolean(k(p, "sysApps"), n.showSystemApps)
+            .putLong("carImageVersion", n.carImageVersion)
+            .putBoolean(k(p, "editDriving"), n.editWhileDriving)
+            .putBoolean(k(p, "railRight2"), n.railRight)
+            .putFloat(k(p, "textScale"), n.textScale)
+            .putFloat(k(p, "iconScale"), n.iconScale)
+            .putInt(k(p, "iconTint"), n.iconTint)
+            .putString(k(p, "uiStyle"), n.uiStyle)
+            .putBoolean(k(p, "voiceReply"), n.voiceReply)
+            .putString(k(p, "voiceCmds"), n.voiceCommands.joinToString("\u001E") { it.phrase.replace("\u001E", " ").replace("\u001F", " ") + "\u001F" + it.packageName })
             .apply()
     }
 

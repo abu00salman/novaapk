@@ -3,6 +3,9 @@ package com.abu00salman.novadrive.data
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import java.util.concurrent.Executors
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -36,6 +39,8 @@ data class MediaInfo(
     val queue: List<QueueEntry> = emptyList(),
     val queueTitle: String? = null,
     val activeQueueId: Long = -1,
+    /** The session advertises ACTION_SEEK_TO, so a seek bar may be offered. */
+    val canSeek: Boolean = false,
 ) {
     fun positionNow(): Long {
         if (!playing || positionMs < 0) return positionMs.coerceAtLeast(0)
@@ -59,9 +64,15 @@ class MediaRepository(private val ctx: Context) {
         }
         val msm = ctx.getSystemService(MediaSessionManager::class.java)
         val component = ComponentName(ctx, NovaNotificationListener::class.java)
+        var all: List<MediaController> = emptyList()
         var current: MediaController? = null
         var lastArtKey: Any? = null
         var lastArt: ImageBitmap? = null
+        val io = Executors.newSingleThreadExecutor()
+
+        fun title(md: MediaMetadata?) = md?.getString(MediaMetadata.METADATA_KEY_TITLE)
+            ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+            ?: md?.description?.title?.toString()
 
         fun publish() {
             val c = current
@@ -71,22 +82,35 @@ class MediaRepository(private val ctx: Context) {
             val bmp: Bitmap? = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
                 ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
                 ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-            if (bmp !== lastArtKey) {
-                lastArtKey = bmp
+                ?: md?.description?.iconBitmap
+            // Many apps only publish a content:// URI for the artwork; load it off the main thread.
+            val uri: String? = if (bmp != null) null else md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+                ?: md?.getString(MediaMetadata.METADATA_KEY_ART_URI)
+                ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI)
+                ?: md?.description?.iconUri?.toString()
+            val key: Any? = bmp ?: uri
+            if (key != lastArtKey) {
+                lastArtKey = key
                 lastArt = bmp?.let { scaled(it).asImageBitmap() }
+                if (bmp == null && uri != null) io.execute {
+                    val loaded = loadArt(uri)
+                    main.post { if (lastArtKey == uri && loaded != null) { lastArt = loaded; publish() } }
+                }
             }
             trySend(
                 MediaInfo(
-                    title = md?.getString(MediaMetadata.METADATA_KEY_TITLE)
-                        ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE),
+                    title = title(md),
                     artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)
                         ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+                        ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+                        ?: md?.description?.subtitle?.toString()
                         ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM),
                     art = lastArt,
-                    playing = st?.state == PlaybackState.STATE_PLAYING,
+                    playing = isPlaying(c),
                     packageName = c.packageName,
                     durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
-                    positionMs = st?.position ?: -1L,
+                    // Unknown position (common for CarPlay/Bluetooth bridges) is -1 so the UI hides the timeline.
+                    positionMs = if (st == null || st.state == PlaybackState.STATE_NONE) -1L else st.position,
                     positionAt = st?.lastPositionUpdateTime ?: SystemClock.elapsedRealtime(),
                     speed = st?.playbackSpeed ?: 1f,
                     queue = c.queue.orEmpty().take(40).map { q ->
@@ -94,44 +118,83 @@ class MediaRepository(private val ctx: Context) {
                     },
                     queueTitle = c.queueTitle?.toString(),
                     activeQueueId = st?.activeQueueItemId ?: -1,
+                    canSeek = (st?.actions ?: 0L) and PlaybackState.ACTION_SEEK_TO != 0L,
                 )
             )
         }
 
-        val callback = object : MediaController.Callback() {
-            override fun onPlaybackStateChanged(state: PlaybackState?) = publish()
-            override fun onMetadataChanged(metadata: MediaMetadata?) = publish()
-            override fun onQueueChanged(queue: MutableList<MediaSession.QueueItem>?) = publish()
-            override fun onSessionDestroyed() {
-                current?.unregisterCallback(this); current = null; active = null; publish()
-            }
-        }
-
-        fun pick(list: List<MediaController>?) {
-            val chosen = list?.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
-                ?: list?.firstOrNull()
-            if (chosen?.sessionToken != current?.sessionToken) {
-                current?.unregisterCallback(callback)
-                current = chosen
-                chosen?.registerCallback(callback, main)
-            }
+        /** Playing beats paused; a session that shows a track beats an empty one (e.g. idle radio). */
+        fun choose() {
+            val chosen = best(all)
+            if (chosen?.sessionToken != current?.sessionToken) current = chosen
             active = current
             publish()
         }
 
-        val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { pick(it) }
+        // Every session is watched, so when another app starts playing it takes over immediately.
+        val callbacks = mutableMapOf<MediaSession.Token, MediaController.Callback>()
+        fun watch(list: List<MediaController>) {
+            callbacks.forEach { (token, cb) -> all.firstOrNull { it.sessionToken == token }?.unregisterCallback(cb) }
+            callbacks.clear()
+            all = list
+            list.forEach { c ->
+                val cb = object : MediaController.Callback() {
+                    override fun onPlaybackStateChanged(state: PlaybackState?) = choose()
+                    override fun onMetadataChanged(metadata: MediaMetadata?) = choose()
+                    override fun onQueueChanged(queue: MutableList<MediaSession.QueueItem>?) = choose()
+                    override fun onSessionDestroyed() { all = all.filter { it.sessionToken != c.sessionToken }; choose() }
+                }
+                c.registerCallback(cb, main)
+                callbacks[c.sessionToken] = cb
+            }
+            choose()
+        }
+
+        val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { watch(it.orEmpty()) }
         try {
             msm?.addOnActiveSessionsChangedListener(sessionsListener, component, main)
-            pick(msm?.getActiveSessions(component))
+            watch(msm?.getActiveSessions(component).orEmpty())
+            listSessions = { runCatching { msm?.getActiveSessions(component) }.getOrNull().orEmpty() }
         } catch (e: SecurityException) {
             trySend(null)
         }
         awaitClose {
             runCatching { msm?.removeOnActiveSessionsChangedListener(sessionsListener) }
-            current?.unregisterCallback(callback)
+            callbacks.forEach { (token, cb) -> all.firstOrNull { it.sessionToken == token }?.unregisterCallback(cb) }
+            io.shutdown()
             active = null
+            listSessions = { emptyList() }
         }
     }
+
+    @Volatile private var listSessions: () -> List<MediaController> = { emptyList() }
+
+    private fun best(list: List<MediaController>): MediaController? =
+        list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+            ?: list.firstOrNull { it.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) != null || it.metadata?.description?.title != null }
+            ?: list.firstOrNull()
+
+    /** The session to control right now (re-evaluated at tap time, not cached from a stale pick). */
+    private fun target(): MediaController? = best(listSessions()) ?: active
+
+    /** Title and artist of the session the controls would act on, for «أمرني» ("what's playing"). */
+    fun nowPlaying(): Pair<String, String?>? = runCatching {
+        val md = target()?.metadata ?: return null
+        val t = md.getString(MediaMetadata.METADATA_KEY_TITLE) ?: md.description?.title?.toString() ?: return null
+        t to (md.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md.description?.subtitle?.toString())
+    }.getOrNull()
+
+    private fun loadArt(uri: String): ImageBitmap? = runCatching {
+        val u = Uri.parse(uri)
+        if (u.scheme != "content" && u.scheme != "file" && u.scheme != "android.resource") return null
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        ctx.contentResolver.openInputStream(u)?.use { BitmapFactory.decodeStream(it, null, opts) }
+        var sample = 1
+        while (maxOf(opts.outWidth, opts.outHeight) / (sample * 2) >= 320) sample *= 2
+        ctx.contentResolver.openInputStream(u)?.use {
+            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+        }?.let { scaled(it).asImageBitmap() }
+    }.getOrNull()
 
     private fun scaled(b: Bitmap): Bitmap {
         val max = 320
@@ -140,22 +203,66 @@ class MediaRepository(private val ctx: Context) {
         return Bitmap.createScaledBitmap(b, (b.width * s).toInt().coerceAtLeast(1), (b.height * s).toInt().coerceAtLeast(1), true)
     }
 
-    // Transport: uses the live session when available, otherwise system media keys
-    // (works for the head unit's Bluetooth music without any permission).
-    fun playPause() {
-        val c = active
-        if (c != null) {
-            if (c.playbackState?.state == PlaybackState.STATE_PLAYING) c.transportControls.pause()
-            else c.transportControls.play()
-        } else key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+    // Transport: sends to the session that is actually playing; if the app ignores the command
+    // (state/track unchanged shortly after) the same action is retried as a system media key.
+    // Media keys also cover the head unit's Bluetooth music without any permission.
+    /**
+     * Some bridges (ZLink/CarPlay, Bluetooth audio) never report PLAYING; if they don't claim to be
+     * paused and audio is actually coming out, treat them as playing.
+     */
+    private fun isPlaying(c: MediaController): Boolean {
+        val st = c.playbackState?.state
+        if (st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING) return true
+        if (st == PlaybackState.STATE_PAUSED) return false
+        return audio?.isMusicActive == true
     }
 
-    fun playQueueItem(id: Long) { active?.transportControls?.skipToQueueItem(id) }
+    fun playPause() {
+        val c = target()
+        if (c == null) { key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE); return }
+        val wasPlaying = isPlaying(c)
+        if (wasPlaying) c.transportControls.pause() else c.transportControls.play()
+        escalate(c, { isPlaying(it) != wasPlaying }, if (wasPlaying) KeyEvent.KEYCODE_MEDIA_PAUSE else KeyEvent.KEYCODE_MEDIA_PLAY)
+    }
 
-    fun play() { active?.transportControls?.play() ?: key(KeyEvent.KEYCODE_MEDIA_PLAY) }
-    fun pause() { active?.transportControls?.pause() ?: key(KeyEvent.KEYCODE_MEDIA_PAUSE) }
-    fun next() { active?.transportControls?.skipToNext() ?: key(KeyEvent.KEYCODE_MEDIA_NEXT) }
-    fun previous() { active?.transportControls?.skipToPrevious() ?: key(KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
+    fun next() = skip(KeyEvent.KEYCODE_MEDIA_NEXT) { it.transportControls.skipToNext() }
+    fun previous() = skip(KeyEvent.KEYCODE_MEDIA_PREVIOUS) { it.transportControls.skipToPrevious() }
+
+    private fun skip(code: Int, action: (MediaController) -> Unit) {
+        val c = target()
+        if (c == null) { key(code); return }
+        val before = trackKey(c)
+        action(c)
+        escalate(c, { trackKey(it) != before }, code)
+    }
+
+    private fun trackKey(c: MediaController): Any? = c.metadata?.let {
+        (it.getString(MediaMetadata.METADATA_KEY_TITLE) ?: it.description?.title?.toString()) to it.getString(MediaMetadata.METADATA_KEY_ARTIST)
+    }
+
+    /**
+     * Apps differ in what they obey. If the transport command had no visible effect, the same
+     * action is sent as a media button to that session, then as a system-wide media key.
+     * Play/pause use the explicit PLAY or PAUSE keys so a late response can't toggle back.
+     */
+    private fun escalate(c: MediaController, changed: (MediaController) -> Boolean, code: Int) {
+        fun ok() = runCatching { changed(c) }.getOrDefault(false)
+        main.postDelayed({
+            if (ok()) return@postDelayed
+            runCatching {
+                c.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
+                c.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+            }
+            main.postDelayed({ if (!ok()) key(code) }, 1200)
+        }, 1200)
+    }
+
+    fun seekTo(ms: Long) { target()?.transportControls?.seekTo(ms.coerceAtLeast(0)) }
+
+    fun playQueueItem(id: Long) { target()?.transportControls?.skipToQueueItem(id) }
+
+    fun play() { target()?.transportControls?.play() ?: key(KeyEvent.KEYCODE_MEDIA_PLAY) }
+    fun pause() { target()?.transportControls?.pause() ?: key(KeyEvent.KEYCODE_MEDIA_PAUSE) }
 
     private fun key(code: Int) {
         val am = audio ?: return

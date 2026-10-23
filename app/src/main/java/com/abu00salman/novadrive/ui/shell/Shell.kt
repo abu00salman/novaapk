@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BluetoothConnected
 import androidx.compose.material.icons.rounded.BluetoothDisabled
@@ -61,12 +62,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.abu00salman.novadrive.R
+import com.abu00salman.novadrive.core.HomeMode
 import com.abu00salman.novadrive.core.ThemeMode
 import com.abu00salman.novadrive.data.Link
 import com.abu00salman.novadrive.data.NetState
 import com.abu00salman.novadrive.ui.components.DesignViewport
 import com.abu00salman.novadrive.ui.components.FixedLtr
 import com.abu00salman.novadrive.ui.components.Glass
+import com.abu00salman.novadrive.ui.components.LocalIconScale
+import com.abu00salman.novadrive.ui.components.LocalIconTint
+import androidx.compose.runtime.CompositionLocalProvider
 import com.abu00salman.novadrive.ui.components.UiDirection
 import com.abu00salman.novadrive.ui.home.uiLocale
 import com.abu00salman.novadrive.ui.theme.LocalArabic
@@ -94,38 +99,57 @@ fun ShellLayout(
     rail: @Composable () -> Unit,
     topBar: @Composable () -> Unit,
     overlay: @Composable () -> Unit = {},
+    railRight: Boolean = false,
+    textScale: Float = 1f,
+    iconScale: Float = 1f,
+    iconTint: Color? = null,
+    /** False for interfaces that draw their own menus and status bar edge to edge (Tesla). */
+    chrome: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    DesignViewport {
+    DesignViewport(textScale = textScale) {
+      CompositionLocalProvider(LocalIconScale provides iconScale.coerceIn(0.8f, 1.6f), LocalIconTint provides iconTint) {
         FixedLtr {
-            Row(Modifier.fillMaxSize().padding(14.dp)) {
-                rail()
-                Spacer(Modifier.width(12.dp))
+            if (!chrome) Box(Modifier.fillMaxSize()) { UiDirection(content) }
+            else Row(Modifier.fillMaxSize().padding(14.dp)) {
+                if (!railRight) { rail(); Spacer(Modifier.width(12.dp)) }
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     topBar()
                     Spacer(Modifier.height(10.dp))
                     Box(Modifier.weight(1f)) { UiDirection(content) }
                 }
+                if (railRight) { Spacer(Modifier.width(12.dp)); rail() }
             }
             UiDirection(overlay)
         }
+      }
     }
 }
 
 // ---------------------------------------------------------------- side rail
 
 @Composable
-fun Rail(current: Screen, onSelect: (Screen) -> Unit, onPhone: () -> Unit, modifier: Modifier = Modifier) {
+fun Rail(
+    current: Screen,
+    mode: HomeMode,
+    onSelect: (Screen) -> Unit,
+    onMode: (HomeMode) -> Unit,
+    onPhone: () -> Unit,
+    onVoice: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val home = current == Screen.HOME
     Glass(modifier.width(100.dp).fillMaxHeight(), corner = 28.dp) {
         Column(
             Modifier.fillMaxSize().padding(vertical = 10.dp, horizontal = 8.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            RailItem(Icons.Rounded.Home, tr("Home", "الرئيسية"), current == Screen.HOME) { onSelect(Screen.HOME) }
-            RailItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), current == Screen.NAV) { onSelect(Screen.NAV) }
-            RailItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), current == Screen.MUSIC) { onSelect(Screen.MUSIC) }
-            RailItem(Icons.Rounded.Phone, tr("Phone", "الاتصالات"), false, onPhone)
+            RailItem(Icons.Rounded.Home, tr("Home", "الرئيسية"), home && (mode == HomeMode.CAR || mode == HomeMode.SPLIT)) { onMode(HomeMode.CAR) }
+            RailItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), home && mode == HomeMode.NAVIGATION || current == Screen.NAV) { onMode(HomeMode.NAVIGATION) }
+            RailItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), home && mode == HomeMode.MUSIC || current == Screen.MUSIC) { onMode(HomeMode.MUSIC) }
+            RailItem(Icons.Rounded.Phone, tr("Phone", "الهاتف"), false, onClick = onPhone)
+            RailItem(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), false, special = true, onClick = onVoice)
             RailItem(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), current == Screen.VEHICLE) { onSelect(Screen.VEHICLE) }
             RailItem(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), current == Screen.APPS) { onSelect(Screen.APPS) }
             RailItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), current == Screen.SETTINGS) { onSelect(Screen.SETTINGS) }
@@ -134,13 +158,16 @@ fun Rail(current: Screen, onSelect: (Screen) -> Unit, onPhone: () -> Unit, modif
 }
 
 @Composable
-private fun RailItem(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
+private fun RailItem(icon: ImageVector, label: String, active: Boolean, special: Boolean = false, onClick: () -> Unit) {
     val p = LocalNova.current
     val shape = RoundedCornerShape(20.dp)
     Column(
-        Modifier.width(84.dp).height(84.dp).clip(shape)
+        Modifier.width(84.dp).height(78.dp).clip(shape)
             .then(
-                if (active) Modifier
+                if (special && !active) Modifier
+                    .background(Brush.linearGradient(listOf(p.accent2.copy(alpha = 0.85f), p.accent.copy(alpha = 0.85f))))
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), shape)
+                else if (active) Modifier
                     .background(Brush.verticalGradient(listOf(p.accent.copy(alpha = 0.95f), p.accent.copy(alpha = 0.55f))))
                     .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), p.accent.copy(alpha = 0.2f))), shape)
                 else Modifier
@@ -149,9 +176,9 @@ private fun RailItem(icon: ImageVector, label: String, active: Boolean, onClick:
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = if (active) Color.White else p.text.copy(alpha = 0.92f), modifier = Modifier.size(30.dp))
+        Icon(icon, null, tint = if (active || special) Color.White else p.text.copy(alpha = 0.92f), modifier = Modifier.size(30.dp * LocalIconScale.current.coerceAtMost(1.25f)))
         Spacer(Modifier.height(6.dp))
-        Text(label, style = NovaType.small.copy(fontSize = 13.sp), color = if (active) Color.White else p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = NovaType.small.copy(fontSize = 13.sp), color = if (active || special) Color.White else p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

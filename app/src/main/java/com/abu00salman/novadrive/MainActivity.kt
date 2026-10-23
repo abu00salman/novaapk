@@ -17,7 +17,19 @@ class MainActivity : ComponentActivity() {
     private val voice = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             ?: return@registerForActivityResult
-        toast(this, VoiceCommands.handle(nova, text))
+        val reply = VoiceCommands.handle(nova, text, window)
+        toast(this, reply)
+        speak(reply)
+    }
+
+    private fun speak(text: String) {
+        val st = nova.settings.current
+        if (st.voiceReply) nova.speaker.speak(text, st.arabic)
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) nova.speaker.shutdown()
+        super.onDestroy()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,7 +55,7 @@ class MainActivity : ComponentActivity() {
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (arabic) "ar-SA" else "en-US")
-            .putExtra(RecognizerIntent.EXTRA_PROMPT, if (arabic) "قل أمراً… مثل: خذني إلى البيت" else "Say a command… e.g. \"navigate home\"")
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, if (arabic) "أمرني… مثل: افتح اليوتيوب، قلل الإضاءة، كم الساعة" else "Ask me… e.g. \"open YouTube\", \"dim the screen\", \"what time is it\"")
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         try {
             voice.launch(i)

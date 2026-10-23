@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.settings
 
+import com.abu00salman.novadrive.core.carDisplayName
 import android.Manifest
 import android.app.role.RoleManager
 import android.os.Build
@@ -53,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,8 +68,21 @@ import com.abu00salman.novadrive.core.CarBrands
 import com.abu00salman.novadrive.core.CarPaints
 import com.abu00salman.novadrive.core.carBrand
 import com.abu00salman.novadrive.core.carModel
-import com.abu00salman.novadrive.ui.home.drawCar
+import com.abu00salman.novadrive.core.CarImageStore
+import com.abu00salman.novadrive.ui.components.CarImage
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.abu00salman.novadrive.core.CrashGuard
+import com.abu00salman.novadrive.core.DOCK_CHOICES
+import com.abu00salman.novadrive.core.DOCK_MAX
+import com.abu00salman.novadrive.core.CUSTOM_PREFIX
+import com.abu00salman.novadrive.core.replaceDockEntry
+import com.abu00salman.novadrive.ui.home.dockTitle
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.ArrowDownward
 import com.abu00salman.novadrive.core.Lang
 import com.abu00salman.novadrive.core.NovaSettings
 import com.abu00salman.novadrive.core.ThemeMode
@@ -85,7 +100,7 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 import java.util.Locale
 
-private enum class Section { CAR, APPEARANCE, SHORTCUTS, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
+private enum class Section { CAR, APPEARANCE, SHORTCUTS, VOICE, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
 
 @Composable
 fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: String? = null, onClose: () -> Unit) {
@@ -111,9 +126,10 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                 Spacer(Modifier.height(18.dp))
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val items = listOf(
-                        Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("My car", "سيارتي")),
+                        Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("Car", "السيارة")),
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
+                        Triple(Section.VOICE, Icons.Rounded.AutoAwesome, Pair("Ask me (voice)", "أمرني (الأوامر الصوتية)")),
                         Triple(Section.CARPLAY, Icons.Rounded.PhoneIphone, Pair("CarPlay", "كاربلاي")),
                         Triple(Section.DRIVING, Icons.Rounded.DirectionsCar, Pair("Driving", "القيادة")),
                         Triple(Section.VEHICLE, Icons.Rounded.Speed, Pair("Vehicle (OBD-II)", "المركبة (OBD-II)")),
@@ -145,6 +161,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                                 Section.CAR -> CarSection(c, s)
                                 Section.APPEARANCE -> Appearance(c, s)
                                 Section.SHORTCUTS -> ShortcutsSection(c, s)
+                                Section.VOICE -> VoiceSection(c, s)
                                 Section.CARPLAY -> CarPlaySection(c, s)
                                 Section.DRIVING -> DrivingSection(c, s)
                                 Section.VEHICLE -> VehicleSection(c, s)
@@ -263,17 +280,30 @@ private fun CarSection(c: AppContainer, s: NovaSettings) {
     val model = carModel(s.carBrand, s.carModel)
     val paint = CarPaints.getOrElse(s.carPaint) { CarPaints[0] }
     Column {
-        Header(tr("My car", "سيارتي"), tr("Shown on your dashboard.", "تظهر في لوحة القيادة."))
-        Glass(Modifier.fillMaxWidth().height(210.dp), corner = 26.dp) {
-            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                val w = minOf(size.width * 0.5f, size.height * 0.95f)
-                drawCar(model, paint.color, size.width / 2, size.height * 0.92f, w, p.dark, p.accent)
+        val ctx = LocalContext.current
+        val scope = rememberCoroutineScope()
+        val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) scope.launch {
+                val ok = withContext(Dispatchers.IO) { CarImageStore.import(ctx, uri) }
+                if (ok) c.settings.update { it.copy(carImageVersion = System.currentTimeMillis()) }
+                else com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تعذّر قراءة الصورة" else "Couldn't read that image")
             }
-            Text(
-                "${if (ar) brand.ar else brand.en}  ${model.name}  ·  ${if (ar) paint.ar else paint.en}",
-                style = NovaType.label, color = p.textDim, modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
-            )
         }
+        Header(tr("Customize car image", "تخصيص صورة السيارة"),
+            tr("PNG or WebP with a transparent background works best. Shown fitted, never cropped.",
+                "يفضّل PNG أو WebP بخلفية شفافة. تُعرض كاملة دون قص أو تشويه."))
+        Glass(Modifier.fillMaxWidth().height(220.dp), corner = 26.dp) {
+            CarImage(s.carImageVersion, Modifier.fillMaxSize().padding(16.dp))
+        }
+        Gap()
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Choose image", "اختيار صورة"), p.accent) { picker.launch(arrayOf("image/png", "image/webp", "image/jpeg", "image/*")) }
+            if (s.carImageVersion != 0L) Pill(tr("Remove image", "إزالة الصورة"), p.danger) {
+                CarImageStore.clear(ctx); c.settings.update { it.copy(carImageVersion = 0L) }
+            }
+        }
+        Gap()
+        Text("${carDisplayName(brand, model, ar)}  ·  ${if (ar) paint.ar else paint.en}", style = NovaType.label, color = p.textDim)
         Gap()
         Header(tr("Brand", "الشركة"))
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -289,7 +319,7 @@ private fun CarSection(c: AppContainer, s: NovaSettings) {
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(brand.models.size) { i ->
                 val m = brand.models[i]
-                Chip(m.name, m.id == model.id) { c.settings.update { it.copy(carModel = m.id) } }
+                Chip(if (ar) m.nameAr else m.name, m.id == model.id) { c.settings.update { it.copy(carModel = m.id) } }
             }
         }
         Gap()
@@ -313,6 +343,19 @@ private fun CarSection(c: AppContainer, s: NovaSettings) {
 private fun Appearance(c: AppContainer, s: NovaSettings) {
     val p = LocalNova.current
     Column {
+        Header(tr("Interface style", "نمط الواجهة"),
+            tr("Smart switches between car, map and music. Simple shows everything at once. Tesla is light and BMW is dark, each with a live map.",
+                "الذكية تتبدل بين السيارة والخريطة والموسيقى، والبسيطة تعرض كل شيء معًا. واجهة Tesla فاتحة وواجهة BMW داكنة، وكلتاهما بخريطة حية."))
+        Choice(
+            listOf(
+                "smart" to tr("Smart", "الواجهة الذكية"), "simple" to tr("Simple", "الواجهة البسيطة"),
+                "tesla" to tr("Tesla", "واجهة Tesla"), "bmw" to tr("BMW", "واجهة BMW"),
+            ),
+            s.uiStyle,
+        ) { v ->
+            c.settings.update { it.copy(uiStyle = v) }
+        }
+        Gap()
         Header(tr("Theme", "السمة"), tr("Auto follows sunrise and sunset at your location.", "التلقائي يتبع الشروق والغروب حسب موقعك."))
         Choice(
             listOf(ThemeMode.AUTO to tr("Auto", "تلقائي"), ThemeMode.LIGHT to tr("Day", "نهاري"),
@@ -332,6 +375,29 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
                     ) { if (s.accent == i) Icon(Icons.Rounded.Check, null, tint = p.bgBottom, modifier = Modifier.align(Alignment.Center)) }
                     Text(tr(a.en, a.ar), style = NovaType.label, color = p.textDim, maxLines = 1)
                 }
+            }
+        }
+        Gap()
+        Header(tr("Side bar position", "موضع القائمة الجانبية"))
+        Choice(listOf(false to tr("Left", "يسار"), true to tr("Right", "يمين")), s.railRight) { v -> c.settings.update { it.copy(railRight = v) } }
+        Gap()
+        Header(tr("Text size", "حجم الخط"))
+        Choice(listOf(1f to "100%", 1.15f to "115%", 1.3f to "130%", 1.45f to "145%"), s.textScale) { v -> c.settings.update { it.copy(textScale = v) } }
+        Gap()
+        Header(tr("Icon size", "حجم الأيقونات"))
+        Choice(listOf(1f to "100%", 1.15f to "115%", 1.3f to "130%", 1.45f to "145%"), s.iconScale) { v -> c.settings.update { it.copy(iconScale = v) } }
+        Gap()
+        Header(tr("Icon colour", "لون الأيقونات"), tr("Original keeps each app's own colours.", "«الأصلي» يُبقي ألوان التطبيقات كما هي."))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            com.abu00salman.novadrive.ui.components.IconTints.forEachIndexed { i, col ->
+                Box(
+                    Modifier.size(48.dp).clip(CircleShape)
+                        .background(if (col == null) androidx.compose.ui.graphics.Brush.sweepGradient(listOf(Color(0xFFFF4D6D), Color(0xFFFFC53D), Color(0xFF2EE6C0), Color(0xFF3D8BFF), Color(0xFF8B5CFF), Color(0xFFFF4D6D)))
+                            else androidx.compose.ui.graphics.SolidColor(col))
+                        .border(if (s.iconTint == i) 3.dp else 1.dp, if (s.iconTint == i) p.text else p.stroke, CircleShape)
+                        .clickable { c.settings.update { it.copy(iconTint = i) } },
+                    contentAlignment = Alignment.Center
+                ) { if (s.iconTint == i) Icon(Icons.Rounded.Check, null, tint = if (col == null) Color.White else Color(0xFF0B1630)) }
             }
         }
         Gap()
@@ -363,6 +429,10 @@ private fun ShortcutsSection(c: AppContainer, s: NovaSettings) {
         Gap(); RowItem(tr("Radio", "الراديو"), label(s.radioPackage, sc.radio), onClick = { picking = "radio" })
         Gap(); RowItem(tr("Phone", "الهاتف"), label(s.phonePackage, sc.phone), onClick = { picking = "phone" })
         Gap()
+        DockEditor(s, apps, ar,
+            onChange = { list -> c.settings.update { it.copy(dock = list) } },
+            onAddApp = { picking = "dock" })
+        Gap()
         Header(tr("Saved places", "الأماكن المحفوظة"), tr("Shown as one-tap navigation buttons.", "تظهر كأزرار توجيه بلمسة واحدة."))
         Field(tr("Home address", "عنوان البيت"), s.homeAddress) { v -> c.settings.update { it.copy(homeAddress = v) } }
         Gap()
@@ -376,6 +446,7 @@ private fun ShortcutsSection(c: AppContainer, s: NovaSettings) {
                     "nav" -> it.copy(navPackage = pkg)
                     "music" -> it.copy(musicPackage = pkg)
                     "radio" -> it.copy(radioPackage = pkg)
+                    "dock" -> if (pkg == null) it else it.copy(dock = replaceDockEntry(it.dock, it.dock.size, pkg))
                     else -> it.copy(phonePackage = pkg)
                 }
             }
@@ -420,6 +491,16 @@ private fun DrivingSection(c: AppContainer, s: NovaSettings) {
         Toggle(tr("Driving mode", "وضع القيادة"), tr("Uses real GPS speed", "يعتمد على سرعة GPS الحقيقية"), s.drivingMode) { v ->
             c.settings.update { it.copy(drivingMode = v) }
         }
+        Gap()
+        Toggle(tr("Show navigation while guiding", "عرض الملاحة أثناء التوجيه"),
+            tr("Switches home to Navigation when Maps/Waze starts guidance and back to Car when it ends. Pinned Music or Split stay.",
+                "ينتقل للملاحة عند بدء التوجيه في الخرائط أو Waze ويعود للسيارة عند انتهائه. وضعا الموسيقى والتقسيم المثبتان لا يتغيران."),
+            s.autoNavMode) { v -> c.settings.update { it.copy(autoNavMode = v) } }
+        Gap()
+        Toggle(tr("Allow editing while moving", "السماح بالتعديل أثناء الحركة"),
+            tr("Search, settings and dock changes stay available above 8 km/h. Video apps remain blocked while moving.",
+                "يبقى البحث والإعدادات وتعديل الشريط متاحاً فوق 8 كم/س. تبقى تطبيقات الفيديو محجوبة أثناء الحركة."),
+            s.editWhileDriving) { v -> c.settings.update { it.copy(editWhileDriving = v) } }
     }
 }
 
@@ -580,4 +661,111 @@ private fun AboutSection(c: AppContainer) {
         Text(tr("Developed by abu00salman", "تطوير abu00salman"), style = NovaType.title, color = p.text)
         Text("github.com/abu00salman", style = NovaType.label, color = p.textDim)
     }
+}
+
+
+/**
+ * The dock in its real order: move each button with the arrows or remove it, and add any of the
+ * standard buttons or any installed app below. Max 6.
+ */
+@Composable
+private fun DockEditor(s: NovaSettings, apps: List<AppEntry>, ar: Boolean, onChange: (List<String>) -> Unit, onAddApp: () -> Unit) {
+    val p = LocalNova.current
+    fun title(id: String) = if (id.startsWith(CUSTOM_PREFIX)) apps.firstOrNull { it.packageName == id.removePrefix(CUSTOM_PREFIX) }?.label ?: id.removePrefix(CUSTOM_PREFIX)
+        else dockTitle(id, ar)
+    Header(tr("Dock buttons", "أزرار الشريط السفلي"), tr("In order from the driver's side. Up to 6.", "بالترتيب من جهة السائق. حتى 6 أزرار."))
+    s.dock.forEachIndexed { i, id ->
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.text.copy(alpha = 0.05f)).padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(34.dp).clip(CircleShape).background(p.accent.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+                Text("${i + 1}", style = NovaType.label, color = p.accent)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(title(id), style = NovaType.body, color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            EditButton(Icons.Rounded.ArrowUpward, tr("Move earlier", "تقديم"), enabled = i > 0) {
+                onChange(s.dock.toMutableList().also { l -> l.removeAt(i); l.add(i - 1, id) })
+            }
+            EditButton(Icons.Rounded.ArrowDownward, tr("Move later", "تأخير"), enabled = i < s.dock.lastIndex) {
+                onChange(s.dock.toMutableList().also { l -> l.removeAt(i); l.add(i + 1, id) })
+            }
+            EditButton(Icons.Rounded.Close, tr("Remove", "إزالة"), enabled = true, tint = p.danger) { onChange(s.dock - id) }
+        }
+        Spacer(Modifier.height(6.dp))
+    }
+    if (s.dock.size < DOCK_MAX) {
+        Spacer(Modifier.height(6.dp))
+        Text(tr("Add a button", "إضافة زر"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val missing = DOCK_CHOICES.filter { it !in s.dock }
+            items(missing.size) { i -> Pill("+ " + dockTitle(missing[i], ar), p.accent) { onChange(s.dock + missing[i]) } }
+            item { Pill(tr("+ Any app…", "+ تطبيق آخر…"), p.accent2, onClick = onAddApp) }
+        }
+    }
+}
+
+@Composable
+private fun EditButton(icon: ImageVector, label: String, enabled: Boolean, tint: androidx.compose.ui.graphics.Color? = null, onClick: () -> Unit) {
+    val p = LocalNova.current
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center
+    ) { Icon(icon, label, tint = if (!enabled) p.textDim.copy(alpha = 0.3f) else tint ?: p.text, modifier = Modifier.size(26.dp)) }
+}
+
+
+/** "أمرني": built-in examples plus the user's own phrase → app commands. */
+@Composable
+private fun VoiceSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val apps by c.apps.apps.collectAsStateWithLifecycle()
+    var phrase by remember { mutableStateOf("") }
+    var picking by remember { mutableStateOf(false) }
+    Column {
+        Header(tr("Ask me", "أمرني"), tr("Tap «Ask me» in the side bar and speak. NovaDrive answers out loud.",
+            "اضغط «أمرني» في القائمة الجانبية وتكلّم، ويرد عليك نوفا درايف بالصوت."))
+        Text(tr("Try:", "جرّب:"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val ex = if (ar) com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_AR else com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_EN
+            items(ex.size) { i -> Pill("«${ex[i]}»", p.accent) }
+        }
+        Gap()
+        Toggle(tr("Answer out loud", "الرد بالصوت"),
+            tr("Uses the unit's text-to-speech. Install the Arabic voice from voice settings if replies sound English.",
+                "يستخدم محرك النطق في الجهاز. إذا كان الرد بلكنة إنجليزية ثبّت الصوت العربي من إعدادات النطق."),
+            s.voiceReply) { v -> c.settings.update { it.copy(voiceReply = v) } }
+        Gap()
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Test voice", "تجربة الصوت"), p.accent) {
+                c.speaker.speak(if (ar) "مرحباً، أنا نوفا. جاهز لأوامرك." else "Hi, I'm Nova. Ready when you are.", ar)
+            }
+            Pill(tr("Voice settings", "إعدادات النطق"), p.textDim) { c.speaker.openSettings() }
+        }
+        Gap()
+        Header(tr("My commands", "أوامري الخاصة"), tr("When you say the phrase, the chosen app opens.", "عندما تقول العبارة يُفتح التطبيق الذي اخترته."))
+        if (s.voiceCommands.isEmpty()) Text(tr("No custom commands yet.", "لا توجد أوامر خاصة بعد."), style = NovaType.label, color = p.textDim)
+        s.voiceCommands.forEach { cmd ->
+            val label = apps.firstOrNull { it.packageName == cmd.packageName }?.label ?: cmd.packageName
+            RowItem("«${cmd.phrase}»", tr("Opens ", "يفتح ") + label) {
+                Box(Modifier.size(48.dp).clip(CircleShape).clickable {
+                    c.settings.update { it.copy(voiceCommands = it.voiceCommands - cmd) }
+                }, contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Close, tr("Remove", "حذف"), tint = p.danger) }
+            }
+            Gap()
+        }
+        Gap()
+        Field(tr("Phrase, e.g. \"open my music\"", "العبارة، مثل: «شغل أغانيي»"), phrase) { phrase = it }
+        Gap()
+        Pill(tr("Choose app and save", "اختر التطبيق واحفظ"), p.accent) { if (phrase.isNotBlank()) picking = true }
+    }
+    if (picking) AppPickerDialog(tr("Open which app?", "أي تطبيق يُفتح؟"), apps, allowNone = false, onPick = { a ->
+        if (a != null) c.settings.update {
+            it.copy(voiceCommands = it.voiceCommands.filter { x -> x.phrase != phrase.trim() } + com.abu00salman.novadrive.data.CustomCommand(phrase.trim(), a.packageName))
+        }
+        phrase = ""; picking = false
+    }, onDismiss = { picking = false })
 }

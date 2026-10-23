@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.vehicle
 
+import com.abu00salman.novadrive.core.carDisplayName
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +40,7 @@ import com.abu00salman.novadrive.core.CarBrand
 import com.abu00salman.novadrive.core.CarModel
 import com.abu00salman.novadrive.core.CarPaint
 import com.abu00salman.novadrive.data.VehicleData
+import com.abu00salman.novadrive.ui.components.CarImage
 import com.abu00salman.novadrive.ui.components.Glass
 import com.abu00salman.novadrive.ui.components.Pill
 import com.abu00salman.novadrive.ui.theme.LocalArabic
@@ -59,6 +61,7 @@ fun VehicleScreen(
     obdEnabled: Boolean,
     data: VehicleData,
     onSetup: () -> Unit,
+    carImageVersion: Long = 0,
     modifier: Modifier = Modifier,
 ) {
     val p = LocalNova.current
@@ -77,13 +80,11 @@ fun VehicleScreen(
         Spacer(Modifier.width(12.dp))
         Glass(Modifier.weight(0.44f).fillMaxHeight()) {
             Column(Modifier.fillMaxSize().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${if (ar) brand.ar else brand.en} ${model.name}", style = NovaType.title.copy(fontSize = 22.sp), color = p.text, maxLines = 1)
+                Text(carDisplayName(brand, model, ar), style = NovaType.title.copy(fontSize = 22.sp), color = p.text, maxLines = 1)
                 Text(if (ar) paint.ar else paint.en, style = NovaType.label, color = p.textDim)
                 Spacer(Modifier.height(6.dp))
                 StatusChip(obdEnabled, data)
-                Canvas(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp)) {
-                    drawCarTop(model, paint.color, center, size.height * 0.96f, p.accent)
-                }
+                CarImage(carImageVersion, Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp))
                 if (!live) Pill(tr("Set up OBD-II", "إعداد OBD-II"), p.accent, icon = Icons.Rounded.Settings, onClick = onSetup)
             }
         }
