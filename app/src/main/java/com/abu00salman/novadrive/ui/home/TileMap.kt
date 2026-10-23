@@ -57,6 +57,8 @@ fun TileMap(
     modifier: Modifier = Modifier,
     tint: ColorFilter? = null,
     background: Color,
+    /** Vertical position of the car on the map (0 = top, 1 = bottom), below overlaid cards. */
+    focusY: Float = 0.5f,
 ) {
     val ctx = LocalContext.current
     val tiles = remember { mutableStateMapOf<String, ImageBitmap>() }
@@ -82,7 +84,7 @@ fun TileMap(
         val latR = Math.toRadians(lat.coerceIn(-85.0, 85.0))
         val cx = ((lon + 180.0) / 360.0 * n * tilePx).toFloat()
         val cy = ((1.0 - ln(tan(latR) + 1.0 / cos(latR)) / PI) / 2.0 * n * tilePx).toFloat()
-        val r = hypot(w, h) / 2f + tilePx * 0.1f
+        val r = hypot(w, h) + tilePx * 0.1f
         val x0 = floor((cx - r) / tilePx).toInt(); val x1 = floor((cx + r) / tilePx).toInt()
         val y0 = floor((cy - r) / tilePx).toInt(); val y1 = floor((cy + r) / tilePx).toInt()
         val needed = remember(z, x0, x1, y0, y1, style) {
@@ -103,7 +105,7 @@ fun TileMap(
         val rotation = if (headingUp && bearing != null) -bearing else 0f
         Canvas(Modifier.fillMaxSize()) {
             drawRect(background)
-            val center = Offset(w / 2f, h / 2f)
+            val center = Offset(w / 2f, h * focusY)
             rotate(rotation, center) {
                 for ((tz, tx, ty) in needed) {
                     val img = tiles["${style.path}/$tz/$tx/$ty"] ?: continue

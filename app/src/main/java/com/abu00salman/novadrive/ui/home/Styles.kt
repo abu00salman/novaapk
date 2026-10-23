@@ -360,7 +360,7 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
         TileMap(
             ui.lat, ui.lon, ui.bearing, MapTiles.Style.LIGHT, MapMarker.TESLA, headingUp, zoom, setZoom,
             onTap = if (ui.nav != null) act.onNavCard else act.onOpenNav,
-            modifier = Modifier.fillMaxSize(), background = Color(0xFFE6E8EB),
+            modifier = Modifier.fillMaxSize(), background = Color(0xFFE6E8EB), focusY = 0.64f,
         )
         if (ui.lat == null) UiDirection {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -399,8 +399,8 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             }
         }
         // Shortcut column (navigation · music · phone · apps · settings).
-        TCardBox(Modifier.align(Alignment.CenterStart).padding(start = 14.dp, top = 70.dp).width(70.dp), corner = 18.dp) {
-            Column(Modifier.padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        TCardBox(Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 86.dp).width(64.dp), corner = 18.dp) {
+            Column(Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 TMapButton(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), act.onOpenNav)
                 TMapButton(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), act.onMusicDetails)
                 TMapButton(Icons.Rounded.Phone, tr("Phone", "الهاتف"), act.onPhone)
@@ -409,9 +409,9 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             }
         }
         // Compass (north-up / heading-up), volume, re-centre.
-        TCardBox(Modifier.align(Alignment.TopEnd).padding(14.dp).width(70.dp), corner = 18.dp) {
+        TCardBox(Modifier.align(Alignment.TopEnd).padding(14.dp).width(64.dp), corner = 18.dp) {
             Column(Modifier.padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(58.dp).clip(CircleShape).clickable { headingUp = !headingUp }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(52.dp).clip(CircleShape).clickable { headingUp = !headingUp }, contentAlignment = Alignment.Center) {
                     Column(
                         Modifier.size(42.dp).clip(CircleShape).border(1.dp, TLine, CircleShape).rotate(if (headingUp) -(ui.bearing ?: 0f) else 0f),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
@@ -431,7 +431,7 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
 
 @Composable
 private fun TMapButton(icon: ImageVector, description: String, onClick: () -> Unit) {
-    Box(Modifier.size(58.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(52.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, description, tint = TText, modifier = Modifier.size(28.dp))
     }
 }
@@ -677,8 +677,8 @@ private fun BmwCluster(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             }
             // Direction of travel from GPS (no gear data is available on this unit).
             UiDirection {
-                Column(Modifier.align(Alignment.CenterEnd).padding(end = wDp * 0.13f).offset(y = -hDp * 0.08f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(ui.bearing?.let { compassLabel(it, ar) } ?: "--", style = NovaType.title.copy(fontSize = 22.sp, fontWeight = FontWeight.Bold), color = BText, maxLines = 1)
+                Column(Modifier.align(Alignment.CenterEnd).padding(end = wDp * 0.17f).offset(y = -hDp * 0.08f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(ui.bearing?.let { compassLabel(it, ar) } ?: "--", style = NovaType.title.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold), color = BText, maxLines = 1)
                     Text(tr("HEADING", "الاتجاه"), style = NovaType.small.copy(fontSize = 12.sp), color = BDim)
                 }
             }
@@ -715,7 +715,7 @@ private fun BmwMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
         TileMap(
             ui.lat, ui.lon, ui.bearing, MapTiles.Style.DARK, MapMarker.BMW, headingUp, zoom, setZoom,
             onTap = if (ui.nav != null) act.onNavCard else act.onOpenNav,
-            modifier = Modifier.fillMaxSize(), tint = BmwMapTint, background = Color(0xFF0D1528),
+            modifier = Modifier.fillMaxSize(), tint = BmwMapTint, background = Color(0xFF0D1528), focusY = 0.64f,
         )
         if (ui.lat == null) UiDirection {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
