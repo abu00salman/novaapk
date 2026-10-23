@@ -124,7 +124,9 @@ fun NovaRoot(onVoice: () -> Unit) {
         while (true) { delay(60_000); value = System.currentTimeMillis() }
     }
     val place = coarse ?: c.settings.lastLocation() ?: Pair(DEFAULT_LAT, DEFAULT_LON)
-    val dark = when (settings.themeMode) {
+    // The Tesla interface is always light and the BMW interface always dark, as in their designs.
+    val styleDark = when (settings.uiStyle) { "tesla" -> false; "bmw" -> true; else -> null }
+    val dark = styleDark ?: when (settings.themeMode) {
         ThemeMode.AUTO -> SunCalc.isNight(place.first, place.second, minute)
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
@@ -216,6 +218,7 @@ fun NovaRoot(onVoice: () -> Unit) {
                 ShellLayout(
                     railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
                     iconTint = com.abu00salman.novadrive.ui.components.IconTints.getOrNull(settings.iconTint),
+                    chrome = !(settings.uiStyle == "tesla" && screen == Screen.HOME),
                     rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone, onVoice = onVoice) },
                     topBar = {
                         TopBar(
@@ -250,7 +253,7 @@ fun NovaRoot(onVoice: () -> Unit) {
                     },
                 ) {
                     Crossfade(screen, animationSpec = tween(200), label = "screen") { s ->
-                        Routes(s, c, settings, sc, apps, driving, lockEdits, actions, go, openSettings, settingsStart, requestLocation, modeState.mode, modeState.autoPromoted, onMode, onQuick = { quick = true })
+                        Routes(s, c, settings, sc, apps, driving, lockEdits, actions, go, openSettings, settingsStart, requestLocation, modeState.mode, modeState.autoPromoted, onMode, onQuick = { quick = true }, onVoice = onVoice)
                     }
                 }
             }
@@ -276,6 +279,7 @@ private fun Routes(
     autoPromoted: Boolean,
     onMode: (HomeMode) -> Unit,
     onQuick: () -> Unit,
+    onVoice: () -> Unit,
 ) {
     val ctx = LocalContext.current
     when (s) {
@@ -305,6 +309,25 @@ private fun Routes(
                 onPrev = c.media::previous, onPlayPause = c.media::playPause, onNext = c.media::next,
                 onDock = a::dock,
                 onQuick = onQuick,
+                onApps = { go(Screen.APPS) },
+                onSettings = { openSettings(null) },
+                onPhone = a::phone,
+                onVoice = onVoice,
+                onCarPlay = {
+                    val slot = ui.dock.firstOrNull { it.id == "carplay" && it.app != null }
+                    when {
+                        slot != null -> a.dock(slot)
+                        sc.carPlay != null -> a.launch(sc.carPlay)
+                        else -> toast(ctx, if (settings.arabic) "تطبيق كاربلاي غير موجود" else "CarPlay app not found")
+                    }
+                },
+                onBluetooth = { c.controls.openBluetooth() },
+                onWifi = { c.controls.openWifi() },
+                onGps = { if (!c.location.hasPermission()) requestLocation() else c.controls.openLocationSettings() },
+                volume = { c.controls.volume() },
+                onVolume = { c.controls.setVolume(it) },
+                brightness = { c.controls.brightness() },
+                onBrightness = { c.controls.setBrightness(it, (ctx as? android.app.Activity)?.window) },
             )
           }
           dockPick?.let { id ->

@@ -344,9 +344,15 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
     val p = LocalNova.current
     Column {
         Header(tr("Interface style", "نمط الواجهة"),
-            tr("Smart switches between car, map and music. Simple shows everything at once.",
-                "الذكية تتبدل بين السيارة والخريطة والموسيقى، والبسيطة تعرض كل شيء معًا."))
-        Choice(listOf("smart" to tr("Smart", "الواجهة الذكية"), "simple" to tr("Simple", "الواجهة البسيطة")), s.uiStyle) { v ->
+            tr("Smart switches between car, map and music. Simple shows everything at once. Tesla is light and BMW is dark, each with a live map.",
+                "الذكية تتبدل بين السيارة والخريطة والموسيقى، والبسيطة تعرض كل شيء معًا. واجهة Tesla فاتحة وواجهة BMW داكنة، وكلتاهما بخريطة حية."))
+        Choice(
+            listOf(
+                "smart" to tr("Smart", "الواجهة الذكية"), "simple" to tr("Simple", "الواجهة البسيطة"),
+                "tesla" to tr("Tesla", "واجهة Tesla"), "bmw" to tr("BMW", "واجهة BMW"),
+            ),
+            s.uiStyle,
+        ) { v ->
             c.settings.update { it.copy(uiStyle = v) }
         }
         Gap()

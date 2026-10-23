@@ -139,13 +139,13 @@ class ScreenshotTest {
     )
 
     private fun shot(name: String, screen: Screen, mode: HomeMode = HomeMode.CAR, dark: Boolean = true, ar: Boolean = true,
-                     railRight: Boolean = false, textScale: Float = 1f, iconScale: Float = 1f, content: @Composable () -> Unit) {
+                     railRight: Boolean = false, textScale: Float = 1f, iconScale: Float = 1f, chrome: Boolean = true, content: @Composable () -> Unit) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             NovaTheme(dark = dark, accentIndex = 0, arabic = ar) {
                 Box(Modifier.fillMaxSize().novaBackdrop(LocalNova.current)) {
                     ShellLayout(
-                        railRight = railRight, textScale = textScale, iconScale = iconScale,
+                        railRight = railRight, textScale = textScale, iconScale = iconScale, chrome = chrome,
                         rail = { Rail(screen, mode, {}, {}, {}) },
                         topBar = {
                             TopBar(Link.CONNECTED, NetState(Link.CONNECTED, false), GpsState.FIX, dark, ThemeMode.AUTO, false,
@@ -200,6 +200,26 @@ class ScreenshotTest {
 
     @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
     fun simple_1024() = home("19_simple_1024x600_night_ar", HomeMode.CAR, dark = true, ui = ui(true).copy(simple = true))
+
+    private fun styled(style: String, ui: HomeUi) = ui.copy(style = style, lat = 16.8892, lon = 42.5511, bearing = 35f,
+        bt = Link.CONNECTED, net = NetState(Link.CONNECTED, true), gps = GpsState.FIX, carPlayConnected = true)
+
+    @Test fun tesla() = shot("20_tesla_ar", Screen.HOME, dark = false, chrome = false) {
+        HomeLayout(styled("tesla", ui(true)), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun tesla_noRoute_en() = shot("21_tesla_en_no_route", Screen.HOME, dark = false, ar = false, chrome = false) {
+        HomeLayout(styled("tesla", ui(false, guiding = false)), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun bmw() = shot("22_bmw_ar", Screen.HOME, dark = true) {
+        HomeLayout(styled("bmw", ui(true)), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
+    fun bmw_1024() = shot("23_bmw_1024x600_ar", Screen.HOME, dark = true) {
+        HomeLayout(styled("bmw", ui(true, guiding = false)), HomeMode.CAR, false, HomeActions())
+    }
 
     @Test fun vehicle() = shot("15_vehicle_night_ar", Screen.VEHICLE) {
         VehicleScreen(carBrand("hyundai"), carModel("hyundai", "sonata19"), CarPaints[0], true, live, {})

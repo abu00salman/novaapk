@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Tesla and BMW interfaces
+
+- Two more choices in Settings › Appearance › Interface style, saved per profile: **Tesla** (light, full screen: car photo with GPS speed, large live map with destination search and shortcuts, media/weather/clock cards, brightness · dock · volume bar) and **BMW** (dark cockpit: speed cluster with heading, live dark map with the guidance card, time/weather, player, CarPlay card, volume and brightness either side of the dock).
+- The live map is a real street map (OpenStreetMap data, CARTO tiles) around the GPS position, cached on the unit; pinch or double-tap to zoom, tap to open the navigation app.
+
 ## Unreleased — Simple interface & spoken «أمرني»
 
 - New **Simple interface** (Settings › Appearance › Interface style): navigation, music, clock/weather and car info side by side above a large dock. The choice is saved per profile and survives restarts.

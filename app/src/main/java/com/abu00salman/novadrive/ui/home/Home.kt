@@ -79,7 +79,10 @@ import com.abu00salman.novadrive.core.CarModel
 import com.abu00salman.novadrive.core.CarPaint
 import com.abu00salman.novadrive.core.HomeMode
 import com.abu00salman.novadrive.data.AppEntry
+import com.abu00salman.novadrive.data.Link
 import com.abu00salman.novadrive.data.MediaInfo
+import com.abu00salman.novadrive.data.NetState
+import com.abu00salman.novadrive.ui.shell.GpsState
 import com.abu00salman.novadrive.data.NavInfo
 import com.abu00salman.novadrive.data.VehicleData
 import com.abu00salman.novadrive.data.Weather
@@ -144,6 +147,17 @@ data class HomeUi(
     val video: AppEntry? = null,
     /** Settings › Appearance › layout style: the fixed "simple" layout instead of modes. */
     val simple: Boolean = false,
+    /** Settings › Appearance › interface: "smart", "simple", "tesla" or "bmw". */
+    val style: String = "smart",
+    /** Last GPS position and direction of travel, for the live map of the Tesla/BMW interfaces. */
+    val lat: Double? = null,
+    val lon: Double? = null,
+    val bearing: Float? = null,
+    val bt: Link = Link.OFF,
+    val net: NetState = NetState(Link.OFF, false),
+    val gps: GpsState = GpsState.OFF,
+    /** An iPhone is attached over USB (CarPlay through ZLink/DiPlay). */
+    val carPlayConnected: Boolean = false,
 )
 
 class HomeActions(
@@ -171,6 +185,19 @@ class HomeActions(
     val onDockLong: (DockSlot) -> Unit = {},
     /** Tapping the clock/weather card opens quick controls (volume, brightness, theme). */
     val onQuick: () -> Unit = {},
+    // Used by the full-screen interfaces (Tesla/BMW) that carry their own menus and controls.
+    val onApps: () -> Unit = {},
+    val onSettings: () -> Unit = {},
+    val onPhone: () -> Unit = {},
+    val onVoice: () -> Unit = {},
+    val onCarPlay: () -> Unit = {},
+    val onBluetooth: () -> Unit = {},
+    val onWifi: () -> Unit = {},
+    val onGps: () -> Unit = {},
+    val volume: () -> Float = { 0f },
+    val onVolume: (Float) -> Unit = {},
+    val brightness: () -> Float = { 0f },
+    val onBrightness: (Float) -> Unit = {},
 )
 
 /**
@@ -180,6 +207,10 @@ class HomeActions(
  */
 @Composable
 fun HomeLayout(ui: HomeUi, mode: HomeMode, autoPromoted: Boolean, act: HomeActions, modifier: Modifier = Modifier) = FixedLtr {
+    when (ui.style) {
+        "tesla" -> { TeslaLayout(ui, act, modifier); return@FixedLtr }
+        "bmw" -> { BmwLayout(ui, act, modifier); return@FixedLtr }
+    }
     if (ui.simple) { SimpleLayout(ui, act, modifier); return@FixedLtr }
     Column(modifier.fillMaxSize()) {
         Row(Modifier.weight(1f).fillMaxWidth()) {
@@ -638,25 +669,7 @@ private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modif
     // Icon + one title in the UI language, centred. App labels from other languages aren't mixed in.
     Glass(modifier, corner = 22.dp, onClick = onClick, onLongClick = onLong) {
         Column(Modifier.align(Alignment.Center).padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            val app = s.app
-            val tint = LocalIconTint.current
-            // The phone button always shows a phone, even when the unit's dialer uses a Bluetooth logo.
-            // CarPlay shows the CarPlay mark (it still launches the unit's ZLink/DiPlay app).
-            if (s.id == "carplay" && app != null) Image(painterResource(R.drawable.carplay_icon), null, Modifier.size(icon).clip(RoundedCornerShape(icon * 0.22f)), colorFilter = iconFilter())
-            else if (app != null && s.id != "phone") Image(app.icon, null, Modifier.size(icon), colorFilter = iconFilter())
-            else Box(
-                Modifier.size(icon).clip(RoundedCornerShape(15.dp))
-                    .background(
-                        when {
-                            !available -> Brush.linearGradient(listOf(p.text.copy(alpha = 0.10f), p.text.copy(alpha = 0.05f)))
-                            tint != null -> Brush.linearGradient(listOf(tint, tint.copy(alpha = 0.7f)))
-                            s.id == "phone" -> Brush.linearGradient(listOf(Color(0xFF4ADE80), Color(0xFF16A34A)))
-                            else -> Brush.linearGradient(listOf(Color(0xFF5B7DB8), Color(0xFF2B3E68)))
-                        }
-                    )
-                    .alpha(if (available) 1f else 0.6f),
-                contentAlignment = Alignment.Center
-            ) { Icon(s.fallback, null, tint = if (available) Color.White else p.textDim, modifier = Modifier.size(icon * 0.55f)) }
+            DockIcon(s, icon)
             Spacer(Modifier.height(6.dp))
             Text(
                 if (available) s.title else tr("Install ", "تثبيت ") + s.title,
@@ -667,6 +680,32 @@ private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modif
     }
 }
 
+
+/** A dock entry's icon: the app's own icon, the CarPlay mark for CarPlay, or a glyph tile. */
+@Composable
+internal fun DockIcon(s: DockSlot, icon: Dp) {
+    val p = LocalNova.current
+    val available = s.app != null || s.builtIn
+    val app = s.app
+    val tint = LocalIconTint.current
+    // The phone button always shows a phone, even when the unit's dialer uses a Bluetooth logo.
+    // CarPlay shows the CarPlay mark (it still launches the unit's ZLink/DiPlay app).
+    if (s.id == "carplay" && app != null) Image(painterResource(R.drawable.carplay_icon), null, Modifier.size(icon).clip(RoundedCornerShape(icon * 0.22f)), colorFilter = iconFilter())
+    else if (app != null && s.id != "phone") Image(app.icon, null, Modifier.size(icon), colorFilter = iconFilter())
+    else Box(
+        Modifier.size(icon).clip(RoundedCornerShape(15.dp))
+            .background(
+                when {
+                    !available -> Brush.linearGradient(listOf(p.text.copy(alpha = 0.10f), p.text.copy(alpha = 0.05f)))
+                    tint != null -> Brush.linearGradient(listOf(tint, tint.copy(alpha = 0.7f)))
+                    s.id == "phone" -> Brush.linearGradient(listOf(Color(0xFF4ADE80), Color(0xFF16A34A)))
+                    else -> Brush.linearGradient(listOf(Color(0xFF5B7DB8), Color(0xFF2B3E68)))
+                }
+            )
+            .alpha(if (available) 1f else 0.6f),
+        contentAlignment = Alignment.Center
+    ) { Icon(s.fallback, null, tint = if (available) Color.White else p.textDim, modifier = Modifier.size(icon * 0.55f)) }
+}
 
 /**
  * «الواجهة البسيطة»: one fixed screen — live guidance, the music player and time/weather with the

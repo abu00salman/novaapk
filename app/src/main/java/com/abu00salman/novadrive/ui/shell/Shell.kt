@@ -103,12 +103,15 @@ fun ShellLayout(
     textScale: Float = 1f,
     iconScale: Float = 1f,
     iconTint: Color? = null,
+    /** False for interfaces that draw their own menus and status bar edge to edge (Tesla). */
+    chrome: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     DesignViewport(textScale = textScale) {
       CompositionLocalProvider(LocalIconScale provides iconScale.coerceIn(0.8f, 1.6f), LocalIconTint provides iconTint) {
         FixedLtr {
-            Row(Modifier.fillMaxSize().padding(14.dp)) {
+            if (!chrome) Box(Modifier.fillMaxSize()) { UiDirection(content) }
+            else Row(Modifier.fillMaxSize().padding(14.dp)) {
                 if (!railRight) { rail(); Spacer(Modifier.width(12.dp)) }
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     topBar()

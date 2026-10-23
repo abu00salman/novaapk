@@ -125,6 +125,16 @@ fun HomeScreen(
     val hasLocation = remember(perms) { c.location.hasPermission() }
     val access = remember(perms) { MediaRepository.hasAccess(ctx) }
     val dock = dockSlots(c, settings, sc, apps, driving)
+    val fullScreenStyle = settings.uiStyle == "tesla" || settings.uiStyle == "bmw"
+    val bt by c.bluetooth.collectAsStateWithLifecycle()
+    val net by c.network.collectAsStateWithLifecycle()
+    val iPhone by remember(fullScreenStyle) { if (fullScreenStyle) c.carPlay.connected() else kotlinx.coroutines.flow.flowOf(false) }
+        .collectAsStateWithLifecycle(false)
+    val gps = when {
+        !hasLocation || !c.status.gpsEnabled() -> com.abu00salman.novadrive.ui.shell.GpsState.OFF
+        fix?.fromGps == true -> com.abu00salman.novadrive.ui.shell.GpsState.FIX
+        else -> com.abu00salman.novadrive.ui.shell.GpsState.SEARCHING
+    }
 
     val ui = HomeUi(
         speedKmh = fix?.speedKmh,
@@ -147,6 +157,14 @@ fun HomeScreen(
         use24h = settings.use24h,
         carImageVersion = settings.carImageVersion,
         simple = settings.uiStyle == "simple",
+        style = settings.uiStyle,
+        lat = fix?.lat,
+        lon = fix?.lon,
+        bearing = fix?.bearing,
+        bt = bt,
+        net = net,
+        gps = gps,
+        carPlayConnected = iPhone,
         video = if (driving) null else c.apps.byPackage(YOUTUBE_PKG),
     )
     HomeLayout(ui, mode, autoPromoted, remember(ui) { actions(ui) })
