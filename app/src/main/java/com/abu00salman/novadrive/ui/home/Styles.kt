@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -399,7 +400,7 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             }
         }
         // Shortcut column (navigation · music · phone · apps · settings).
-        TCardBox(Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 86.dp).width(64.dp), corner = 18.dp) {
+        TCardBox(Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 84.dp).width(60.dp), corner = 18.dp) {
             Column(Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 TMapButton(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), act.onOpenNav)
                 TMapButton(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), act.onMusicDetails)
@@ -431,7 +432,7 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
 
 @Composable
 private fun TMapButton(icon: ImageVector, description: String, onClick: () -> Unit) {
-    Box(Modifier.size(52.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(48.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, description, tint = TText, modifier = Modifier.size(28.dp))
     }
 }
@@ -677,7 +678,7 @@ private fun BmwCluster(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             }
             // Direction of travel from GPS (no gear data is available on this unit).
             UiDirection {
-                Column(Modifier.align(Alignment.CenterEnd).padding(end = wDp * 0.17f).offset(y = -hDp * 0.08f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.align(Alignment.CenterEnd).absolutePadding(right = wDp * 0.17f).offset(y = -hDp * 0.08f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(ui.bearing?.let { compassLabel(it, ar) } ?: "--", style = NovaType.title.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold), color = BText, maxLines = 1)
                     Text(tr("HEADING", "الاتجاه"), style = NovaType.small.copy(fontSize = 12.sp), color = BDim)
                 }
