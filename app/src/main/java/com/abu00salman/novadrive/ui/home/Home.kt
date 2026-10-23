@@ -158,6 +158,8 @@ data class HomeUi(
     val gps: GpsState = GpsState.OFF,
     /** An iPhone is attached over USB (CarPlay through ZLink/DiPlay). */
     val carPlayConnected: Boolean = false,
+    /** Settings › Appearance › side bar on the right (the Tesla map mirrors its shortcut column). */
+    val railRight: Boolean = true,
 )
 
 class HomeActions(

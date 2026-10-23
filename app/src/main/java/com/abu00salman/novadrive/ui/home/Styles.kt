@@ -199,6 +199,9 @@ private val TLine = Color(0x1A000000)
 private val TRed = Color(0xFFE82127)
 private val TGreen = Color(0xFF22C55E)
 
+/** OpenStreetMap tiles toned down to the soft grey look of the Tesla map (labels stay readable). */
+private val TeslaMapTint = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.45f) })
+
 /**
  * «واجهة Tesla»: light, full-screen. The car (the user's own photo) with live GPS speed on the left,
  * a large live street map with search and shortcuts on the right, media/weather/clock cards and a
@@ -305,7 +308,7 @@ private fun TeslaAction(icon: ImageVector, label: String, modifier: Modifier, on
     Column(modifier.fillMaxHeight().clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Icon(icon, null, tint = TText, modifier = Modifier.size(28.dp))
         Spacer(Modifier.height(6.dp))
-        Text(label, style = NovaType.label.copy(fontSize = 15.sp), color = TText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = NovaType.label.copy(fontSize = 14.sp), color = TText, maxLines = 1, softWrap = false)
     }
 }
 
@@ -361,7 +364,7 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
         TileMap(
             ui.lat, ui.lon, ui.bearing, MapTiles.Style.LIGHT, MapMarker.TESLA, headingUp, zoom, setZoom,
             onTap = if (ui.nav != null) act.onNavCard else act.onOpenNav,
-            modifier = Modifier.fillMaxSize(), background = Color(0xFFE6E8EB), focusY = 0.64f,
+            modifier = Modifier.fillMaxSize(), tint = TeslaMapTint, background = Color(0xFFE6E8EB), focusY = 0.64f,
         )
         if (ui.lat == null) UiDirection {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -400,7 +403,11 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             }
         }
         // Shortcut column (navigation · music · phone · apps · settings).
-        TCardBox(Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 84.dp).width(60.dp), corner = 18.dp) {
+        TCardBox(
+            Modifier.align(if (ui.railRight) Alignment.TopEnd else Alignment.TopStart)
+                .padding(start = 14.dp, end = 14.dp, top = if (ui.railRight) 14.dp else 84.dp).width(60.dp),
+            corner = 18.dp,
+        ) {
             Column(Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 TMapButton(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), act.onOpenNav)
                 TMapButton(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), act.onMusicDetails)
@@ -410,7 +417,11 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             }
         }
         // Compass (north-up / heading-up), volume, re-centre.
-        TCardBox(Modifier.align(Alignment.TopEnd).padding(14.dp).width(64.dp), corner = 18.dp) {
+        TCardBox(
+            Modifier.align(if (ui.railRight) Alignment.TopStart else Alignment.TopEnd)
+                .padding(start = 14.dp, end = 14.dp, top = if (ui.railRight) 84.dp else 14.dp).width(64.dp),
+            corner = 18.dp,
+        ) {
             Column(Modifier.padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(52.dp).clip(CircleShape).clickable { headingUp = !headingUp }, contentAlignment = Alignment.Center) {
                     Column(
@@ -581,11 +592,12 @@ private val BAccent = Color(0xFF2F8BFF)
 private val BText = Color(0xFFF2F6FF)
 private val BDim = Color(0xFF9AA8C3)
 
-/** Blue cast for the dark street map, so it matches the cockpit lighting. */
+/** OpenStreetMap tiles inverted to a dark navy map with light labels, matching the cockpit. */
 private val BmwMapTint = ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(
-    0.80f, 0f, 0f, 0f, 0f,
-    0f, 0.92f, 0f, 0f, 6f,
-    0f, 0f, 1.30f, 0f, 22f,
+    // invert + 180° hue rotation (water stays blue, parks green) with a slight blue lift
+    0.488f, -1.216f, -0.122f, 0f, 216.8f,
+    -0.383f, -0.387f, -0.130f, 0f, 233.5f,
+    -0.426f, -1.430f, 0.856f, 0f, 273.0f,
     0f, 0f, 0f, 1f, 0f,
 )))
 

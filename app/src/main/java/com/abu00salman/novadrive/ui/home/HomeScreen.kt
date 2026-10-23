@@ -165,6 +165,7 @@ fun HomeScreen(
         net = net,
         gps = gps,
         carPlayConnected = iPhone,
+        railRight = settings.railRight,
         video = if (driving) null else c.apps.byPackage(YOUTUBE_PKG),
     )
     HomeLayout(ui, mode, autoPromoted, remember(ui) { actions(ui) })

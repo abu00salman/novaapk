@@ -45,11 +45,15 @@ class SystemControls(private val ctx: Context) {
     // ---- Brightness ---------------------------------------------------------------------
     fun canWriteSettings(): Boolean = Settings.System.canWrite(ctx)
 
-    fun brightness(): Float = runCatching {
-        Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+    fun brightness(): Float = windowBrightness ?: runCatching {
+        (Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f).coerceIn(0f, 1f)
     }.getOrDefault(0.5f)
 
-    /** System-wide when allowed, otherwise only for the launcher window. */
+    /**
+     * System-wide when allowed. The launcher window is always set too: some head units ignore the
+     * system value (they drive the backlight themselves), and the window value always applies
+     * while NovaDrive is on screen.
+     */
     fun setBrightness(fraction: Float, window: Window?) {
         val f = fraction.coerceIn(0.02f, 1f)
         if (canWriteSettings()) {
@@ -57,12 +61,18 @@ class SystemControls(private val ctx: Context) {
                 Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
                 Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS, (f * 255).roundToInt())
             }
-        } else if (window != null) {
+        }
+        if (window != null) runCatching {
             val lp = window.attributes
             lp.screenBrightness = f
             window.attributes = lp
         }
+        windowBrightness = f
     }
+
+    /** Last level NovaDrive applied, so the controls show what the screen actually uses. */
+    var windowBrightness: Float? = null
+        private set
 
     fun requestWriteSettings() = start(
         Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + ctx.packageName))

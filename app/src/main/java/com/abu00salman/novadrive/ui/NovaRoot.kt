@@ -327,7 +327,15 @@ private fun Routes(
                 volume = { c.controls.volume() },
                 onVolume = { c.controls.setVolume(it) },
                 brightness = { c.controls.brightness() },
-                onBrightness = { c.controls.setBrightness(it, (ctx as? android.app.Activity)?.window) },
+                onBrightness = { level ->
+                    // Ask once for system-wide brightness; the launcher window dims immediately either way.
+                    if (!c.controls.canWriteSettings() && !askedWriteSettings) {
+                        askedWriteSettings = true
+                        toast(ctx, if (settings.arabic) "اسمح لـ NovaDrive بتعديل إعدادات النظام ليتغير سطوع الشاشة كلها" else "Allow NovaDrive to modify system settings to change the whole screen's brightness")
+                        c.controls.requestWriteSettings()
+                    }
+                    c.controls.setBrightness(level, ctx.findActivity()?.window)
+                },
             )
           }
           dockPick?.let { id ->
@@ -496,4 +504,16 @@ private fun CarPlayAutoLaunch(c: AppContainer, settings: NovaSettings, sc: Short
             }
         }
     }
+}
+
+private var askedWriteSettings = false
+
+/** The hosting activity, unwrapping any ContextWrapper (needed to dim the launcher window). */
+private fun android.content.Context.findActivity(): android.app.Activity? {
+    var c: android.content.Context? = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
 }
