@@ -55,7 +55,7 @@ class AppContainer(private val app: Application) {
     val apps by lazy { AppsRepository(app, scope) }
     val location by lazy { LocationRepository(app) }
     val weather by lazy { WeatherRepository(app, scope) }
-    val media by lazy { MediaRepository(app) }
+    val media by lazy { MediaRepository(app) { settings.current.arabic } }
     val carPlay by lazy { CarPlayDetector(app) }
     val controls by lazy { SystemControls(app) }
     val obd by lazy { ObdClient(app, scope) }

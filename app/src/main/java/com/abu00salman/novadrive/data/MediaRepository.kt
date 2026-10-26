@@ -2,6 +2,13 @@ package com.abu00salman.novadrive.data
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.media.browse.MediaBrowser
+import android.service.media.MediaBrowserService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -52,7 +59,7 @@ data class MediaInfo(
 @Immutable
 data class QueueEntry(val id: Long, val title: String, val subtitle: String?)
 
-class MediaRepository(private val ctx: Context) {
+class MediaRepository(private val ctx: Context, private val arabic: () -> Boolean = { true }) {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var active: MediaController? = null
     private val audio = ctx.getSystemService(AudioManager::class.java)
@@ -65,6 +72,14 @@ class MediaRepository(private val ctx: Context) {
         val msm = ctx.getSystemService(MediaSessionManager::class.java)
         val component = ComponentName(ctx, NovaNotificationListener::class.java)
         var all: List<MediaController> = emptyList()
+        // Sessions Android lists as active, plus ones found another way: media notifications that
+        // carry a session token, and Bluetooth (AVRCP) browser services such as the head unit's
+        // own Bluetooth music player.
+        var activeList: List<MediaController> = emptyList()
+        var noticeControllers: List<MediaController> = emptyList()
+        var browserControllers: List<MediaController> = emptyList()
+        var notices: List<MediaNotice> = emptyList()
+        val browsers = mutableListOf<MediaBrowser>()
         var current: MediaController? = null
         var lastArtKey: Any? = null
         var lastArt: ImageBitmap? = null
@@ -74,9 +89,32 @@ class MediaRepository(private val ctx: Context) {
             ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
             ?: md?.description?.title?.toString()
 
+        /**
+         * No usable session but sound is playing (typical for the head unit's Bluetooth music):
+         * show it with the player's own notification text when there is one. Controls then go out
+         * as system media keys.
+         */
+        fun fallback(): MediaInfo? {
+            val playing = audio?.isMusicActive == true
+            val n = notices.firstOrNull { it.title != null }
+            if (!playing && n == null) return null
+            val ar = arabic()
+            return MediaInfo(
+                title = n?.title ?: if (ar) "يتم تشغيل الصوت" else "Audio playing",
+                artist = n?.text ?: playerLabel ?: if (ar) "اضغط لفتح المشغّل" else "Tap to open the player",
+                art = null,
+                playing = playing,
+                packageName = n?.packageName ?: btPlayer,
+                durationMs = 0L,
+                positionMs = -1L,
+                positionAt = SystemClock.elapsedRealtime(),
+                speed = 1f,
+            )
+        }
+
         fun publish() {
             val c = current
-            if (c == null) { trySend(null); return }
+            if (c == null) { trySend(fallback()); return }
             val md = c.metadata
             val st = c.playbackState
             val bmp: Bitmap? = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
@@ -150,15 +188,56 @@ class MediaRepository(private val ctx: Context) {
             choose()
         }
 
-        val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { watch(it.orEmpty()) }
+        fun extras() = (noticeControllers + browserControllers)
+        fun rewatch() = watch((activeList + extras()).distinctBy { it.sessionToken })
+
+        val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { activeList = it.orEmpty(); rewatch() }
         try {
             msm?.addOnActiveSessionsChangedListener(sessionsListener, component, main)
-            watch(msm?.getActiveSessions(component).orEmpty())
-            listSessions = { runCatching { msm?.getActiveSessions(component) }.getOrNull().orEmpty() }
+            activeList = msm?.getActiveSessions(component).orEmpty()
+            rewatch()
+            listSessions = {
+                (runCatching { msm?.getActiveSessions(component) }.getOrNull().orEmpty() + extras()).distinctBy { it.sessionToken }
+            }
         } catch (e: SecurityException) {
             trySend(null)
         }
+
+        // Media notifications with a session token.
+        val noticeJob = launch(Dispatchers.Main) {
+            NovaNotificationListener.mediaNotices.collect { list ->
+                notices = list
+                noticeControllers = list.mapNotNull { n ->
+                    n.token?.let { t -> noticeControllers.firstOrNull { it.sessionToken == t } ?: runCatching { MediaController(ctx, t) }.getOrNull() }
+                }.distinctBy { it.sessionToken }
+                rewatch()
+            }
+        }
+        // Bluetooth music browser services (AVRCP controller), connected once.
+        main.post {
+            bluetoothBrowsers().forEach { cn ->
+                val holder = arrayOfNulls<MediaBrowser>(1)
+                val browser = MediaBrowser(ctx, cn, object : MediaBrowser.ConnectionCallback() {
+                    override fun onConnected() {
+                        val b = holder[0] ?: return
+                        runCatching { MediaController(ctx, b.sessionToken) }.getOrNull()?.let { mc ->
+                            browserControllers = (browserControllers + mc).distinctBy { it.sessionToken }
+                            rewatch()
+                        }
+                    }
+                }, null)
+                holder[0] = browser
+                browsers += browser
+                runCatching { browser.connect() }
+            }
+        }
+        // Sound can start or stop without any session event; re-check while nothing is attached.
+        val pollJob = launch(Dispatchers.Main) {
+            while (isActive) { delay(2000); if (current == null) publish() }
+        }
         awaitClose {
+            noticeJob.cancel(); pollJob.cancel()
+            browsers.forEach { runCatching { it.disconnect() } }
             runCatching { msm?.removeOnActiveSessionsChangedListener(sessionsListener) }
             callbacks.forEach { (token, cb) -> all.firstOrNull { it.sessionToken == token }?.unregisterCallback(cb) }
             io.shutdown()
@@ -168,6 +247,32 @@ class MediaRepository(private val ctx: Context) {
     }
 
     @Volatile private var listSessions: () -> List<MediaController> = { emptyList() }
+
+    private fun isBluetoothPackage(pkg: String): Boolean {
+        val p = pkg.lowercase()
+        return "bluetooth" in p || "btmusic" in p || ".bt" in p || "a2dp" in p || "avrcp" in p
+    }
+
+    /** Media browser services published by Bluetooth packages (e.g. AOSP's AVRCP controller). */
+    private fun bluetoothBrowsers(): List<ComponentName> = runCatching {
+        ctx.packageManager.queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE), 0)
+            .map { it.serviceInfo }
+            .filter { isBluetoothPackage(it.packageName) }
+            .map { ComponentName(it.packageName, it.name) }
+    }.getOrDefault(emptyList())
+
+    /** The head unit's Bluetooth player app, opened when the fallback card is tapped. */
+    private val btLauncher: android.content.pm.ActivityInfo? by lazy {
+        runCatching {
+            val pm = ctx.packageManager
+            val all = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0).map { it.activityInfo }
+            fun label(a: android.content.pm.ActivityInfo) = a.loadLabel(pm).toString().lowercase()
+            all.firstOrNull { isBluetoothPackage(it.packageName) && ("music" in it.packageName.lowercase() || "music" in label(it) || "موسيق" in label(it)) }
+                ?: all.firstOrNull { isBluetoothPackage(it.packageName) }
+        }.getOrNull()
+    }
+    private val btPlayer: String? get() = btLauncher?.packageName
+    private val playerLabel: String? get() = runCatching { btLauncher?.loadLabel(ctx.packageManager)?.toString() }.getOrNull()
 
     private fun best(list: List<MediaController>): MediaController? =
         list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
