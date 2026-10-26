@@ -41,6 +41,8 @@ class NovaApp : Application() {
         super.onCreate()
         CrashGuard.install(this)
         container = AppContainer(this)
+        // Restore the screen dimmer (brightness) chosen before the last restart.
+        container.controls.dimmer.apply()
     }
 }
 
@@ -83,6 +85,7 @@ class AppContainer(private val app: Application) {
         if (Build.VERSION.SDK_INT >= 31) append(granted(Manifest.permission.BLUETOOTH_CONNECT))
         append(MediaRepository.hasAccess(app))
         append(android.provider.Settings.System.canWrite(app))
+        append(android.provider.Settings.canDrawOverlays(app))
     }
 
     val fix: StateFlow<GeoFix?> by lazy {

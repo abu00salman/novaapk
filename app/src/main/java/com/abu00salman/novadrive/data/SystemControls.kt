@@ -45,34 +45,13 @@ class SystemControls(private val ctx: Context) {
     // ---- Brightness ---------------------------------------------------------------------
     fun canWriteSettings(): Boolean = Settings.System.canWrite(ctx)
 
-    fun brightness(): Float = windowBrightness ?: runCatching {
-        (Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f).coerceIn(0f, 1f)
-    }.getOrDefault(0.5f)
+    /** Brightness through [ScreenDimmer], which works even where the unit ignores Android's setting. */
+    val dimmer = ScreenDimmer(ctx)
 
-    /**
-     * System-wide when allowed. The launcher window is always set too: some head units ignore the
-     * system value (they drive the backlight themselves), and the window value always applies
-     * while NovaDrive is on screen.
-     */
-    fun setBrightness(fraction: Float, window: Window?) {
-        val f = fraction.coerceIn(0.02f, 1f)
-        if (canWriteSettings()) {
-            runCatching {
-                Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
-                Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS, (f * 255).roundToInt())
-            }
-        }
-        if (window != null) runCatching {
-            val lp = window.attributes
-            lp.screenBrightness = f
-            window.attributes = lp
-        }
-        windowBrightness = f
-    }
+    fun brightness(): Float = dimmer.level.value
 
-    /** Last level NovaDrive applied, so the controls show what the screen actually uses. */
-    var windowBrightness: Float? = null
-        private set
+    @Suppress("UNUSED_PARAMETER")
+    fun setBrightness(fraction: Float, window: Window?) = dimmer.set(fraction)
 
     fun requestWriteSettings() = start(
         Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + ctx.packageName))

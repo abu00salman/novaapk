@@ -97,10 +97,15 @@ class MediaRepository(private val ctx: Context, private val arabic: () -> Boolea
         fun fallback(): MediaInfo? {
             val playing = audio?.isMusicActive == true
             val n = notices.firstOrNull { it.title != null }
-            if (!playing && n == null) return null
+            // Head units whose Bluetooth music runs outside Android's audio (no session, no
+            // notification, no "music active") still get a working card for their player.
+            if (!playing && n == null && btPlayer == null) return null
             val ar = arabic()
             return MediaInfo(
-                title = n?.title ?: if (ar) "يتم تشغيل الصوت" else "Audio playing",
+                title = n?.title ?: when {
+                    btPlayer != null -> if (ar) "موسيقى البلوتوث" else "Bluetooth music"
+                    else -> if (ar) "يتم تشغيل الصوت" else "Audio playing"
+                },
                 artist = n?.text ?: playerLabel ?: if (ar) "اضغط لفتح المشغّل" else "Tap to open the player",
                 art = null,
                 playing = playing,
@@ -261,6 +266,14 @@ class MediaRepository(private val ctx: Context, private val arabic: () -> Boolea
             .map { ComponentName(it.packageName, it.name) }
     }.getOrDefault(emptyList())
 
+    /** The unit's own dialer — on head units this is the Bluetooth app that also plays BT music. */
+    private val dialerPackage: String? by lazy {
+        runCatching {
+            ctx.packageManager.resolveActivity(Intent(Intent.ACTION_DIAL), 0)?.activityInfo?.packageName
+                ?.takeIf { it != "android" && !it.contains("resolver") }
+        }.getOrNull()
+    }
+
     /** The head unit's Bluetooth player app, opened when the fallback card is tapped. */
     private val btLauncher: android.content.pm.ActivityInfo? by lazy {
         runCatching {
@@ -269,7 +282,19 @@ class MediaRepository(private val ctx: Context, private val arabic: () -> Boolea
             fun label(a: android.content.pm.ActivityInfo) = a.loadLabel(pm).toString().lowercase()
             all.firstOrNull { isBluetoothPackage(it.packageName) && ("music" in it.packageName.lowercase() || "music" in label(it) || "موسيق" in label(it)) }
                 ?: all.firstOrNull { isBluetoothPackage(it.packageName) }
+                ?: all.firstOrNull { it.packageName == dialerPackage }
         }.getOrNull()
+    }
+
+    /** Media-button receivers of the Bluetooth/phone apps, which often ignore system media keys. */
+    private val btReceivers: List<ComponentName> by lazy {
+        runCatching {
+            val pkgs = setOfNotNull(btLauncher?.packageName, dialerPackage)
+            ctx.packageManager.queryBroadcastReceivers(Intent(Intent.ACTION_MEDIA_BUTTON), 0)
+                .map { it.activityInfo }
+                .filter { it.packageName in pkgs || isBluetoothPackage(it.packageName) }
+                .map { ComponentName(it.packageName, it.name) }
+        }.getOrDefault(emptyList())
     }
     private val btPlayer: String? get() = btLauncher?.packageName
     private val playerLabel: String? get() = runCatching { btLauncher?.loadLabel(ctx.packageManager)?.toString() }.getOrNull()
@@ -370,10 +395,17 @@ class MediaRepository(private val ctx: Context, private val arabic: () -> Boolea
     fun pause() { target()?.transportControls?.pause() ?: key(KeyEvent.KEYCODE_MEDIA_PAUSE) }
 
     private fun key(code: Int) {
-        val am = audio ?: return
-        runCatching {
-            am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
-            am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+        audio?.let { am ->
+            runCatching {
+                am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
+                am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+            }
+        }
+        // Also deliver the button straight to the Bluetooth app's own media-button receiver.
+        btReceivers.forEach { cn ->
+            for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) runCatching {
+                ctx.sendBroadcast(Intent(Intent.ACTION_MEDIA_BUTTON).setComponent(cn).putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(action, code)))
+            }
         }
     }
 

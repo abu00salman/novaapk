@@ -213,6 +213,9 @@ fun NovaRoot(onVoice: () -> Unit) {
             }
         }
 
+        val dimLevel by c.controls.dimmer.level.collectAsStateWithLifecycle()
+        val overlayDims = remember(perms) { c.controls.dimmer.canOverlay() }
+        LaunchedEffect(perms) { c.controls.dimmer.apply() }
         Box(Modifier.fillMaxSize().novaBackdrop(p)) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ShellLayout(
@@ -257,6 +260,9 @@ fun NovaRoot(onVoice: () -> Unit) {
                     }
                 }
             }
+            // Brightness inside NovaDrive when dimming over other apps isn't allowed (never blocks touches).
+            val dimAlpha = com.abu00salman.novadrive.data.ScreenDimmer.overlayAlpha(dimLevel)
+            if (!overlayDims && dimAlpha > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dimAlpha)))
         }
     }
 }
@@ -328,11 +334,11 @@ private fun Routes(
                 onVolume = { c.controls.setVolume(it) },
                 brightness = { c.controls.brightness() },
                 onBrightness = { level ->
-                    // Ask once for system-wide brightness; the launcher window dims immediately either way.
-                    if (!c.controls.canWriteSettings() && !askedWriteSettings) {
+                    // Ask once to dim over every app; NovaDrive itself dims immediately either way.
+                    if (!c.controls.dimmer.canOverlay() && !askedWriteSettings) {
                         askedWriteSettings = true
-                        toast(ctx, if (settings.arabic) "اسمح لـ NovaDrive بتعديل إعدادات النظام ليتغير سطوع الشاشة كلها" else "Allow NovaDrive to modify system settings to change the whole screen's brightness")
-                        c.controls.requestWriteSettings()
+                        toast(ctx, if (settings.arabic) "فعّل «الظهور فوق التطبيقات» لـ NovaDrive ليتغير سطوع الشاشة في كل التطبيقات" else "Allow NovaDrive to display over other apps to dim every screen")
+                        c.controls.dimmer.requestOverlayPermission()
                     }
                     c.controls.setBrightness(level, ctx.findActivity()?.window)
                 },
