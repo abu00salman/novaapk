@@ -347,23 +347,58 @@ class MediaRepository(private val ctx: Context, private val arabic: () -> Boolea
         return audio?.isMusicActive == true
     }
 
-    fun playPause() {
-        val c = target()
-        if (c == null) { key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE); return }
-        val wasPlaying = isPlaying(c)
-        if (wasPlaying) c.transportControls.pause() else c.transportControls.play()
-        escalate(c, { isPlaying(it) != wasPlaying }, if (wasPlaying) KeyEvent.KEYCODE_MEDIA_PAUSE else KeyEvent.KEYCODE_MEDIA_PLAY)
+    private enum class Btn { PREV, TOGGLE, PLAY, PAUSE, NEXT }
+
+    /**
+     * The matching button of the player's media notification. Bluetooth players often ignore
+     * session commands and media keys but always obey their own notification buttons.
+     */
+    private fun noticeButton(c: MediaController?, btn: Btn): android.app.PendingIntent? {
+        val notices = NovaNotificationListener.mediaNotices.value
+        val n = notices.firstOrNull { c != null && it.token == c.sessionToken }
+            ?: notices.firstOrNull { c != null && it.packageName == c.packageName }
+            ?: notices.firstOrNull { c == null }
+            ?: return null
+        val acts = n.actions.filter { it.intent != null }
+        if (acts.isEmpty()) return null
+        fun find(re: Regex) = acts.firstOrNull { re.containsMatchIn(it.title.lowercase()) }?.intent
+        val prev = Regex("prev|back|rewind|السابق|سابق|الخلف")
+        val next = Regex("next|skip|forward|التالي|تالي|التالى")
+        val pause = Regex("pause|إيقاف|ايقاف|توقف|إيقاف مؤقت")
+        val play = Regex("play|تشغيل|استئناف|resume")
+        // No readable titles: media notifications put previous · play/pause · next in the middle.
+        val mid = acts.size / 2
+        fun at(i: Int) = acts.getOrNull(i)?.intent?.takeIf { acts.size >= 3 && acts.none { a -> a.title.isNotBlank() } }
+        return when (btn) {
+            Btn.PREV -> find(prev) ?: at(mid - 1)
+            Btn.NEXT -> find(next) ?: at(mid + 1)
+            Btn.PAUSE -> find(pause)
+            Btn.PLAY -> find(play)?.takeIf { find(pause) != it }
+            Btn.TOGGLE -> find(pause) ?: find(play) ?: at(mid)
+        }
     }
 
-    fun next() = skip(KeyEvent.KEYCODE_MEDIA_NEXT) { it.transportControls.skipToNext() }
-    fun previous() = skip(KeyEvent.KEYCODE_MEDIA_PREVIOUS) { it.transportControls.skipToPrevious() }
+    private fun press(intent: android.app.PendingIntent?): Boolean =
+        intent != null && runCatching { intent.send(); true }.getOrDefault(false)
 
-    private fun skip(code: Int, action: (MediaController) -> Unit) {
+    fun playPause() {
         val c = target()
-        if (c == null) { key(code); return }
+        if (c == null) { if (!press(noticeButton(null, Btn.TOGGLE))) key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE); return }
+        val wasPlaying = isPlaying(c)
+        if (wasPlaying) c.transportControls.pause() else c.transportControls.play()
+        escalate(c, { isPlaying(it) != wasPlaying }, if (wasPlaying) KeyEvent.KEYCODE_MEDIA_PAUSE else KeyEvent.KEYCODE_MEDIA_PLAY,
+            if (wasPlaying) Btn.PAUSE else Btn.PLAY)
+    }
+
+    fun next() = skip(KeyEvent.KEYCODE_MEDIA_NEXT, Btn.NEXT) { it.transportControls.skipToNext() }
+    fun previous() = skip(KeyEvent.KEYCODE_MEDIA_PREVIOUS, Btn.PREV) { it.transportControls.skipToPrevious() }
+
+    private fun skip(code: Int, btn: Btn, action: (MediaController) -> Unit) {
+        val c = target()
+        if (c == null) { if (!press(noticeButton(null, btn))) key(code); return }
         val before = trackKey(c)
         action(c)
-        escalate(c, { trackKey(it) != before }, code)
+        escalate(c, { trackKey(it) != before }, code, btn)
     }
 
     private fun trackKey(c: MediaController): Any? = c.metadata?.let {
@@ -372,19 +407,24 @@ class MediaRepository(private val ctx: Context, private val arabic: () -> Boolea
 
     /**
      * Apps differ in what they obey. If the transport command had no visible effect, the same
-     * action is sent as a media button to that session, then as a system-wide media key.
-     * Play/pause use the explicit PLAY or PAUSE keys so a late response can't toggle back.
+     * action is tried with the player's own notification button, then as a media button to that
+     * session, then as a system-wide media key. Play/pause use explicit PLAY or PAUSE so a late
+     * response can't toggle back.
      */
-    private fun escalate(c: MediaController, changed: (MediaController) -> Boolean, code: Int) {
+    private fun escalate(c: MediaController, changed: (MediaController) -> Boolean, code: Int, btn: Btn) {
         fun ok() = runCatching { changed(c) }.getOrDefault(false)
         main.postDelayed({
             if (ok()) return@postDelayed
-            runCatching {
-                c.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
-                c.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_UP, code))
-            }
-            main.postDelayed({ if (!ok()) key(code) }, 1200)
-        }, 1200)
+            press(noticeButton(c, btn))
+            main.postDelayed({
+                if (ok()) return@postDelayed
+                runCatching {
+                    c.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
+                    c.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+                }
+                main.postDelayed({ if (!ok()) key(code) }, 900)
+            }, 900)
+        }, 900)
     }
 
     fun seekTo(ms: Long) { target()?.transportControls?.seekTo(ms.coerceAtLeast(0)) }

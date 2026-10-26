@@ -36,7 +36,12 @@ data class MediaNotice(
     val title: String?,
     val text: String?,
     val open: PendingIntent?,
+    /** The notification's own buttons (usually previous · play/pause · next), in order. */
+    val actions: List<NoticeAction> = emptyList(),
 )
+
+@Immutable
+data class NoticeAction(val title: String, val intent: PendingIntent?)
 
 /**
  * Granting notification access lets NOVA read now-playing info (media sessions) and the
@@ -79,6 +84,7 @@ class NovaNotificationListener : NotificationListenerService() {
             title = title,
             text = ex.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()?.takeIf { it.isNotEmpty() },
             open = sbn.notification.contentIntent,
+            actions = sbn.notification.actions.orEmpty().map { NoticeAction(it.title?.toString().orEmpty(), it.actionIntent) },
         )
     }
 
