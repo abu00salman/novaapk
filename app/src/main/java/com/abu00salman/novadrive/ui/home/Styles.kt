@@ -458,10 +458,14 @@ private fun TeslaMedia(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             Spacer(Modifier.width(18.dp))
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 Row(verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f).clickable(onClick = act.onOpenMedia)) {
+                    val needsAccess = m == null && !ui.notificationAccess
+                    Column(Modifier.weight(1f).clickable(onClick = if (needsAccess) act.onGrantAccess else act.onOpenMedia)) {
                         Text(m?.title ?: tr("Nothing playing", "لا يوجد تشغيل"), style = NovaType.title.copy(fontSize = 20.sp), color = TText,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(m?.artist ?: tr("Tap to open music", "اضغط لفتح الموسيقى"), style = NovaType.label, color = TDim,
+                        Text(
+                            m?.artist ?: if (needsAccess) tr("Allow notification access to show music ›", "اسمح بالوصول للإشعارات لعرض الموسيقى ›")
+                            else tr("Tap to open music", "اضغط لفتح الموسيقى"),
+                            style = NovaType.label, color = if (needsAccess) TRed else TDim,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Icon(Icons.Rounded.OpenInNew, tr("Queue & sources", "قائمة التشغيل"), tint = TText,
@@ -821,9 +825,13 @@ private fun BmwMedia(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Artwork(m, 84.dp, 12.dp, act.onOpenMedia)
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f).clickable(onClick = act.onOpenMedia)) {
+                val needsAccess = m == null && !ui.notificationAccess
+                Column(Modifier.weight(1f).clickable(onClick = if (needsAccess) act.onGrantAccess else act.onOpenMedia)) {
                     Text(m?.title ?: tr("Nothing playing", "لا يوجد تشغيل"), style = NovaType.title.copy(fontSize = 18.sp), color = BText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(m?.artist ?: tr("Tap to open music", "اضغط لفتح الموسيقى"), style = NovaType.small, color = BDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        m?.artist ?: if (needsAccess) tr("Allow notification access to show music ›", "اسمح بالوصول للإشعارات لعرض الموسيقى ›")
+                        else tr("Tap to open music", "اضغط لفتح الموسيقى"),
+                        style = NovaType.small, color = if (needsAccess) BAccent else BDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Icon(Icons.Rounded.OpenInNew, tr("Queue & sources", "قائمة التشغيل"), tint = BText,
                     modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = act.onMusicDetails).padding(8.dp))
