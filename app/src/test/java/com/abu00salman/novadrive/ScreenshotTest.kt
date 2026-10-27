@@ -221,6 +221,26 @@ class ScreenshotTest {
         HomeLayout(styled("bmw", ui(true, guiding = false)), HomeMode.CAR, false, HomeActions())
     }
 
+    // The eight customisable interfaces (full screen, no NovaDrive side bar), Arabic.
+    private fun styleShot(n: Int, style: String, dark: Boolean, guiding: Boolean = true,
+                          opts: com.abu00salman.novadrive.core.StyleOptions = com.abu00salman.novadrive.core.StyleOptions()) =
+        shot("${n}_${style}_${if (dark) "night" else "day"}_ar", Screen.HOME, dark = dark, chrome = false) {
+            HomeLayout(styled(style, ui(true, guiding = guiding)).copy(styleOptions = opts), HomeMode.CAR, false, HomeActions())
+        }
+
+    @Test fun classic() = styleShot(24, "classic", dark = false)
+    @Test fun classicDark() = styleShot(25, "classic", dark = true, opts = com.abu00salman.novadrive.core.StyleOptions(dark = true))
+    @Test fun mercedes() = styleShot(26, "mercedes", dark = true)
+    @Test fun ford() = styleShot(27, "ford", dark = true, guiding = false)
+    @Test fun apple() = styleShot(28, "apple", dark = true)
+    @Test fun jetour() = styleShot(29, "jetour", dark = true)
+    @Test fun byd() = styleShot(30, "byd", dark = false)
+    @Test fun haval() = styleShot(31, "haval", dark = true)
+    @Test fun tank() = styleShot(32, "tank", dark = true)
+
+    @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
+    fun classic_1024() = styleShot(33, "classic", dark = false, guiding = false)
+
     @Test fun vehicle() = shot("15_vehicle_night_ar", Screen.VEHICLE) {
         VehicleScreen(carBrand("hyundai"), carModel("hyundai", "sonata19"), CarPaints[0], true, live, {})
     }

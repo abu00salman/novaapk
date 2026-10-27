@@ -272,6 +272,61 @@ private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** Light/dark, accent, wallpaper and font of one of the eight new interfaces, saved per interface. */
+@Composable
+private fun StyleCustomizer(c: AppContainer, style: com.abu00salman.novadrive.core.UiStyle) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val all by c.styleOptions.all.collectAsStateWithLifecycle()
+    val o = all[style.id] ?: com.abu00salman.novadrive.core.StyleOptions()
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun set(block: (com.abu00salman.novadrive.core.StyleOptions) -> com.abu00salman.novadrive.core.StyleOptions) = c.styleOptions.update(style.id, block)
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val ok = withContext(Dispatchers.IO) { CarImageStore.import(ctx, uri, CarImageStore.wallpaperName(style.id)) }
+            if (ok) set { it.copy(wallpaper = com.abu00salman.novadrive.core.StyleOptions.WALLPAPER_IMAGE, wallpaperVersion = System.currentTimeMillis()) }
+            else com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تعذّر قراءة الصورة" else "Couldn't read that image")
+        }
+    }
+    Column {
+        Header(tr("Customise ", "تخصيص ") + (if (ar) style.ar else style.en), tr("Saved for this interface only.", "يُحفظ لهذه الواجهة فقط."))
+        Choice(listOf(0 to tr("Interface default", "افتراضي الواجهة"), 1 to tr("Light", "فاتح"), 2 to tr("Dark", "داكن")),
+            when (o.dark) { null -> 0; false -> 1; true -> 2 }) { v -> set { it.copy(dark = when (v) { 1 -> false; 2 -> true; else -> null }) } }
+        Gap()
+        Text(tr("Colour", "اللون"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            style.accents.forEachIndexed { i, col ->
+                Box(
+                    Modifier.size(48.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color(col))
+                        .border(if (o.accent == i) 3.dp else 0.dp, p.text, CircleShape).clickable { set { it.copy(accent = i) } }
+                ) { if (o.accent == i) Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.align(Alignment.Center)) }
+            }
+        }
+        Gap()
+        Text(tr("Background", "الخلفية"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Pill(tr("Default", "الافتراضية"), if (o.wallpaper == 0) p.accent else p.textDim) { set { it.copy(wallpaper = 0) } }
+            com.abu00salman.novadrive.ui.styles.WallpaperPresets.forEachIndexed { i, colors ->
+                Box(
+                    Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(androidx.compose.ui.graphics.Brush.verticalGradient(colors))
+                        .border(if (o.wallpaper == i + 1) 3.dp else 1.dp, if (o.wallpaper == i + 1) p.accent else p.stroke, RoundedCornerShape(12.dp))
+                        .clickable { set { it.copy(wallpaper = i + 1) } }
+                )
+            }
+            Pill(tr("My photo", "صورتي"), if (o.wallpaper == com.abu00salman.novadrive.core.StyleOptions.WALLPAPER_IMAGE) p.accent else p.textDim) {
+                picker.launch(arrayOf("image/png", "image/webp", "image/jpeg", "image/*"))
+            }
+        }
+        Gap()
+        Text(tr("Font", "الخط"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        Choice(listOf(0 to tr("NovaDrive", "خط NovaDrive"), 1 to tr("System", "خط النظام")), o.font) { v -> set { it.copy(font = v) } }
+    }
+}
+
 @Composable
 private fun CarSection(c: AppContainer, s: NovaSettings) {
     val p = LocalNova.current
@@ -343,17 +398,24 @@ private fun CarSection(c: AppContainer, s: NovaSettings) {
 private fun Appearance(c: AppContainer, s: NovaSettings) {
     val p = LocalNova.current
     Column {
-        Header(tr("Interface style", "نمط الواجهة"),
-            tr("Smart switches between car, map and music. Simple shows everything at once. Tesla is light and BMW is dark, each with a live map.",
-                "الذكية تتبدل بين السيارة والخريطة والموسيقى، والبسيطة تعرض كل شيء معًا. واجهة Tesla فاتحة وواجهة BMW داكنة، وكلتاهما بخريطة حية."))
-        Choice(
-            listOf(
-                "smart" to tr("Smart", "الواجهة الذكية"), "simple" to tr("Simple", "الواجهة البسيطة"),
-                "tesla" to tr("Tesla", "واجهة Tesla"), "bmw" to tr("BMW", "واجهة BMW"),
-            ),
-            s.uiStyle,
-        ) { v ->
-            c.settings.update { it.copy(uiStyle = v) }
+        Header(tr("Interface", "الواجهات"),
+            tr("Twelve home interfaces. Tesla and BMW keep their fixed look; the eight new ones can be customised below. Your choice is saved.",
+                "اثنتا عشرة واجهة. Tesla وBMW بتصميم ثابت، والواجهات الثماني الجديدة قابلة للتخصيص بالأسفل. يُحفظ اختيارك تلقائيًا."))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.abu00salman.novadrive.core.UiStyles.all.chunked(4).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { st ->
+                        Pill(if (LocalArabic.current) st.ar else st.en, if (st.id == s.uiStyle) p.accent else p.textDim) {
+                            c.settings.update { it.copy(uiStyle = st.id) }
+                        }
+                    }
+                }
+            }
+        }
+        val current = com.abu00salman.novadrive.core.UiStyles.get(s.uiStyle)
+        if (current.customizable) {
+            Gap()
+            StyleCustomizer(c, current)
         }
         Gap()
         Header(tr("Theme", "السمة"), tr("Auto follows sunrise and sunset at your location.", "التلقائي يتبع الشروق والغروب حسب موقعك."))

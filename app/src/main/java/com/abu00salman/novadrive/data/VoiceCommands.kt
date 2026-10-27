@@ -81,7 +81,20 @@ object VoiceCommands {
             return msg("Try: " + EXAMPLES_EN.take(6).joinToString(", "), "جرّب مثلاً: " + EXAMPLES_AR.take(6).joinToString("، "))
         }
 
-        // Interface style & theme
+        // Interface style & theme ("واجهة تسلا", "Mercedes interface", …)
+        if (has("واجهه", "interface", "theme", "شكل")) {
+            val aliases = mapOf(
+                "tesla" to listOf("تسلا", "tesla"), "bmw" to listOf("بي ام", "bmw", "بي ام دبليو"), "mercedes" to listOf("مرسيدس", "mercedes"),
+                "ford" to listOf("فورد", "ford"), "apple" to listOf("ابل", "apple"), "jetour" to listOf("جيتور", "jetour"),
+                "byd" to listOf("بي واي دي", "byd"), "haval" to listOf("هافال", "haval"), "tank" to listOf("تانك", "tank"),
+                "classic" to listOf("كلاسيك", "الكلاسيكيه", "classic"),
+            )
+            aliases.entries.firstOrNull { (_, words) -> words.any { t.contains(normalize(it)) } }?.let { (id, _) ->
+                c.settings.update { it.copy(uiStyle = id) }; emit("screen:HOME")
+                val st = com.abu00salman.novadrive.core.UiStyles.get(id)
+                return msg("${st.en} interface", "تم التبديل إلى ${st.ar}")
+            }
+        }
         if (has("الواجهه البسيطه", "الشكل البسيط", "simple interface", "simple mode", "simple layout")) {
             c.settings.update { it.copy(uiStyle = "simple") }; emit("screen:HOME"); return msg("Simple interface", "تم التبديل إلى الواجهة البسيطة")
         }

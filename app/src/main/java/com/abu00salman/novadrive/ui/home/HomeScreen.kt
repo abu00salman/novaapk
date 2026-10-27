@@ -124,6 +124,7 @@ fun HomeScreen(
     val media by c.mediaInfo.collectAsStateWithLifecycle()
     val externalNav by NovaNotificationListener.navigation.collectAsStateWithLifecycle()
     val trip by c.navEngine.state.collectAsStateWithLifecycle()
+    val styleOpts by c.styleOptions.all.collectAsStateWithLifecycle()
     // In-app guidance wins over a navigation app's notification.
     val nav = trip?.toNavInfo(settings.arabic, settings.use24h) ?: externalNav
     val hasLocation = remember(perms) { c.location.hasPermission() }
@@ -173,6 +174,8 @@ fun HomeScreen(
         routePoints = trip?.route?.points,
         routeProgress = trip?.progressIndex ?: 0,
         destination = trip?.destination?.point,
+        altitudeM = fix?.altitudeM,
+        styleOptions = styleOpts[settings.uiStyle] ?: com.abu00salman.novadrive.core.StyleOptions(),
         video = if (driving) null else c.apps.byPackage(YOUTUBE_PKG),
     )
     HomeLayout(ui, mode, autoPromoted, remember(ui) { actions(ui) })

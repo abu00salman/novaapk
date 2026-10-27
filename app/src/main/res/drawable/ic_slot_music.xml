@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed Music shortcut icon (replaceable with the user's reference image). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="96dp" android:height="96dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M5.4,0h13.2a5.4,5.4 0 0 1 5.4,5.4v13.2a5.4,5.4 0 0 1 -5.4,5.4h-13.2a5.4,5.4 0 0 1 -5.4,-5.4v-13.2a5.4,5.4 0 0 1 5.4,-5.4z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="12" android:startY="0" android:endX="12" android:endY="24"
+                android:startColor="#FFFA5A70" android:endColor="#FFFB2C4E" />
+        </aapt:attr>
+    </path>
+    <group android:scaleX="0.66" android:scaleY="0.66" android:pivotX="12" android:pivotY="12">
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M12,3v10.55c-0.59,-0.34 -1.27,-0.55 -2,-0.55 -2.21,0 -4,1.79 -4,4s1.79,4 4,4 4,-1.79 4,-4V7h4V3h-6z" />
+    </group>
+</vector>

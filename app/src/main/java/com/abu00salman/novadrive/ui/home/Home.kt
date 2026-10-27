@@ -164,6 +164,10 @@ data class HomeUi(
     val routePoints: List<com.abu00salman.novadrive.data.nav.LatLon>? = null,
     val routeProgress: Int = 0,
     val destination: com.abu00salman.novadrive.data.nav.LatLon? = null,
+    /** GPS altitude (TANK interface). */
+    val altitudeM: Double? = null,
+    /** Colours/wallpaper/font chosen for the current interface (the eight customisable ones). */
+    val styleOptions: com.abu00salman.novadrive.core.StyleOptions = com.abu00salman.novadrive.core.StyleOptions(),
 )
 
 class HomeActions(
@@ -216,6 +220,9 @@ fun HomeLayout(ui: HomeUi, mode: HomeMode, autoPromoted: Boolean, act: HomeActio
     when (ui.style) {
         "tesla" -> { TeslaLayout(ui, act, modifier); return@FixedLtr }
         "bmw" -> { BmwLayout(ui, act, modifier); return@FixedLtr }
+        "classic", "mercedes", "ford", "apple", "jetour", "byd", "haval", "tank" -> {
+            com.abu00salman.novadrive.ui.styles.StyledHome(ui, act, modifier); return@FixedLtr
+        }
     }
     if (ui.simple) { SimpleLayout(ui, act, modifier); return@FixedLtr }
     Column(modifier.fillMaxSize()) {
@@ -699,6 +706,15 @@ private fun DockTile(s: DockSlot, onClick: () -> Unit, onLong: () -> Unit, modif
 }
 
 
+/** Shortcuts whose icon never changes with the linked app. */
+fun fixedSlotIcon(id: String): Int? = when (id) {
+    "carplay" -> R.drawable.carplay_icon
+    "music" -> R.drawable.ic_slot_music
+    "phone" -> R.drawable.ic_slot_phone
+    "maps" -> R.drawable.ic_slot_maps
+    else -> null
+}
+
 /** A dock entry's icon: the app's own icon, the CarPlay mark for CarPlay, or a glyph tile. */
 @Composable
 internal fun DockIcon(s: DockSlot, icon: Dp) {
@@ -706,10 +722,14 @@ internal fun DockIcon(s: DockSlot, icon: Dp) {
     val available = s.app != null || s.builtIn
     val app = s.app
     val tint = LocalIconTint.current
-    // The phone button always shows a phone, even when the unit's dialer uses a Bluetooth logo.
-    // CarPlay shows the CarPlay mark (it still launches the unit's ZLink/DiPlay app).
-    if (s.id == "carplay" && app != null) Image(painterResource(R.drawable.carplay_icon), null, Modifier.size(icon).clip(RoundedCornerShape(icon * 0.22f)), colorFilter = iconFilter())
-    else if (app != null && s.id != "phone") Image(app.icon, null, Modifier.size(icon), colorFilter = iconFilter())
+    // CarPlay, Music, Phone and Maps keep their own fixed icons whichever app they open
+    // (Settings › Shortcuts); a missing app shows the same icon faded.
+    val fixed = fixedSlotIcon(s.id)
+    if (fixed != null) Image(
+        painterResource(fixed), null,
+        Modifier.size(icon).clip(RoundedCornerShape(icon * 0.22f)).alpha(if (available) 1f else 0.45f), colorFilter = iconFilter(),
+    )
+    else if (app != null) Image(app.icon, null, Modifier.size(icon), colorFilter = iconFilter())
     else Box(
         Modifier.size(icon).clip(RoundedCornerShape(15.dp))
             .background(

@@ -10,16 +10,19 @@ import java.io.File
 /**
  * The user's own car picture (PNG/WebP/JPEG, transparency kept). It is copied into app storage
  * so it survives the source file being moved or deleted, and decoded down-sampled for the GPU.
+ * The same storage holds each interface's wallpaper photo (see [wallpaperName]).
  */
 object CarImageStore {
     private const val NAME = "car_image"
     private const val MAX_BYTES = 20L * 1024 * 1024
 
-    fun file(ctx: Context) = File(ctx.filesDir, NAME)
+    fun wallpaperName(style: String) = "wallpaper_$style"
+
+    fun file(ctx: Context, name: String = NAME) = File(ctx.filesDir, name)
 
     /** Copies [uri] into app storage. Returns false if it isn't a decodable image. */
-    fun import(ctx: Context, uri: Uri): Boolean = runCatching {
-        val tmp = File(ctx.filesDir, "$NAME.tmp")
+    fun import(ctx: Context, uri: Uri, name: String = NAME): Boolean = runCatching {
+        val tmp = File(ctx.filesDir, "$name.tmp")
         ctx.contentResolver.openInputStream(uri)?.use { input ->
             tmp.outputStream().use { out ->
                 val buf = ByteArray(64 * 1024)
@@ -36,14 +39,14 @@ object CarImageStore {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(tmp.path, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) { tmp.delete(); return false }
-        tmp.renameTo(file(ctx))
+        tmp.renameTo(file(ctx, name))
     }.getOrDefault(false)
 
-    fun clear(ctx: Context) { file(ctx).delete() }
+    fun clear(ctx: Context, name: String = NAME) { file(ctx, name).delete() }
 
     /** Decodes with power-of-two down-sampling so the long side stays near [maxPx]. Call off the main thread. */
-    fun load(ctx: Context, maxPx: Int = 1280): ImageBitmap? = runCatching {
-        val f = file(ctx)
+    fun load(ctx: Context, maxPx: Int = 1280, name: String = NAME): ImageBitmap? = runCatching {
+        val f = file(ctx, name)
         if (!f.exists()) return null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(f.path, bounds)

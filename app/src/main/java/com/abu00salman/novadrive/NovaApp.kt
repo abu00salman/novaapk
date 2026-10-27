@@ -54,6 +54,8 @@ class AppContainer(private val app: Application) {
     val safeMode: Boolean = CrashGuard.isSafeMode(app)
 
     val settings = SettingsRepository(app)
+    /** Colours, wallpaper, font and light/dark of each interface, saved independently. */
+    val styleOptions by lazy { com.abu00salman.novadrive.core.StyleOptionsRepository(app) }
     val apps by lazy { AppsRepository(app, scope) }
     val location by lazy { LocationRepository(app) }
     val weather by lazy { WeatherRepository(app, scope) }

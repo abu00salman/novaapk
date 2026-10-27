@@ -131,7 +131,14 @@ fun NovaRoot(onVoice: () -> Unit) {
     }
     val place = coarse ?: c.settings.lastLocation() ?: Pair(DEFAULT_LAT, DEFAULT_LON)
     // The Tesla interface is always light and the BMW interface always dark, as in their designs.
-    val styleDark = when (settings.uiStyle) { "tesla" -> false; "bmw" -> true; else -> null }
+    val styleOpts by c.styleOptions.all.collectAsStateWithLifecycle()
+    val uiStyle = com.abu00salman.novadrive.core.UiStyles.get(settings.uiStyle)
+    val styleDark = when {
+        uiStyle.id == "tesla" -> false
+        uiStyle.id == "bmw" -> true
+        uiStyle.customizable -> styleOpts[uiStyle.id]?.dark ?: uiStyle.defaultDark
+        else -> null
+    }
     val dark = styleDark ?: when (settings.themeMode) {
         ThemeMode.AUTO -> SunCalc.isNight(place.first, place.second, minute)
         ThemeMode.LIGHT -> false
@@ -227,7 +234,7 @@ fun NovaRoot(onVoice: () -> Unit) {
                 ShellLayout(
                     railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
                     iconTint = com.abu00salman.novadrive.ui.components.IconTints.getOrNull(settings.iconTint),
-                    chrome = !(settings.uiStyle == "tesla" && screen == Screen.HOME),
+                    chrome = !(uiStyle.fullScreen && screen == Screen.HOME),
                     rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone, onVoice = onVoice) },
                     topBar = {
                         TopBar(
