@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed Maps shortcut icon (replaceable with the user's reference image). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp" android:height="96dp" android:viewportWidth="24" android:viewportHeight="24">
+    <group>
+        <clip-path android:pathData="M5.4,0h13.2a5.4,5.4 0 0 1 5.4,5.4v13.2a5.4,5.4 0 0 1 -5.4,5.4h-13.2a5.4,5.4 0 0 1 -5.4,-5.4v-13.2a5.4,5.4 0 0 1 5.4,-5.4z" />
+        <path android:fillColor="#FFF3EFE6" android:pathData="M0,0h24v24h-24z" />
+        <path android:fillColor="#FF9FD98A" android:pathData="M0,13 L11,24 L0,24z" />
+        <path android:fillColor="#FF9FD98A" android:pathData="M15,0 L24,0 L24,9z" />
+        <path android:strokeColor="#FF4D9BF5" android:strokeWidth="3.4" android:pathData="M-1,16 L16,-1" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.4" android:pathData="M4,25 L25,6" />
+        <path android:strokeColor="#FFF7C844" android:strokeWidth="1.4" android:pathData="M4,25 L25,6" />
+    </group>
+    <group android:scaleX="0.55" android:scaleY="0.55" android:pivotX="12" android:pivotY="10" android:translateX="1.5">
+        <path android:fillColor="#FFF0453A"
+            android:pathData="M12,2C8.13,2 5,5.13 5,9c0,5.25 7,13 7,13s7,-7.75 7,-13c0,-3.87 -3.13,-7 -7,-7zM12,11.5c-1.38,0 -2.5,-1.12 -2.5,-2.5s1.12,-2.5 2.5,-2.5 2.5,1.12 2.5,2.5 -1.12,2.5 -2.5,2.5z" />
+    </group>
+</vector>

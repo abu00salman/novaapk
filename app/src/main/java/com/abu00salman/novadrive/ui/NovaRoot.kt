@@ -65,7 +65,15 @@ import com.abu00salman.novadrive.data.NovaNotificationListener
 import com.abu00salman.novadrive.nova
 import com.abu00salman.novadrive.ui.apps.AppsScreen
 import com.abu00salman.novadrive.ui.components.Pill
-import com.abu00salman.novadrive.ui.home.DashActions
+import com.abu00salman.novadrive.ui.home.HomeActions
+import com.abu00salman.novadrive.ui.home.HomeModeViewModel
+import com.abu00salman.novadrive.core.HomeMode
+import com.abu00salman.novadrive.core.VIDEO_SLOTS
+import com.abu00salman.novadrive.core.isVideoApp
+import com.abu00salman.novadrive.core.replaceDockEntry
+import com.abu00salman.novadrive.ui.components.AppPickerDialog
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.map
 import com.abu00salman.novadrive.ui.home.DockSlot
 import com.abu00salman.novadrive.ui.home.HomeScreen
 import com.abu00salman.novadrive.ui.home.Shortcuts
@@ -73,6 +81,12 @@ import com.abu00salman.novadrive.ui.home.SplitSheet
 import com.abu00salman.novadrive.ui.home.rememberShortcuts
 import com.abu00salman.novadrive.ui.music.MusicScreen
 import com.abu00salman.novadrive.ui.nav.NavigationScreen
+import com.abu00salman.novadrive.ui.nav.IN_APP_NAV
+import com.abu00salman.novadrive.ui.nav.parseCoordinates
+import com.abu00salman.novadrive.data.nav.LatLon
+import com.abu00salman.novadrive.data.nav.Place
+import com.abu00salman.novadrive.data.nav.RouteService
+import kotlinx.coroutines.launch
 import com.abu00salman.novadrive.ui.quick.QuickPanel
 import com.abu00salman.novadrive.ui.settings.SettingsScreen
 import com.abu00salman.novadrive.ui.shell.GpsState
@@ -108,12 +122,24 @@ fun NovaRoot(onVoice: () -> Unit) {
     // Driving: derived so speed updates don't recompose the whole tree.
     val drivingRaw by remember { derivedStateOf { (fixState.value?.speedKmh ?: 0f) > 8f } }
     val driving = drivingRaw && settings.drivingMode
+    // Typing/search/settings/dock editing while moving is the user's choice (Settings › Driving);
+    // video apps stay blocked while moving either way.
+    val lockEdits = driving && !settings.editWhileDriving
 
     val minute by produceState(System.currentTimeMillis()) {
         while (true) { delay(60_000); value = System.currentTimeMillis() }
     }
     val place = coarse ?: c.settings.lastLocation() ?: Pair(DEFAULT_LAT, DEFAULT_LON)
-    val dark = when (settings.themeMode) {
+    // The Tesla interface is always light and the BMW interface always dark, as in their designs.
+    val styleOpts by c.styleOptions.all.collectAsStateWithLifecycle()
+    val uiStyle = com.abu00salman.novadrive.core.UiStyles.get(settings.uiStyle)
+    val styleDark = when {
+        uiStyle.id == "tesla" -> false
+        uiStyle.id == "bmw" -> true
+        uiStyle.customizable -> styleOpts[uiStyle.id]?.dark ?: uiStyle.defaultDark
+        else -> null
+    }
+    val dark = styleDark ?: when (settings.themeMode) {
         ThemeMode.AUTO -> SunCalc.isNight(place.first, place.second, minute)
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
@@ -179,12 +205,37 @@ fun NovaRoot(onVoice: () -> Unit) {
                 else -> GpsState.SEARCHING
             }
         }
-        val actions = Actions(c, settings, sc, onApps = { go(Screen.APPS) })
+        // Home mode lives in a ViewModel: it survives recomposition/config changes and reacts to
+        // verified route start/end from the navigation app's guidance notification.
+        val modeVm: HomeModeViewModel = viewModel(
+            factory = remember { HomeModeViewModel.Factory(c.settings, NovaNotificationListener.navigation.map { it != null }) }
+        )
+        val modeState by modeVm.state.collectAsStateWithLifecycle()
+        val onMode: (HomeMode) -> Unit = { modeVm.select(it); screen = Screen.HOME; settingsStart = null }
+        val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) }, onNav = { go(Screen.NAV) })
+        // In-app voice actions ("show the map", "open settings", "simple interface") from «أمرني».
+        LaunchedEffect(Unit) {
+            c.voiceActions.collect { cmd ->
+                quick = false; split = false
+                when {
+                    cmd.startsWith("mode:") -> runCatching { HomeMode.valueOf(cmd.removePrefix("mode:")) }.getOrNull()?.let(onMode)
+                    cmd.startsWith("screen:") -> runCatching { Screen.valueOf(cmd.removePrefix("screen:")) }.getOrNull()?.let(go)
+                    cmd == "quick" -> quick = true
+                    cmd == "split" -> split = true
+                }
+            }
+        }
 
+        val dimLevel by c.controls.dimmer.level.collectAsStateWithLifecycle()
+        val overlayDims = remember(perms) { c.controls.dimmer.canOverlay() }
+        LaunchedEffect(perms) { c.controls.dimmer.apply() }
         Box(Modifier.fillMaxSize().novaBackdrop(p)) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 ShellLayout(
-                    rail = { Rail(screen, go, onPhone = actions::phone) },
+                    railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
+                    iconTint = com.abu00salman.novadrive.ui.components.IconTints.getOrNull(settings.iconTint),
+                    chrome = !(uiStyle.fullScreen && screen == Screen.HOME),
+                    rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone, onVoice = onVoice) },
                     topBar = {
                         TopBar(
                             bt = bt, net = net, gps = gps, dark = dark, themeMode = settings.themeMode, use24h = settings.use24h,
@@ -218,10 +269,13 @@ fun NovaRoot(onVoice: () -> Unit) {
                     },
                 ) {
                     Crossfade(screen, animationSpec = tween(200), label = "screen") { s ->
-                        Routes(s, c, settings, sc, apps, driving, actions, go, openSettings, settingsStart, requestLocation)
+                        Routes(s, c, settings, sc, apps, driving, lockEdits, actions, go, openSettings, settingsStart, requestLocation, modeState.mode, modeState.autoPromoted, onMode, onQuick = { quick = true }, onVoice = onVoice)
                     }
                 }
             }
+            // Brightness inside NovaDrive when dimming over other apps isn't allowed (never blocks touches).
+            val dimAlpha = com.abu00salman.novadrive.data.ScreenDimmer.overlayAlpha(dimLevel)
+            if (!overlayDims && dimAlpha > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dimAlpha)))
         }
     }
 }
@@ -234,42 +288,96 @@ private fun Routes(
     sc: Shortcuts,
     apps: List<AppEntry>,
     driving: Boolean,
+    lockEdits: Boolean,
     a: Actions,
     go: (Screen) -> Unit,
     openSettings: (String?) -> Unit,
     settingsStart: String?,
     requestLocation: () -> Unit,
+    mode: HomeMode,
+    autoPromoted: Boolean,
+    onMode: (HomeMode) -> Unit,
+    onQuick: () -> Unit,
+    onVoice: () -> Unit,
 ) {
     val ctx = LocalContext.current
     when (s) {
-        Screen.HOME -> HomeScreen(c, settings) { ui ->
-            DashActions(
+        Screen.HOME -> {
+          var dockPick by remember { mutableStateOf<String?>(null) }
+          HomeScreen(c, settings, driving, mode, autoPromoted) { ui ->
+            HomeActions(
+                onDockLong = { slot ->
+                    if (slot.id == "apps") Unit
+                    else if (lockEdits) toast(ctx, if (settings.arabic) "تغيير الشريط متاح عند التوقف" else "Dock editing is available when parked")
+                    else dockPick = slot.id
+                },
+                onMode = onMode,
+                onNavDetails = { go(Screen.NAV) },
+                onNavBeside = a::openNavBeside,
+                onVideoBeside = { ui.video?.let(a::openBeside) },
+                onMusicDetails = { go(Screen.MUSIC) },
+                onSeek = c.media::seekTo,
                 onEnableLocation = requestLocation,
                 onVehicle = { go(Screen.VEHICLE) },
                 onOpenNav = a::openNav,
-                onNavCard = { a.openGuidance(ui.nav) },
+                onNavCard = { if (ui.nav?.packageName == IN_APP_NAV) go(Screen.NAV) else a.openGuidance(ui.nav) },
                 onHome = { a.navigate(settings.homeAddress) },
                 onWork = { a.navigate(settings.workAddress) },
                 onGrantAccess = { c.controls.openNotificationAccess() },
                 onOpenMedia = { a.openMedia(ui.media?.packageName) },
                 onPrev = c.media::previous, onPlayPause = c.media::playPause, onNext = c.media::next,
                 onDock = a::dock,
+                onQuick = onQuick,
+                onApps = { go(Screen.APPS) },
+                onSettings = { openSettings(null) },
+                onPhone = a::phone,
+                onVoice = onVoice,
+                onCarPlay = {
+                    val slot = ui.dock.firstOrNull { it.id == "carplay" && it.app != null }
+                    when {
+                        slot != null -> a.dock(slot)
+                        sc.carPlay != null -> a.launch(sc.carPlay)
+                        else -> toast(ctx, if (settings.arabic) "تطبيق كاربلاي غير موجود" else "CarPlay app not found")
+                    }
+                },
+                onBluetooth = { c.controls.openBluetooth() },
+                onWifi = { c.controls.openWifi() },
+                onGps = { if (!c.location.hasPermission()) requestLocation() else c.controls.openLocationSettings() },
+                volume = { c.controls.volume() },
+                onVolume = { c.controls.setVolume(it) },
+                brightness = { c.controls.brightness() },
+                onBrightness = { level ->
+                    // Ask once to dim over every app; NovaDrive itself dims immediately either way.
+                    if (!c.controls.dimmer.canOverlay() && !askedWriteSettings) {
+                        askedWriteSettings = true
+                        toast(ctx, if (settings.arabic) "فعّل «الظهور فوق التطبيقات» لـ NovaDrive ليتغير سطوع الشاشة في كل التطبيقات" else "Allow NovaDrive to display over other apps to dim every screen")
+                        c.controls.dimmer.requestOverlayPermission()
+                    }
+                    c.controls.setBrightness(level, ctx.findActivity()?.window)
+                },
             )
+          }
+          dockPick?.let { id ->
+              AppPickerDialog(
+                  if (settings.arabic) "اختر تطبيقاً لهذا الزر" else "Choose an app for this button", apps, allowNone = false,
+                  onPick = { app ->
+                      if (app != null) c.settings.update { st ->
+                          val i = st.dock.indexOf(id)
+                          st.copy(dock = replaceDockEntry(st.dock, if (i < 0) st.dock.size else i, app.packageName))
+                      }
+                      dockPick = null
+                  },
+                  onDismiss = { dockPick = null },
+              )
+          }
         }
         Screen.NAV -> {
             val nav by NovaNotificationListener.navigation.collectAsStateWithLifecycle()
-            val perms by c.permissions.collectAsStateWithLifecycle()
-            val navApps = remember(apps) {
-                apps.filter { e -> e.packageName in AppsRepository.NAV_PKGS || AppsRepository.NAV_KEYS.any { e.label.contains(it, true) } }
-            }
             NavigationScreen(
-                nav = nav, hasAccess = remember(perms) { MediaRepository.hasAccess(ctx) },
-                navApp = sc.nav, navApps = navApps,
-                homeAddress = settings.homeAddress, workAddress = settings.workAddress, driving = driving,
-                onCard = { a.openGuidance(nav) }, onOpenNav = a::openNav,
-                onGrantAccess = { c.controls.openNotificationAccess() },
-                onNavigate = a::navigate, onLaunchApp = { c.apps.launch(it) },
-                onSetPlaces = { openSettings("shortcuts") },
+                c = c, settings = settings, lockTyping = lockEdits,
+                externalNav = nav, navAppLabel = sc.nav?.label,
+                onExternal = a::openExternal, onOpenGuidance = { a.openGuidance(nav) },
+                onSetPlaces = { openSettings("shortcuts") }, onEnableLocation = requestLocation,
             )
         }
         Screen.MUSIC -> {
@@ -295,21 +403,23 @@ private fun Routes(
                 brand = carBrand(settings.carBrand), model = carModel(settings.carBrand, settings.carModel),
                 paint = CarPaints.getOrElse(settings.carPaint) { CarPaints[0] },
                 obdEnabled = settings.obdEnabled, data = data, onSetup = { openSettings("vehicle") },
+                carImageVersion = settings.carImageVersion,
             )
         }
         Screen.APPS -> AppsScreen(
-            apps = apps, favorites = settings.favorites, driving = driving,
-            onLaunch = { c.apps.launch(it) },
+            apps = apps, favorites = settings.favorites, showSystem = settings.showSystemApps, driving = lockEdits,
+            onLaunch = a::launch,
             onToggleFavorite = c.settings::toggleFavorite,
             onMoveFavorite = c.settings::moveFavorite,
+            onShowSystem = { v -> c.settings.update { it.copy(showSystemApps = v) } },
             onParkedOnly = { toast(ctx, if (settings.arabic) "متاح عند التوقف" else "Available when parked") },
         )
-        Screen.SETTINGS -> SettingsScreen(c, settings, driving, settingsStart) { go(Screen.HOME) }
+        Screen.SETTINGS -> SettingsScreen(c, settings, lockEdits, settingsStart) { go(Screen.HOME) }
     }
 }
 
 /** Every outward action, each falling back gracefully when an app or service is missing. */
-private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val onApps: () -> Unit) {
+private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val driving: Boolean, val onApps: () -> Unit, val onNav: () -> Unit) {
     private val ar get() = s.arabic
     private fun say(en: String, a: String) = toast(c.appContext, if (ar) a else en)
 
@@ -321,9 +431,34 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
 
     fun openNav() { open(sc.nav, "navigation", "الملاحة") }
 
+    fun openBeside(app: AppEntry) {
+        if (driving && isVideoApp(app.packageName, app.label)) { say("Video is available when parked", "الفيديو متاح عند التوقف"); return }
+        if (!c.controls.launchAdjacent(c.apps.intentFor(app))) launch(app)
+    }
+
+    /** Maps/Waze in the split-screen pane next to NovaDrive; full screen where the unit can't split. */
+    fun openNavBeside() {
+        val nav = sc.nav ?: return openNav()
+        if (!c.controls.launchAdjacent(c.apps.intentFor(nav))) openNav()
+    }
+
+    /** Routes inside NovaDrive (search → first result); the external app is the fallback. */
     fun navigate(address: String) {
         if (address.isBlank()) return
-        if (!c.controls.navigateTo(address, sc.nav?.packageName)) say("No navigation app found", "لا يوجد تطبيق ملاحة")
+        onNav()
+        c.scope.launch {
+            val near = c.fix.value?.let { LatLon(it.lat, it.lon) }
+            val place = parseCoordinates(address)?.let { Place(address, address, it) }
+                ?: RouteService.search(address, near, ar).firstOrNull()
+            if (place != null) c.navEngine.start(place)
+            else if (!c.controls.navigateTo(address, sc.nav?.packageName)) say("Destination not found", "لم أجد الوجهة")
+        }
+    }
+
+    /** The trip (or just the map) in the external navigation app. */
+    fun openExternal(dest: LatLon?) {
+        if (dest == null) { openNav(); return }
+        if (!c.controls.navigateTo(String.format(java.util.Locale.US, "%.6f,%.6f", dest.lat, dest.lon), sc.nav?.packageName)) openNav()
     }
 
     /** Re-opens the navigation app exactly where its guidance notification points. */
@@ -346,17 +481,27 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
         open(sc.music, "music", "الموسيقى")
     }
 
+    /** The chosen phone app, else the unit's own dialer (built-in Bluetooth phone). */
     fun phone() {
+        if (s.phonePackage != null && sc.phone != null && c.apps.launch(sc.phone)) return
+        if (c.controls.dial()) return
         if (sc.phone != null && c.apps.launch(sc.phone)) return
-        if (!c.controls.dial()) say("No phone app found", "لا يوجد تطبيق هاتف")
+        say("No phone app found — choose one in Settings › Shortcuts", "لا يوجد تطبيق هاتف — اختره من الإعدادات › الاختصارات")
+    }
+
+    /** Opens an installed app; video apps wait until the car is parked. */
+    fun launch(app: AppEntry) {
+        if (driving && isVideoApp(app.packageName, app.label)) { say("Video is available when parked", "الفيديو متاح عند التوقف"); return }
+        if (!c.apps.launch(app)) say("Couldn't open ${app.label}", "تعذّر فتح ${app.label}")
     }
 
     fun dock(slot: DockSlot) {
         val app = slot.app
+        if (driving && slot.id in VIDEO_SLOTS) { say("Video is available when parked", "الفيديو متاح عند التوقف"); return }
         when {
             slot.id == "apps" -> onApps()
             slot.id == "phone" -> phone()
-            app != null -> if (!c.apps.launch(app)) say("Couldn't open ${app.label}", "تعذّر فتح ${app.label}")
+            app != null -> launch(app)
             slot.storePackage != null -> {
                 val pkg = slot.storePackage
                 val ok = c.controls.start(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))) ||
@@ -385,4 +530,16 @@ private fun CarPlayAutoLaunch(c: AppContainer, settings: NovaSettings, sc: Short
             }
         }
     }
+}
+
+private var askedWriteSettings = false
+
+/** The hosting activity, unwrapping any ContextWrapper (needed to dim the launcher window). */
+private fun android.content.Context.findActivity(): android.app.Activity? {
+    var c: android.content.Context? = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
 }

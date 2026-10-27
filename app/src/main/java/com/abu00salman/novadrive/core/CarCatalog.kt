@@ -5,7 +5,80 @@ import androidx.compose.ui.graphics.Color
 enum class Body { SEDAN, SUV, HATCH, COUPE, PICKUP }
 enum class Lights { WRAP, BAR, VERT }
 
-data class CarModel(val id: String, val name: String, val body: Body, val lights: Lights)
+data class CarModel(val id: String, val name: String, val body: Body, val lights: Lights) {
+    /** Arabic model name (alphanumeric model codes stay as they are). */
+    val nameAr: String get() = MODEL_AR[id] ?: name
+}
+
+/** "Hyundai Sonata 2019" / "هيونداي سوناتا 2019" — one language per line, never mixed. */
+fun carDisplayName(brand: CarBrand, model: CarModel, arabic: Boolean): String =
+    if (arabic) "${brand.ar} ${model.nameAr}" else "${brand.en} ${model.name}"
+
+private val MODEL_AR = mapOf(
+    "sonata19" to "سوناتا 2019",
+    "elantra" to "إلنترا",
+    "accent" to "أكسنت",
+    "azera" to "أزيرا",
+    "tucson" to "توسان",
+    "santafe" to "سنتافي",
+    "palisade" to "باليسيد",
+    "camry" to "كامري",
+    "corolla" to "كورولا",
+    "yaris" to "يارس",
+    "lc" to "لاندكروزر",
+    "prado" to "برادو",
+    "fortuner" to "فورتشنر",
+    "hilux" to "هايلكس",
+    "k5" to "K5",
+    "cerato" to "سيراتو",
+    "sportage" to "سبورتاج",
+    "sorento" to "سورينتو",
+    "telluride" to "تيلورايد",
+    "altima" to "ألتيما",
+    "sunny" to "صني",
+    "xtrail" to "إكس تريل",
+    "patrol" to "باترول",
+    "navara" to "نافارا",
+    "accord" to "أكورد",
+    "civic" to "سيفيك",
+    "crv" to "CR-V",
+    "mustang" to "موستانج",
+    "explorer" to "إكسبلورر",
+    "expedition" to "إكسبيديشن",
+    "f150" to "F-150",
+    "malibu" to "ماليبو",
+    "camaro" to "كمارو",
+    "tahoe" to "تاهو",
+    "suburban" to "سوبربان",
+    "silverado" to "سلفرادو",
+    "yukon" to "يوكن",
+    "sierra" to "سييرا",
+    "model3" to "موديل 3",
+    "models" to "موديل S",
+    "modely" to "موديل Y",
+    "modelx" to "موديل X",
+    "cybertruck" to "سايبرتراك",
+    "cclass" to "الفئة C",
+    "eclass" to "الفئة E",
+    "sclass" to "الفئة S",
+    "gle" to "GLE",
+    "gclass" to "الفئة G",
+    "3series" to "الفئة الثالثة",
+    "5series" to "الفئة الخامسة",
+    "7series" to "الفئة السابعة",
+    "x5" to "X5",
+    "x7" to "X7",
+    "es" to "ES",
+    "is" to "IS",
+    "rx" to "RX",
+    "lx" to "LX",
+    "g70" to "G70",
+    "g80" to "G80",
+    "gv80" to "GV80",
+    "a4" to "A4",
+    "a6" to "A6",
+    "q7" to "Q7"
+)
 data class CarBrand(val id: String, val en: String, val ar: String, val models: List<CarModel>)
 data class CarPaint(val en: String, val ar: String, val color: Color)
 

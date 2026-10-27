@@ -41,6 +41,8 @@ class NovaApp : Application() {
         super.onCreate()
         CrashGuard.install(this)
         container = AppContainer(this)
+        // Restore the screen dimmer (brightness) chosen before the last restart.
+        container.controls.dimmer.apply()
     }
 }
 
@@ -52,14 +54,24 @@ class AppContainer(private val app: Application) {
     val safeMode: Boolean = CrashGuard.isSafeMode(app)
 
     val settings = SettingsRepository(app)
+    /** Colours, wallpaper, font and light/dark of each interface, saved independently. */
+    val styleOptions by lazy { com.abu00salman.novadrive.core.StyleOptionsRepository(app) }
     val apps by lazy { AppsRepository(app, scope) }
     val location by lazy { LocationRepository(app) }
     val weather by lazy { WeatherRepository(app, scope) }
-    val media by lazy { MediaRepository(app) }
+    val media by lazy { MediaRepository(app) { settings.current.arabic } }
     val carPlay by lazy { CarPlayDetector(app) }
     val controls by lazy { SystemControls(app) }
     val obd by lazy { ObdClient(app, scope) }
     val status by lazy { StatusRepository(app) }
+
+    /** Screen/mode changes requested by «أمرني» voice commands, handled by the UI. */
+    val voiceActions = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val speaker by lazy { com.abu00salman.novadrive.data.Speaker(app) }
+    /** In-app turn-by-turn navigation; survives interface changes and other apps in front. */
+    val navEngine by lazy {
+        com.abu00salman.novadrive.data.nav.NavEngine(app, scope, fix, { settings.current.arabic }) { t -> speaker.speak(t, settings.current.arabic) }
+    }
 
     /** Emitted when the HOME button is pressed while we are already in front. */
     val homePressed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -79,6 +91,7 @@ class AppContainer(private val app: Application) {
         if (Build.VERSION.SDK_INT >= 31) append(granted(Manifest.permission.BLUETOOTH_CONNECT))
         append(MediaRepository.hasAccess(app))
         append(android.provider.Settings.System.canWrite(app))
+        append(android.provider.Settings.canDrawOverlays(app))
     }
 
     val fix: StateFlow<GeoFix?> by lazy {

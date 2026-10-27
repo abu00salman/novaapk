@@ -21,6 +21,10 @@ data class GeoFix(
     val speedKmh: Float,
     val fromGps: Boolean,
     val accuracyM: Float,
+    /** Direction of travel in degrees (0 = north), when the receiver reports one while moving. */
+    val bearing: Float? = null,
+    /** GPS altitude above the WGS-84 ellipsoid in metres, when the fix includes one. */
+    val altitudeM: Double? = null,
 )
 
 class LocationRepository(private val ctx: Context) {
@@ -57,6 +61,8 @@ class LocationRepository(private val ctx: Context) {
                         speedKmh = kmh,
                         fromGps = location.provider == LocationManager.GPS_PROVIDER,
                         accuracyM = if (location.hasAccuracy()) location.accuracy else -1f,
+                        bearing = if (location.hasBearing() && kmh > 3f) location.bearing else null,
+                        altitudeM = if (location.hasAltitude()) location.altitude else null,
                     )
                 )
             }
