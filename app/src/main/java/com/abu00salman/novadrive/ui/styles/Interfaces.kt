@@ -180,9 +180,9 @@ private fun MercedesLayout(ui: HomeUi, act: HomeActions) {
             Spacer(Modifier.width(18.dp))
             val clock = rememberClock(ui.use24h)
             UiDirection {
-                Column(Modifier.clickable(onClick = act.onQuick)) {
-                    Text(clock.time + if (clock.ampm.isNotEmpty()) " " + clock.ampm else "", style = st(36.sp, FontWeight.Light), maxLines = 1)
-                    Text(clock.dateShort, style = st(15.sp, color = k.dim), maxLines = 1)
+                Column(Modifier.width(260.dp).clickable(onClick = act.onQuick)) {
+                    Text(clock.time + if (clock.ampm.isNotEmpty()) " " + clock.ampm else "", style = st(36.sp, FontWeight.Light), maxLines = 1, softWrap = false)
+                    Text(clock.dateShort, style = st(15.sp, color = k.dim), maxLines = 1, softWrap = false)
                 }
             }
             Spacer(Modifier.weight(1f))
