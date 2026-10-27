@@ -66,6 +66,10 @@ class AppContainer(private val app: Application) {
     /** Screen/mode changes requested by «أمرني» voice commands, handled by the UI. */
     val voiceActions = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val speaker by lazy { com.abu00salman.novadrive.data.Speaker(app) }
+    /** In-app turn-by-turn navigation; survives interface changes and other apps in front. */
+    val navEngine by lazy {
+        com.abu00salman.novadrive.data.nav.NavEngine(app, scope, fix, { settings.current.arabic }) { t -> speaker.speak(t, settings.current.arabic) }
+    }
 
     /** Emitted when the HOME button is pressed while we are already in front. */
     val homePressed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)

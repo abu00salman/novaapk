@@ -3,6 +3,12 @@ package com.abu00salman.novadrive.data
 import android.view.Window
 import com.abu00salman.novadrive.AppContainer
 import com.abu00salman.novadrive.core.ThemeMode
+import com.abu00salman.novadrive.data.nav.LatLon
+import com.abu00salman.novadrive.data.nav.Place
+import com.abu00salman.novadrive.data.nav.RouteService
+import com.abu00salman.novadrive.ui.nav.parseCoordinates
+import com.abu00salman.novadrive.ui.nav.toNavInfo
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -101,8 +107,13 @@ object VoiceCommands {
         if (has("البلوتوث", "bluetooth")) { c.controls.openBluetooth(); return msg("Bluetooth settings", "إعدادات البلوتوث") }
         if (has("الواي فاي", "الوايفاي", "الانترنت", "wifi", "wi-fi")) { c.controls.openWifi(); return msg("Wi-Fi", "الواي فاي") }
 
-        // Route questions — answered from the navigation app's own guidance notification
-        val nav = NovaNotificationListener.navigation.value
+        // Ending an in-app trip
+        if (c.navEngine.state.value != null && has("انه الملاحه", "انهاء الملاحه", "الغ الملاحه", "الغاء الملاحه", "اوقف الملاحه", "وقف الملاحه", "stop navigation", "end navigation", "cancel route")) {
+            c.navEngine.stop(); return msg("Navigation ended", "تم إنهاء الملاحة")
+        }
+
+        // Route questions — answered from the in-app trip or the navigation app's own notification
+        val nav = c.navEngine.state.value?.toNavInfo(ar, s.use24h) ?: NovaNotificationListener.navigation.value
         if (has("متي اوصل", "كم باقي", "الوقت المتبقي", "المسافه المتبقيه", "وقت الوصول", "eta", "how long", "when will i arrive", "how far")) {
             if (nav == null) return msg("No active route", "لا يوجد توجيه نشط الآن")
             return nav.eta?.let { msg("Remaining: $it", "المتبقي: $it") } ?: msg("Next: ${nav.primary}", "التالي: ${nav.primary}")
@@ -174,9 +185,15 @@ object VoiceCommands {
                 workWords.any { dest == normalize(it) } && s.workAddress.isNotBlank() -> s.workAddress
                 else -> dest
             }
+            // Routed inside NovaDrive; the external app is only the fallback when nothing is found.
             val navPkg = s.navPackage ?: c.apps.guess(AppsRepository.NAV_PKGS, AppsRepository.NAV_KEYS)?.packageName
-            return if (c.controls.navigateTo(target, navPkg)) msg("Navigating to $target", "جارٍ التوجيه إلى $target")
-            else msg("No navigation app found", "لا يوجد تطبيق ملاحة")
+            c.voiceActions.tryEmit("screen:NAV")
+            c.scope.launch {
+                val near = c.fix.value?.let { LatLon(it.lat, it.lon) }
+                val place = parseCoordinates(target)?.let { Place(target, target, it) } ?: RouteService.search(target, near, ar).firstOrNull()
+                if (place != null) c.navEngine.start(place) else c.controls.navigateTo(target, navPkg)
+            }
+            return msg("Searching for $target", "أبحث عن $target")
         }
 
         // CarPlay

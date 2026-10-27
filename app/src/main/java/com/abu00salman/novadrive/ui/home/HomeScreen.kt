@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.abu00salman.novadrive.ui.nav.toNavInfo
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.abu00salman.novadrive.AppContainer
@@ -121,7 +122,10 @@ fun HomeScreen(
     val city by c.weather.city.collectAsStateWithLifecycle()
     val vehicle by c.obd.data.collectAsStateWithLifecycle()
     val media by c.mediaInfo.collectAsStateWithLifecycle()
-    val nav by NovaNotificationListener.navigation.collectAsStateWithLifecycle()
+    val externalNav by NovaNotificationListener.navigation.collectAsStateWithLifecycle()
+    val trip by c.navEngine.state.collectAsStateWithLifecycle()
+    // In-app guidance wins over a navigation app's notification.
+    val nav = trip?.toNavInfo(settings.arabic, settings.use24h) ?: externalNav
     val hasLocation = remember(perms) { c.location.hasPermission() }
     val access = remember(perms) { MediaRepository.hasAccess(ctx) }
     val dock = dockSlots(c, settings, sc, apps, driving)
@@ -166,6 +170,9 @@ fun HomeScreen(
         gps = gps,
         carPlayConnected = iPhone,
         railRight = settings.railRight,
+        routePoints = trip?.route?.points,
+        routeProgress = trip?.progressIndex ?: 0,
+        destination = trip?.destination?.point,
         video = if (driving) null else c.apps.byPackage(YOUTUBE_PKG),
     )
     HomeLayout(ui, mode, autoPromoted, remember(ui) { actions(ui) })

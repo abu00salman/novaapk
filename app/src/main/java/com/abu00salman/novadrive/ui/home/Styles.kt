@@ -363,8 +363,9 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     Box(modifier.clip(shape).border(1.dp, TLine, shape)) {
         TileMap(
             ui.lat, ui.lon, ui.bearing, MapTiles.Style.LIGHT, MapMarker.TESLA, headingUp, zoom, setZoom,
-            onTap = if (ui.nav != null) act.onNavCard else act.onOpenNav,
+            onTap = act.onNavDetails,
             modifier = Modifier.fillMaxSize(), tint = TeslaMapTint, background = Color(0xFFE6E8EB), focusY = 0.64f,
+            route = ui.routePoints, routeProgress = ui.routeProgress, routeColor = Color(0xFF3E6AE1), destination = ui.destination,
         )
         if (ui.lat == null) UiDirection {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -731,8 +732,9 @@ private fun BmwMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     BmwPanel(modifier) {
         TileMap(
             ui.lat, ui.lon, ui.bearing, MapTiles.Style.DARK, MapMarker.BMW, headingUp, zoom, setZoom,
-            onTap = if (ui.nav != null) act.onNavCard else act.onOpenNav,
+            onTap = act.onNavDetails,
             modifier = Modifier.fillMaxSize(), tint = BmwMapTint, background = Color(0xFF0D1528), focusY = 0.64f,
+            route = ui.routePoints, routeProgress = ui.routeProgress, routeColor = BAccent, destination = ui.destination,
         )
         if (ui.lat == null) UiDirection {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {

@@ -160,6 +160,10 @@ data class HomeUi(
     val carPlayConnected: Boolean = false,
     /** Settings › Appearance › side bar on the right (the Tesla map mirrors its shortcut column). */
     val railRight: Boolean = true,
+    /** Active in-app route (drawn on every map), progress index and destination. */
+    val routePoints: List<com.abu00salman.novadrive.data.nav.LatLon>? = null,
+    val routeProgress: Int = 0,
+    val destination: com.abu00salman.novadrive.data.nav.LatLon? = null,
 )
 
 class HomeActions(
@@ -425,7 +429,19 @@ private fun NavHero(ui: HomeUi, act: HomeActions, modifier: Modifier, compact: B
     val p = LocalNova.current
     val ar = LocalArabic.current
     HeroPanel(modifier) {
-        LiveRoad(if (ui.hasLocation) ui.speedKmh ?: 0f else 0f, Modifier.fillMaxSize())
+        // A live street map once there is a position (tap: full-screen navigation); the animated
+        // road remains as the backdrop until then.
+        if (ui.lat != null && ui.lon != null) {
+            var zoom by androidx.compose.runtime.saveable.rememberSaveable { mutableFloatStateOf(15f) }
+            TileMap(
+                ui.lat, ui.lon, ui.bearing,
+                if (p.dark) com.abu00salman.novadrive.data.MapTiles.Style.DARK else com.abu00salman.novadrive.data.MapTiles.Style.LIGHT,
+                MapMarker.DOT, true, zoom, { zoom = it }, onTap = act.onNavDetails, modifier = Modifier.fillMaxSize(),
+                tint = if (p.dark) com.abu00salman.novadrive.ui.nav.NightMapTint else null,
+                background = if (p.dark) Color(0xFF0D1528) else Color(0xFFE6E8EB), focusY = 0.62f,
+                route = ui.routePoints, routeProgress = ui.routeProgress, routeColor = p.accent, destination = ui.destination, markerColor = p.accent,
+            )
+        } else LiveRoad(if (ui.hasLocation) ui.speedKmh ?: 0f else 0f, Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             NavCard(
                 ui.nav, ui.notificationAccess, ui.navApp?.label, ui.homeSet, ui.workSet,

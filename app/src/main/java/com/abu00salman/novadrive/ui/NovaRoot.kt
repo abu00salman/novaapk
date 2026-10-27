@@ -81,6 +81,12 @@ import com.abu00salman.novadrive.ui.home.SplitSheet
 import com.abu00salman.novadrive.ui.home.rememberShortcuts
 import com.abu00salman.novadrive.ui.music.MusicScreen
 import com.abu00salman.novadrive.ui.nav.NavigationScreen
+import com.abu00salman.novadrive.ui.nav.IN_APP_NAV
+import com.abu00salman.novadrive.ui.nav.parseCoordinates
+import com.abu00salman.novadrive.data.nav.LatLon
+import com.abu00salman.novadrive.data.nav.Place
+import com.abu00salman.novadrive.data.nav.RouteService
+import kotlinx.coroutines.launch
 import com.abu00salman.novadrive.ui.quick.QuickPanel
 import com.abu00salman.novadrive.ui.settings.SettingsScreen
 import com.abu00salman.novadrive.ui.shell.GpsState
@@ -199,7 +205,7 @@ fun NovaRoot(onVoice: () -> Unit) {
         )
         val modeState by modeVm.state.collectAsStateWithLifecycle()
         val onMode: (HomeMode) -> Unit = { modeVm.select(it); screen = Screen.HOME; settingsStart = null }
-        val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) })
+        val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) }, onNav = { go(Screen.NAV) })
         // In-app voice actions ("show the map", "open settings", "simple interface") from «أمرني».
         LaunchedEffect(Unit) {
             c.voiceActions.collect { cmd ->
@@ -307,7 +313,7 @@ private fun Routes(
                 onEnableLocation = requestLocation,
                 onVehicle = { go(Screen.VEHICLE) },
                 onOpenNav = a::openNav,
-                onNavCard = { a.openGuidance(ui.nav) },
+                onNavCard = { if (ui.nav?.packageName == IN_APP_NAV) go(Screen.NAV) else a.openGuidance(ui.nav) },
                 onHome = { a.navigate(settings.homeAddress) },
                 onWork = { a.navigate(settings.workAddress) },
                 onGrantAccess = { c.controls.openNotificationAccess() },
@@ -360,18 +366,11 @@ private fun Routes(
         }
         Screen.NAV -> {
             val nav by NovaNotificationListener.navigation.collectAsStateWithLifecycle()
-            val perms by c.permissions.collectAsStateWithLifecycle()
-            val navApps = remember(apps) {
-                apps.filter { e -> e.packageName in AppsRepository.NAV_PKGS || AppsRepository.NAV_KEYS.any { e.label.contains(it, true) } }
-            }
             NavigationScreen(
-                nav = nav, hasAccess = remember(perms) { MediaRepository.hasAccess(ctx) },
-                navApp = sc.nav, navApps = navApps,
-                homeAddress = settings.homeAddress, workAddress = settings.workAddress, driving = lockEdits,
-                onCard = { a.openGuidance(nav) }, onOpenNav = a::openNav,
-                onGrantAccess = { c.controls.openNotificationAccess() },
-                onNavigate = a::navigate, onLaunchApp = { c.apps.launch(it) },
-                onSetPlaces = { openSettings("shortcuts") },
+                c = c, settings = settings, lockTyping = lockEdits,
+                externalNav = nav, navAppLabel = sc.nav?.label,
+                onExternal = a::openExternal, onOpenGuidance = { a.openGuidance(nav) },
+                onSetPlaces = { openSettings("shortcuts") }, onEnableLocation = requestLocation,
             )
         }
         Screen.MUSIC -> {
@@ -413,7 +412,7 @@ private fun Routes(
 }
 
 /** Every outward action, each falling back gracefully when an app or service is missing. */
-private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val driving: Boolean, val onApps: () -> Unit) {
+private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val driving: Boolean, val onApps: () -> Unit, val onNav: () -> Unit) {
     private val ar get() = s.arabic
     private fun say(en: String, a: String) = toast(c.appContext, if (ar) a else en)
 
@@ -436,9 +435,23 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
         if (!c.controls.launchAdjacent(c.apps.intentFor(nav))) openNav()
     }
 
+    /** Routes inside NovaDrive (search → first result); the external app is the fallback. */
     fun navigate(address: String) {
         if (address.isBlank()) return
-        if (!c.controls.navigateTo(address, sc.nav?.packageName)) say("No navigation app found", "لا يوجد تطبيق ملاحة")
+        onNav()
+        c.scope.launch {
+            val near = c.fix.value?.let { LatLon(it.lat, it.lon) }
+            val place = parseCoordinates(address)?.let { Place(address, address, it) }
+                ?: RouteService.search(address, near, ar).firstOrNull()
+            if (place != null) c.navEngine.start(place)
+            else if (!c.controls.navigateTo(address, sc.nav?.packageName)) say("Destination not found", "لم أجد الوجهة")
+        }
+    }
+
+    /** The trip (or just the map) in the external navigation app. */
+    fun openExternal(dest: LatLon?) {
+        if (dest == null) { openNav(); return }
+        if (!c.controls.navigateTo(String.format(java.util.Locale.US, "%.6f,%.6f", dest.lat, dest.lon), sc.nav?.packageName)) openNav()
     }
 
     /** Re-opens the navigation app exactly where its guidance notification points. */
