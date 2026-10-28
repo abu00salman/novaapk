@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.2.0 — NovaDrive NEXT (official)
+
+**New**
+- **Nova AI** replaces «أمرني»: local commands first (instant, offline), then — optionally — ChatGPT (OpenAI) or Claude (Anthropic) with real tools: open apps, play/pause/next, play a song or station by name, volume, brightness, navigate to an address or the nearest station/pharmacy/café…, trip status, switch interface/theme, weather, news headlines, open the dialer for a contact (you press Call). Shows listening / thinking / doing / speaking, can be stopped mid-answer, remembers the last few turns for follow-ups, and works in Arabic (incl. Saudi dialect). «يا نوفا …» prefix supported.
+- AI keys are entered by the user in Settings › Nova AI and stored encrypted with the Android Keystore — no key ships inside the APK. Optional backend proxy URL. Location is shared with the AI only when enabled.
+- Tesla: «صف الشاشة» is now «تقسيم»; YouTube icon next to Music in the bar; Maps / YouTube switch in the map card (YouTube beside NovaDrive in split screen, or full screen; disabled while driving).
+- Classic (and Ford): the big phone shortcut is customizable — long-press › choose any app, restore the default phone, large-icon option; also from Settings. Independent of the dock's phone icon; a removed app shows a clear message.
+- Fixed YouTube icon added to the fixed CarPlay / Music / Phone / Maps icons.
+- Mercedes, Ford, Apple (concept), Jetour, BYD, Haval and TANK redesigned closer to their real systems (full-screen map layer, SYNC tiles, CarPlay-like sidebar, speed arc, real inclinometer from the device sensor in TANK…).
+
+**Fixed**
+- Dock hides apps that are not installed (unless an app store is available to install them).
+- Voice commands that weren't understood are no longer answered with a wrong action.
+
+**Unchanged by design**: Tesla and BMW layouts (pixel comparison: only the label, the YouTube icon and the Maps/YouTube switch differ in Tesla).
+
 ## 2.1.0-beta1 — NovaDrive NEXT
 
 **New**
