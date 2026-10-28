@@ -8,24 +8,25 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import com.abu00salman.novadrive.data.VoiceCommands
+import android.Manifest
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.abu00salman.novadrive.ui.NovaRoot
 import com.abu00salman.novadrive.ui.toast
 
 class MainActivity : ComponentActivity() {
 
+    // Nova AI: speech → text through the device's recognizer, then local commands or the AI.
     private val voice = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            ?: return@registerForActivityResult
-        val reply = VoiceCommands.handle(nova, text, window)
-        toast(this, reply)
-        speak(reply)
+        if (text.isNullOrBlank()) { nova.assistant.heardNothing(); return@registerForActivityResult }
+        val s = nova.settings.current
+        val driving = s.drivingMode && (nova.fix.value?.speedKmh ?: 0f) > 8f
+        nova.assistant.ask(text, window, driving)
     }
 
-    private fun speak(text: String) {
-        val st = nova.settings.current
-        if (st.voiceReply) nova.speaker.speak(text, st.arabic)
-    }
+    // Asked only when the driver says "call <name>".
+    private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onDestroy() {
         if (isFinishing) nova.speaker.shutdown()
@@ -36,6 +37,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent { NovaRoot(onVoice = ::startVoice) }
+        lifecycleScope.launch {
+            nova.voiceActions.collect { if (it == "perm:contacts") contactsPermission.launch(Manifest.permission.READ_CONTACTS) }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -52,14 +56,16 @@ class MainActivity : ComponentActivity() {
 
     private fun startVoice() {
         val arabic = nova.settings.current.arabic
+        nova.assistant.listening()
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (arabic) "ar-SA" else "en-US")
-            .putExtra(RecognizerIntent.EXTRA_PROMPT, if (arabic) "أمرني… مثل: افتح اليوتيوب، قلل الإضاءة، كم الساعة" else "Ask me… e.g. \"open YouTube\", \"dim the screen\", \"what time is it\"")
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, if (arabic) "Nova AI… مثل: افتح يوتيوب، ودّني لأقرب محطة بنزين، كيف الجو" else "Nova AI… e.g. \"open YouTube\", \"nearest fuel station\", \"weather\"")
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         try {
             voice.launch(i)
         } catch (e: ActivityNotFoundException) {
+            nova.assistant.heardNothing()
             toast(this, if (arabic) "لا توجد خدمة تعرّف صوتي على الجهاز (ثبّت تطبيق Google)" else "No speech recognizer installed (install the Google app)")
         }
     }

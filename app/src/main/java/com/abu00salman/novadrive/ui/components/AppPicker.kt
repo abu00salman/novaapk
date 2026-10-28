@@ -30,7 +30,7 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 
 @Composable
-fun AppPickerDialog(title: String, apps: List<AppEntry>, allowNone: Boolean = true, onPick: (AppEntry?) -> Unit, onDismiss: () -> Unit) {
+fun AppPickerDialog(title: String, apps: List<AppEntry>, allowNone: Boolean = true, onPick: (AppEntry?) -> Unit, onDismiss: () -> Unit, noneLabel: String? = null) {
     val p = LocalNova.current
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         androidx.compose.foundation.layout.Box(
@@ -45,7 +45,7 @@ fun AppPickerDialog(title: String, apps: List<AppEntry>, allowNone: Boolean = tr
                     LazyColumn {
                         if (allowNone) item {
                             Text(
-                                tr("Automatic (detect)", "تلقائي (اكتشاف)"), style = NovaType.body, color = p.accent,
+                                noneLabel ?: tr("Automatic (detect)", "تلقائي (اكتشاف)"), style = NovaType.body, color = p.accent,
                                 modifier = Modifier.fillMaxWidth().clickable { onPick(null) }.padding(vertical = 14.dp, horizontal = 8.dp)
                             )
                         }

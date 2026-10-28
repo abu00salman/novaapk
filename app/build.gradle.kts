@@ -16,8 +16,8 @@ android {
         applicationId = "com.abu00salman.novadrive"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "2.1.0-beta1"
+        versionCode = 4
+        versionName = "2.2.0"
         resourceConfigurations += listOf("en", "ar")
     }
 
@@ -48,7 +48,14 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
-    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+    packaging {
+        resources {
+            excludes += listOf(
+                "/META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*",
+                "META-INF/INDEX.LIST", "META-INF/*.kotlin_module", "META-INF/versions/9/module-info.class", "module-info.class",
+            )
+        }
+    }
     lint { checkReleaseBuilds = false; abortOnError = false }
     // JVM screenshot tests (Robolectric + Roborazzi) render the real Compose UI to PNG in CI.
     testOptions { unitTests { isIncludeAndroidResources = true } }
@@ -66,6 +73,9 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    // Nova AI: official Anthropic SDK for Claude (OpenAI is called over plain HTTPS).
+    implementation("com.anthropic:anthropic-java:3.3.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

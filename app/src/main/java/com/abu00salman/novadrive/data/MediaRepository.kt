@@ -427,6 +427,14 @@ class MediaRepository(private val ctx: Context, private val arabic: () -> Boolea
         }, 900)
     }
 
+    /** Plays a search ("سورة البقرة") through the active player, when it supports search. */
+    fun playFromSearch(query: String): Boolean {
+        val c = target() ?: return false
+        val actions = c.playbackState?.actions ?: 0L
+        if (actions and PlaybackState.ACTION_PLAY_FROM_SEARCH == 0L) return false
+        return runCatching { c.transportControls.playFromSearch(query, android.os.Bundle()) }.isSuccess
+    }
+
     fun seekTo(ms: Long) { target()?.transportControls?.seekTo(ms.coerceAtLeast(0)) }
 
     fun playQueueItem(id: Long) { target()?.transportControls?.skipToQueueItem(id) }

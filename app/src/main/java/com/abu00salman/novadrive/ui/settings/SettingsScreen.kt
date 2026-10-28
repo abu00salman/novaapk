@@ -129,7 +129,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                         Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("Car", "السيارة")),
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
-                        Triple(Section.VOICE, Icons.Rounded.AutoAwesome, Pair("Ask me (voice)", "أمرني (الأوامر الصوتية)")),
+                        Triple(Section.VOICE, Icons.Rounded.AutoAwesome, Pair("Nova AI", "Nova AI")),
                         Triple(Section.CARPLAY, Icons.Rounded.PhoneIphone, Pair("CarPlay", "كاربلاي")),
                         Triple(Section.DRIVING, Icons.Rounded.DirectionsCar, Pair("Driving", "القيادة")),
                         Triple(Section.VEHICLE, Icons.Rounded.Speed, Pair("Vehicle (OBD-II)", "المركبة (OBD-II)")),
@@ -319,6 +319,35 @@ private fun StyleCustomizer(c: AppContainer, style: com.abu00salman.novadrive.co
             Pill(tr("My photo", "صورتي"), if (o.wallpaper == com.abu00salman.novadrive.core.StyleOptions.WALLPAPER_IMAGE) p.accent else p.textDim) {
                 picker.launch(arrayOf("image/png", "image/webp", "image/jpeg", "image/*"))
             }
+        }
+        if (style.id == "classic" || style.id == "ford") {
+            Gap()
+            val apps by c.apps.apps.collectAsStateWithLifecycle()
+            var picking by remember { mutableStateOf(false) }
+            val chosen = o.bigApp?.let { pkg -> apps.firstOrNull { it.packageName == pkg } }
+            Text(tr("Big shortcut", "الاختصار الكبير"), style = NovaType.label, color = p.textDim)
+            Text(
+                when {
+                    o.bigApp == null -> tr("Phone (default)", "الهاتف (افتراضي)")
+                    chosen == null -> tr("Chosen app isn't installed", "التطبيق المختار غير مثبت")
+                    else -> chosen.label
+                } + tr(" — separate from the Phone button in the bar", " — مستقل عن زر الهاتف في الشريط"),
+                style = NovaType.body, color = p.text,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Pill(tr("Choose app", "اختيار تطبيق"), p.accent) { picking = true }
+                if (o.bigApp != null) Pill(tr("Restore phone", "استعادة الهاتف"), p.textDim) { set { it.copy(bigApp = null) } }
+                Pill(if (o.bigSize == 1) tr("Large icon ✓", "أيقونة كبيرة ✓") else tr("Large icon", "أيقونة كبيرة"), if (o.bigSize == 1) p.accent else p.textDim) {
+                    set { it.copy(bigSize = if (it.bigSize == 1) 0 else 1) }
+                }
+            }
+            if (picking) com.abu00salman.novadrive.ui.components.AppPickerDialog(
+                tr("Customise shortcut", "تخصيص الاختصار"), apps, allowNone = true,
+                onPick = { a -> set { it.copy(bigApp = a?.packageName) }; picking = false },
+                onDismiss = { picking = false },
+                noneLabel = tr("Restore the default phone", "استعادة الهاتف الافتراضي"),
+            )
         }
         Gap()
         Text(tr("Font", "الخط"), style = NovaType.label, color = p.textDim)
@@ -778,7 +807,69 @@ private fun EditButton(icon: ImageVector, label: String, enabled: Boolean, tint:
 }
 
 
-/** "أمرني": built-in examples plus the user's own phrase → app commands. */
+/** Nova AI: engine (local / ChatGPT / Claude) and keys, voice, examples and the user's own phrases. */
+@Composable
+private fun AiEngineSettings(c: AppContainer) {
+    val p = LocalNova.current
+    val cfg by c.ai.config.collectAsStateWithLifecycle()
+    Text(tr("AI engine", "محرك الذكاء الاصطناعي"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(
+        listOf(com.abu00salman.novadrive.data.ai.AiProvider.LOCAL to tr("Local commands only", "الأوامر المحلية فقط"),
+            com.abu00salman.novadrive.data.ai.AiProvider.OPENAI to "ChatGPT (OpenAI API)",
+            com.abu00salman.novadrive.data.ai.AiProvider.ANTHROPIC to "Claude (Anthropic API)"),
+        cfg.provider,
+    ) { v -> c.ai.update { it.copy(provider = v) } }
+    if (cfg.provider != com.abu00salman.novadrive.data.ai.AiProvider.LOCAL) {
+        val openAi = cfg.provider == com.abu00salman.novadrive.data.ai.AiProvider.OPENAI
+        Gap()
+        KeyField(
+            if (openAi) tr("OpenAI API key", "مفتاح OpenAI API") else tr("Anthropic API key", "مفتاح Anthropic API"),
+            if (openAi) cfg.hasOpenAiKey else cfg.hasClaudeKey,
+        ) { key -> c.ai.setKey(cfg.provider, key) }
+        Gap()
+        Field(tr("Model", "النموذج"), if (openAi) cfg.openAiModel else cfg.claudeModel) { v ->
+            c.ai.update { if (openAi) it.copy(openAiModel = v.trim()) else it.copy(claudeModel = v.trim()) }
+        }
+        Gap()
+        Field(tr("Backend proxy URL (optional)", "رابط خادم وسيط (اختياري)"), cfg.proxyUrl) { v -> c.ai.update { it.copy(proxyUrl = v) } }
+        Gap()
+        Toggle(tr("Share location with Nova AI", "مشاركة الموقع مع Nova AI"),
+            tr("Off: the AI never receives your city or coordinates (navigation still works on the unit).",
+                "إيقاف: لا يصل للذكاء الاصطناعي مدينتك أو إحداثياتك (الملاحة تعمل على الجهاز كالمعتاد)."),
+            cfg.shareLocation) { v -> c.ai.update { it.copy(shareLocation = v) } }
+        Gap()
+        Text(
+            tr("Keys are stored encrypted on this unit only (Android Keystore) and are not part of the APK. Or point to your own backend proxy that holds the key. API usage is billed by OpenAI/Anthropic separately from ChatGPT Plus or Claude Pro subscriptions.",
+                "يُحفظ المفتاح مشفّرًا على هذا الجهاز فقط (Android Keystore) وليس داخل ملف APK، أو استخدم خادمًا وسيطًا خاصًا بك يحفظ المفتاح. استخدام الـ API يُحاسَب لدى OpenAI أو Anthropic بشكل منفصل عن اشتراكات ChatGPT Plus أو Claude Pro."),
+            style = NovaType.small, color = p.textDim,
+        )
+    }
+}
+
+/** Masked API-key entry; the saved key is never shown again. */
+@Composable
+private fun KeyField(label: String, saved: Boolean, onSave: (String?) -> Unit) {
+    val p = LocalNova.current
+    var text by remember { mutableStateOf("") }
+    Column {
+        OutlinedTextField(
+            value = text, onValueChange = { text = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            label = { Text(label + if (saved) tr(" — saved ••••", " — محفوظ ••••") else "") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = p.text, unfocusedTextColor = p.text, focusedBorderColor = p.accent, unfocusedBorderColor = p.stroke,
+                focusedLabelColor = p.accent, unfocusedLabelColor = p.textDim, cursorColor = p.accent,
+            ),
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Save key", "حفظ المفتاح"), p.accent) { if (text.isNotBlank()) { onSave(text); text = "" } }
+            if (saved) Pill(tr("Delete key", "حذف المفتاح"), p.danger) { onSave(null) }
+        }
+    }
+}
+
 @Composable
 private fun VoiceSection(c: AppContainer, s: NovaSettings) {
     val p = LocalNova.current
@@ -787,8 +878,10 @@ private fun VoiceSection(c: AppContainer, s: NovaSettings) {
     var phrase by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     Column {
-        Header(tr("Ask me", "أمرني"), tr("Tap «Ask me» in the side bar and speak. NovaDrive answers out loud.",
-            "اضغط «أمرني» في القائمة الجانبية وتكلّم، ويرد عليك نوفا درايف بالصوت."))
+        Header("Nova AI", tr("Tap Nova AI in the side bar (or the microphone) and speak. Car commands run locally and instantly; open questions go to the AI you choose below.",
+            "اضغط Nova AI في القائمة الجانبية (أو الميكروفون) وتكلّم. أوامر السيارة تُنفّذ محليًا وفورًا، والأسئلة العامة تذهب للذكاء الاصطناعي الذي تختاره بالأسفل."))
+        AiEngineSettings(c)
+        Gap()
         Text(tr("Try:", "جرّب:"), style = NovaType.label, color = p.textDim)
         Spacer(Modifier.height(6.dp))
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

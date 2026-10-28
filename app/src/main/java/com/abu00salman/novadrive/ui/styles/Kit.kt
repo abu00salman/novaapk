@@ -318,7 +318,7 @@ fun menuItems(act: HomeActions, withVoice: Boolean = true): List<MenuItem> = bui
     add(MenuItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), act.onNavDetails))
     add(MenuItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), act.onMusicDetails))
     add(MenuItem(Icons.Rounded.Phone, tr("Phone", "الهاتف"), act.onPhone))
-    if (withVoice) add(MenuItem(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), act.onVoice, special = true))
+    if (withVoice) add(MenuItem(Icons.Rounded.AutoAwesome, "Nova AI", act.onVoice, special = true))
     add(MenuItem(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), act.onVehicle))
     add(MenuItem(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), act.onApps))
     add(MenuItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), act.onSettings))
@@ -328,10 +328,13 @@ fun menuItems(act: HomeActions, withVoice: Boolean = true): List<MenuItem> = bui
 
 /** Live map with the active route; tap or the expand button opens full-screen navigation. */
 @Composable
-fun SkinMap(ui: HomeUi, act: HomeActions, modifier: Modifier, focusY: Float = 0.62f, guidance: Boolean = true, corner: Dp? = null) {
+fun SkinMap(ui: HomeUi, act: HomeActions, modifier: Modifier, focusY: Float = 0.62f, guidance: Boolean = true, corner: Dp? = null, frame: Boolean = true) {
     val k = LocalSkin.current
     var zoom by rememberSaveable { mutableFloatStateOf(15f) }
-    SCard(modifier, corner = corner) {
+    val box: @Composable (@Composable BoxScope.() -> Unit) -> Unit = { content ->
+        if (frame) SCard(modifier, corner = corner, content = content) else Box(modifier, content = content)
+    }
+    box {
         TileMap(
             ui.lat, ui.lon, ui.bearing, if (k.dark) MapTiles.Style.DARK else MapTiles.Style.LIGHT, MapMarker.DOT, true, zoom, { zoom = it },
             onTap = act.onNavDetails, modifier = Modifier.fillMaxSize(), tint = k.mapTint, background = k.mapBg, focusY = focusY,
@@ -577,7 +580,43 @@ fun BrightnessControl(act: HomeActions, modifier: Modifier = Modifier, compact: 
 /** Quick row used by several interfaces: voice + quick controls. */
 @Composable
 fun RowScope.QuickButtons(act: HomeActions, size: Dp = 48.dp) {
-    SRound(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), size, filled = true, onClick = act.onVoice)
+    SRound(Icons.Rounded.AutoAwesome, "Nova AI", size, filled = true, onClick = act.onVoice)
     Spacer(Modifier.width(8.dp))
     SRound(Icons.Rounded.Tune, tr("Quick controls", "التحكم السريع"), size, onClick = act.onQuick)
+}
+
+// ============================================================================ big shortcut
+
+/**
+ * The interface's big shortcut: the phone by default, or any installed app the user picked
+ * (long-press or Settings). Independent of the dock's Phone button.
+ */
+@Composable
+fun BigShortcut(ui: HomeUi, act: HomeActions, modifier: Modifier, icon: Dp = 54.dp, label: TextUnit = 30.sp, phoneFill: Color = Color(0xFF16A34A)) {
+    val k = LocalSkin.current
+    val app = ui.bigApp
+    val size = if (ui.styleOptions.bigSize == 1) icon * 1.35f else icon
+    when {
+        app != null -> SCard(modifier, onClick = act.onBig, onLongClick = act.onBigLong) {
+            Row(Modifier.align(Alignment.Center).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Image(app.icon, null, Modifier.size(size))
+                Spacer(Modifier.width(14.dp))
+                UiDirection { Text(app.label, style = st(label, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+        }
+        ui.bigAppMissing -> SCard(modifier, onClick = act.onBigLong, onLongClick = act.onBigLong) {
+            UiDirection {
+                Text(tr("The chosen app isn't installed — tap to choose another", "التطبيق المختار غير مثبت — اضغط لاختيار آخر"),
+                    style = st(label * 0.6f, FontWeight.SemiBold, k.dim), textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center).padding(12.dp))
+            }
+        }
+        else -> SCard(modifier, onClick = act.onBig, onLongClick = act.onBigLong, fill = phoneFill) {
+            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Phone, null, tint = Color.White, modifier = Modifier.size(size))
+                Spacer(Modifier.width(14.dp))
+                UiDirection { Text(tr("Phone", "الهاتف"), style = st(label, FontWeight.Bold, Color.White)) }
+            }
+        }
+    }
 }

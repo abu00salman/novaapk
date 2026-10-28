@@ -221,6 +221,10 @@ fun NovaRoot(onVoice: () -> Unit) {
                     cmd.startsWith("mode:") -> runCatching { HomeMode.valueOf(cmd.removePrefix("mode:")) }.getOrNull()?.let(onMode)
                     cmd.startsWith("screen:") -> runCatching { Screen.valueOf(cmd.removePrefix("screen:")) }.getOrNull()?.let(go)
                     cmd == "quick" -> quick = true
+                    cmd == "big" -> {
+                        val pkg = c.styleOptions.get(c.settings.current.uiStyle).bigApp
+                        if (pkg == null || !c.apps.launchPackage(pkg)) actions.phone()
+                    }
                     cmd == "split" -> split = true
                 }
             }
@@ -260,6 +264,10 @@ fun NovaRoot(onVoice: () -> Unit) {
                         AnimatedVisibility(split, enter = fadeIn(tween(180)), exit = fadeOut(tween(150))) {
                             SplitSheet(c, settings) { split = false }
                         }
+                        val aiState by c.assistant.ui.collectAsStateWithLifecycle()
+                        com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                            aiState, onListen = onVoice, onStop = { c.assistant.interrupt() }, onClose = { c.assistant.close() },
+                        )
                         if (c.safeMode && screen == Screen.HOME) Box(Modifier.fillMaxSize()) {
                             Pill(
                                 tr("Safe mode — tap for options", "الوضع الآمن — اضغط للخيارات"), p.danger,
@@ -304,6 +312,7 @@ private fun Routes(
     when (s) {
         Screen.HOME -> {
           var dockPick by remember { mutableStateOf<String?>(null) }
+          var bigPick by remember { mutableStateOf(false) }
           HomeScreen(c, settings, driving, mode, autoPromoted) { ui ->
             HomeActions(
                 onDockLong = { slot ->
@@ -346,6 +355,18 @@ private fun Routes(
                 volume = { c.controls.volume() },
                 onVolume = { c.controls.setVolume(it) },
                 brightness = { c.controls.brightness() },
+                onBig = {
+                    val app = ui.bigApp
+                    when {
+                        app != null -> a.launch(app)
+                        ui.bigAppMissing -> bigPick = true
+                        else -> a.phone()
+                    }
+                },
+                onBigLong = {
+                    if (lockEdits) toast(ctx, if (settings.arabic) "تخصيص الاختصار متاح عند التوقف" else "Available when parked")
+                    else bigPick = true
+                },
                 onBrightness = { level ->
                     // Ask once to dim over every app; NovaDrive itself dims immediately either way.
                     if (!c.controls.dimmer.canOverlay() && !askedWriteSettings) {
@@ -357,6 +378,12 @@ private fun Routes(
                 },
             )
           }
+          if (bigPick) AppPickerDialog(
+              if (settings.arabic) "تخصيص الاختصار" else "Customise shortcut", apps, allowNone = true,
+              onPick = { app -> c.styleOptions.update(settings.uiStyle) { it.copy(bigApp = app?.packageName) }; bigPick = false },
+              onDismiss = { bigPick = false },
+              noneLabel = if (settings.arabic) "استعادة الهاتف الافتراضي" else "Restore the default phone",
+          )
           dockPick?.let { id ->
               AppPickerDialog(
                   if (settings.arabic) "اختر تطبيقاً لهذا الزر" else "Choose an app for this button", apps, allowNone = false,

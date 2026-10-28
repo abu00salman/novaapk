@@ -168,6 +168,14 @@ data class HomeUi(
     val altitudeM: Double? = null,
     /** Colours/wallpaper/font chosen for the current interface (the eight customisable ones). */
     val styleOptions: com.abu00salman.novadrive.core.StyleOptions = com.abu00salman.novadrive.core.StyleOptions(),
+    /** Installed YouTube as a shortcut (Tesla bar and the map card's YouTube view). */
+    val youtube: DockSlot? = null,
+    /** Moving above the parked threshold: video and typing are blocked. */
+    val driving: Boolean = false,
+    /** The interface's big customisable shortcut (Classic/Ford): chosen app, or null = phone. */
+    val bigApp: com.abu00salman.novadrive.data.AppEntry? = null,
+    /** A big-shortcut app was chosen but is no longer installed. */
+    val bigAppMissing: Boolean = false,
 )
 
 class HomeActions(
@@ -208,6 +216,9 @@ class HomeActions(
     val onVolume: (Float) -> Unit = {},
     val brightness: () -> Float = { 0f },
     val onBrightness: (Float) -> Unit = {},
+    /** Big customisable shortcut: tap opens the chosen app (phone by default), long-press changes it. */
+    val onBig: () -> Unit = {},
+    val onBigLong: () -> Unit = {},
 )
 
 /**
@@ -712,6 +723,7 @@ fun fixedSlotIcon(id: String): Int? = when (id) {
     "music" -> R.drawable.ic_slot_music
     "phone" -> R.drawable.ic_slot_phone
     "maps" -> R.drawable.ic_slot_maps
+    "youtube" -> R.drawable.ic_slot_youtube
     else -> null
 }
 
