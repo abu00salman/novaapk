@@ -19,7 +19,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -224,7 +223,7 @@ class VoiceSessionTest {
 
         r.router.delayMs = 5_000
         r.session.ask("سؤال 1"); runCurrent()
-        r.session.ask("سؤال 2"); advanceUntilIdle()
+        r.session.ask("سؤال 2"); advanceTimeBy(20_000); runCurrent()
         assertEquals("ChatGPT: جواب «سؤال 2»", r.ui.reply)
     }
 
@@ -257,7 +256,7 @@ class VoiceSessionTest {
         runCurrent()
         r.session.ask("كم عاصمة اليابان؟") // double tap / repeated result
         r.session.ask("كم عاصمة اليابان؟")
-        advanceUntilIdle()
+        advanceTimeBy(20_000); runCurrent()
         assertEquals(1, r.router.aiCalls)
         assertEquals(1, r.session.aiRequests)
     }

@@ -37,9 +37,9 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -147,7 +147,7 @@ fun NovaAiPanel(state: VoiceUi, actions: NovaAiActions, modifier: Modifier = Mod
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (state.state.busy) PanelButton(Icons.Rounded.Stop, tr("Stop", "إيقاف"), Color(0xFFEF4444), actions.onStop)
                     if (state.canRetry && !state.state.busy) PanelButton(Icons.Rounded.Refresh, tr("Retry", "إعادة"), Color(0x33FFFFFF), actions.onRetry)
-                    if (state.reply != null && !state.state.busy) PanelButton(Icons.Rounded.VolumeUp, tr("Repeat", "أعد النطق"), Color(0x33FFFFFF), actions.onReplay)
+                    if (state.reply != null && !state.state.busy) PanelButton(Icons.AutoMirrored.Rounded.VolumeUp, tr("Repeat", "أعد النطق"), Color(0x33FFFFFF), actions.onReplay)
                     // Always available: pressing it while Nova speaks interrupts and listens again.
                     PanelButton(Icons.Rounded.Mic, tr("Talk", "تحدّث"), Color(0xFF7C3AED), actions.onListen)
                     PanelButton(Icons.Rounded.Keyboard, tr("Type", "كتابة"), if (state.showKeyboard) Color(0xFF3B82F6) else Color(0x33FFFFFF)) { actions.onKeyboard(!state.showKeyboard) }
@@ -191,7 +191,7 @@ private fun TypeRow(onAsk: (String) -> Unit) {
                 ),
             )
             Spacer(Modifier.width(10.dp))
-            PanelButton(Icons.Rounded.Send, tr("Send", "إرسال"), Color(0xFF7C3AED)) { send() }
+            PanelButton(Icons.AutoMirrored.Rounded.Send, tr("Send", "إرسال"), Color(0xFF7C3AED)) { send() }
         }
     }
 }
@@ -250,7 +250,7 @@ private fun Orb(state: VoiceState, level: Float) {
         Icon(
             when (state) {
                 VoiceState.LISTENING -> Icons.Rounded.Mic
-                VoiceState.SPEAKING -> Icons.Rounded.VolumeUp
+                VoiceState.SPEAKING -> Icons.AutoMirrored.Rounded.VolumeUp
                 else -> Icons.Rounded.AutoAwesome
             }, null, tint = Color.White, modifier = Modifier.size(30.dp),
         )
