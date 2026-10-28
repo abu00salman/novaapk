@@ -202,7 +202,27 @@ class ScreenshotTest {
     fun simple_1024() = home("19_simple_1024x600_night_ar", HomeMode.CAR, dark = true, ui = ui(true).copy(simple = true))
 
     private fun styled(style: String, ui: HomeUi) = ui.copy(style = style, lat = 16.8892, lon = 42.5511, bearing = 35f,
-        bt = Link.CONNECTED, net = NetState(Link.CONNECTED, true), gps = GpsState.FIX, carPlayConnected = true)
+        bt = Link.CONNECTED, net = NetState(Link.CONNECTED, true), gps = GpsState.FIX, carPlayConnected = true,
+        youtube = DockSlot("youtube", "YouTube", youtube, Icons.Rounded.Apps))
+
+    @Test fun teslaYoutubeBar() = shot("34_tesla_youtube_bar_ar", Screen.HOME, dark = false, chrome = false) {
+        HomeLayout(styled("tesla", ui(true)).copy(dock = dock(true).filter { it.id != "auto" }), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun classicBigShortcut() = shot("35_classic_big_youtube_ar", Screen.HOME, dark = false, chrome = false) {
+        HomeLayout(styled("classic", ui(true, guiding = false)).copy(bigApp = youtube), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun novaAiPanel() = shot("36_nova_ai_panel_ar", Screen.HOME, dark = false, chrome = false) {
+        androidx.compose.foundation.layout.Box {
+            HomeLayout(styled("tesla", ui(true)), HomeMode.CAR, false, HomeActions())
+            com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                com.abu00salman.novadrive.data.ai.AiUi(visible = true, status = com.abu00salman.novadrive.data.ai.AiStatus.SPEAKING,
+                    heard = "ودّني لأقرب محطة بنزين", reply = "أقرب محطة: محطة الدريس (1.2 كم). بدأت الملاحة.", engine = "Claude"),
+                {}, {}, {},
+            )
+        }
+    }
 
     @Test fun tesla() = shot("20_tesla_ar", Screen.HOME, dark = false, chrome = false) {
         HomeLayout(styled("tesla", ui(true)), HomeMode.CAR, false, HomeActions())

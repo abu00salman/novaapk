@@ -328,10 +328,13 @@ fun menuItems(act: HomeActions, withVoice: Boolean = true): List<MenuItem> = bui
 
 /** Live map with the active route; tap or the expand button opens full-screen navigation. */
 @Composable
-fun SkinMap(ui: HomeUi, act: HomeActions, modifier: Modifier, focusY: Float = 0.62f, guidance: Boolean = true, corner: Dp? = null) {
+fun SkinMap(ui: HomeUi, act: HomeActions, modifier: Modifier, focusY: Float = 0.62f, guidance: Boolean = true, corner: Dp? = null, frame: Boolean = true) {
     val k = LocalSkin.current
     var zoom by rememberSaveable { mutableFloatStateOf(15f) }
-    SCard(modifier, corner = corner) {
+    val box: @Composable (@Composable BoxScope.() -> Unit) -> Unit = { content ->
+        if (frame) SCard(modifier, corner = corner, content = content) else Box(modifier, content = content)
+    }
+    box {
         TileMap(
             ui.lat, ui.lon, ui.bearing, if (k.dark) MapTiles.Style.DARK else MapTiles.Style.LIGHT, MapMarker.DOT, true, zoom, { zoom = it },
             onTap = act.onNavDetails, modifier = Modifier.fillMaxSize(), tint = k.mapTint, background = k.mapBg, focusY = focusY,
