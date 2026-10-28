@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.0-beta1 — Nova AI voice repair
+
+- Voice session state machine with numbered sessions, timeouts and cancellation: the microphone never stays stuck on "listening" or "speaking".
+- Speech recognition inside NovaDrive (no Google window; the window remains as a fallback option).
+- Replies are spoken reliably: per-utterance completion, best installed Arabic voice, rate/volume/channel settings, audio focus.
+- One selected provider (ChatGPT or Claude), restored after restart; clear API error messages; Stop cancels the request.
+- Offline mode: local commands without internet or API credit, typing and quick commands when speech needs internet.
+- Local commands match whole words and leave general questions to the AI; compound commands supported.
+- New Nova AI panel and settings with real diagnostics. Acceptance tests for the voice pipeline.
+
 ## 2.2.0 — NovaDrive NEXT (official)
 
 **New**
