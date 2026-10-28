@@ -19,7 +19,13 @@ class Speaker(private val ctx: Context) {
     var arabicAvailable: Boolean = false
         private set
 
-    fun speak(text: String, arabic: Boolean) {
+    @Volatile private var onDone: (() -> Unit)? = null
+    @Volatile private var currentId: String? = null
+    private var counter = 0
+
+    /** Speaks [text]; [done] runs when it finishes or is interrupted. */
+    fun speak(text: String, arabic: Boolean, done: (() -> Unit)? = null) {
+        onDone = done
         val engine = tts
         when {
             engine == null -> {
@@ -27,6 +33,12 @@ class Speaker(private val ctx: Context) {
                 tts = TextToSpeech(ctx.applicationContext) { status ->
                     ready = status == TextToSpeech.SUCCESS
                     if (ready) {
+                        tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                            override fun onStart(id: String?) {}
+                            override fun onDone(id: String?) { if (id == currentId) finish() }
+                            @Deprecated("Deprecated in Java") override fun onError(id: String?) { if (id == currentId) finish() }
+                            override fun onStop(id: String?, interrupted: Boolean) { if (id == currentId) finish() }
+                        })
                         tts?.setAudioAttributes(
                             AudioAttributes.Builder()
                                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
@@ -48,8 +60,14 @@ class Speaker(private val ctx: Context) {
         val ar = Locale.forLanguageTag("ar")
         arabicAvailable = engine.isLanguageAvailable(ar) >= TextToSpeech.LANG_AVAILABLE
         engine.language = if (arabic && arabicAvailable) ar else Locale.US
-        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nova-reply")
+        currentId = "nova-" + (++counter)
+        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, currentId)
     }
+
+    private fun finish() { val d = onDone; onDone = null; d?.invoke() }
+
+    /** Interrupts the reply that is being spoken. */
+    fun stop() { runCatching { tts?.stop() }; finish() }
 
     /** Opens the system screen where the user installs voice data (e.g. Arabic). */
     fun openSettings(): Boolean = runCatching {

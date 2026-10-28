@@ -68,6 +68,9 @@ class AppContainer(private val app: Application) {
     /** Screen/mode changes requested by «أمرني» voice commands, handled by the UI. */
     val voiceActions = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val speaker by lazy { com.abu00salman.novadrive.data.Speaker(app) }
+    /** Nova AI settings (provider, models, encrypted keys) and the assistant itself. */
+    val ai by lazy { com.abu00salman.novadrive.data.ai.AiConfigRepository(app) }
+    val assistant by lazy { com.abu00salman.novadrive.data.ai.NovaAssistant(this) }
     /** In-app turn-by-turn navigation; survives interface changes and other apps in front. */
     val navEngine by lazy {
         com.abu00salman.novadrive.data.nav.NavEngine(app, scope, fix, { settings.current.arabic }) { t -> speaker.speak(t, settings.current.arabic) }

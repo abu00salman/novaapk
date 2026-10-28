@@ -149,7 +149,7 @@ fun Rail(
             RailItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), home && mode == HomeMode.NAVIGATION || current == Screen.NAV) { onMode(HomeMode.NAVIGATION) }
             RailItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), home && mode == HomeMode.MUSIC || current == Screen.MUSIC) { onMode(HomeMode.MUSIC) }
             RailItem(Icons.Rounded.Phone, tr("Phone", "الهاتف"), false, onClick = onPhone)
-            RailItem(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), false, special = true, onClick = onVoice)
+            RailItem(Icons.Rounded.AutoAwesome, "Nova AI", false, special = true, onClick = onVoice)
             RailItem(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), current == Screen.VEHICLE) { onSelect(Screen.VEHICLE) }
             RailItem(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), current == Screen.APPS) { onSelect(Screen.APPS) }
             RailItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), current == Screen.SETTINGS) { onSelect(Screen.SETTINGS) }

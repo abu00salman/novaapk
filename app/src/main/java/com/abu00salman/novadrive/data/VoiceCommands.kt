@@ -2,6 +2,7 @@ package com.abu00salman.novadrive.data
 
 import android.view.Window
 import com.abu00salman.novadrive.AppContainer
+import com.abu00salman.novadrive.data.ai.NovaActions
 import com.abu00salman.novadrive.core.ThemeMode
 import com.abu00salman.novadrive.data.nav.LatLon
 import com.abu00salman.novadrive.data.nav.Place
@@ -53,10 +54,15 @@ object VoiceCommands {
         .replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا').replace('ى', 'ي').replace('ة', 'ه')
         .replace(Regex("(من فضلك|لو سمحت|please)"), "").replace(Regex("\\s+"), " ").trim()
 
-    fun handle(c: AppContainer, raw: String, window: Window? = null): String {
+    /**
+     * Runs a command that can be understood without AI and returns what happened, or null when
+     * the sentence isn't a known command (Nova AI then takes over, when configured).
+     */
+    suspend fun handle(c: AppContainer, raw: String, window: Window? = null, driving: Boolean = false): String? {
         val s = c.settings.current
         val ar = s.arabic
-        val t = normalize(raw)
+        // "يا نوفا، افتح يوتيوب" → "افتح يوتيوب"
+        val t = normalize(raw).replace(Regex("^(يا نوفا|ي نوفا|نوفا|hey nova|ok nova|nova)[ ،,]*"), "").trim()
         fun msg(en: String, a: String) = if (ar) a else en
         fun has(vararg words: String) = words.any { t.contains(normalize(it)) }
 
@@ -189,6 +195,23 @@ object VoiceCommands {
             return msg("Brightness ${(next * 100).toInt()}%", "السطوع ${(next * 100).toInt()}٪")
         }
 
+        // Nearest fuel station / mosque / … ("ودّني لأقرب محطة بنزين")
+        if (has("اقرب", "nearest", "closest")) {
+            NovaActions.nearbyKinds.entries.firstOrNull { (_, words) -> words.any { t.contains(normalize(it)) } }?.let { (kind, _) ->
+                return NovaActions.navigateNearby(c, kind, ar).message
+            }
+        }
+
+        // Headlines
+        if (has("الاخبار", "اخبار", "news", "headlines")) {
+            val h = NovaActions.headlines(ar)
+            return if (h.isEmpty()) msg("Couldn't load the news (check the connection)", "تعذّر جلب الأخبار (تحقق من الإنترنت)")
+            else msg("Top headlines: ", "أبرز الأخبار: ") + h.take(3).joinToString(if (ar) "، ثم " else "; ")
+        }
+
+        // The interface's big shortcut
+        if (has("الايقونه الكبيره", "الاختصار الكبير", "big shortcut")) { emit("big"); return msg("Opening the big shortcut", "فتحت الاختصار الكبير") }
+
         // Navigation
         navPrefixes.firstOrNull { t.startsWith(normalize(it) + " ") || t.startsWith(normalize(it)) }?.let { p ->
             val dest = t.removePrefix(normalize(p)).trim()
@@ -198,15 +221,8 @@ object VoiceCommands {
                 workWords.any { dest == normalize(it) } && s.workAddress.isNotBlank() -> s.workAddress
                 else -> dest
             }
-            // Routed inside NovaDrive; the external app is only the fallback when nothing is found.
-            val navPkg = s.navPackage ?: c.apps.guess(AppsRepository.NAV_PKGS, AppsRepository.NAV_KEYS)?.packageName
-            c.voiceActions.tryEmit("screen:NAV")
-            c.scope.launch {
-                val near = c.fix.value?.let { LatLon(it.lat, it.lon) }
-                val place = parseCoordinates(target)?.let { Place(target, target, it) } ?: RouteService.search(target, near, ar).firstOrNull()
-                if (place != null) c.navEngine.start(place) else c.controls.navigateTo(target, navPkg)
-            }
-            return msg("Searching for $target", "أبحث عن $target")
+            // Routed inside NovaDrive.
+            return NovaActions.navigateTo(c, target, ar).message
         }
 
         // CarPlay
@@ -220,17 +236,18 @@ object VoiceCommands {
         openPrefixes.firstOrNull { t.startsWith(normalize(it)) }?.let { p ->
             val name = t.removePrefix(normalize(p)).trim()
             if (name.isEmpty() || musicWords.any { name == normalize(it) }) { c.media.play(); return msg("Playing", "تشغيل الموسيقى") }
-            if (name in listOf("الخرائط", "خرائط", "الملاحه", "maps")) {
-                val nav = c.apps.byPackage(s.navPackage) ?: c.apps.guess(AppsRepository.NAV_PKGS, AppsRepository.NAV_KEYS)
-                if (nav != null && c.apps.launch(nav)) return msg("Opening ${nav.label}", "تم، فتحت الخرائط")
-            }
-            val key = appAliases.entries.firstOrNull { normalize(it.key) == name }?.value ?: name.removePrefix("ال")
-            val app = c.apps.search(key) ?: c.apps.search(name)
-            return if (app != null && c.apps.launch(app)) msg("Opening ${app.label}", "تم، فتحت ${app.label}")
-            else msg("Couldn't find \"$name\"", "لم أجد تطبيق \"$name\"")
+            if (NovaActions.findApp(c, name) != null) return NovaActions.openApp(c, name, ar, driving).message
+            // "شغّل سورة البقرة" — not an app: ask the music player to find and play it.
+            if (p.trim() in listOf("شغل", "شغلي", "start")) return NovaActions.playFromSearch(c, name, ar).message
+            return null
         }
 
-        // Calls (dialer only; contact lookup by name would need contacts permission)
+        // "اتصل بأحمد" → contact's number in the dialer (the user confirms by pressing Call).
+        Regex("^(?:اتصل ب|اتصل على |دق على |call )(.+)$").find(t)?.let { m ->
+            val who = m.groupValues[1].trim()
+            if (who.isNotEmpty() && who !in listOf("جهه اتصال", "a contact")) return NovaActions.dialContact(c, who, ar).message
+        }
+        // Calls (the unit's dialer)
         if (t.startsWith("call") || t.startsWith("اتصل") || has("الهاتف", "التلفون") || t == "phone") {
             val ok = c.apps.launchPackage(s.phonePackage) || c.controls.dial()
             return if (ok) msg("Opening phone", "تم، فتحت الهاتف") else msg("No phone app", "لا يوجد تطبيق هاتف")
@@ -258,11 +275,12 @@ object VoiceCommands {
         (appAliases.entries.firstOrNull { normalize(it.key) == t }?.value ?: t).let { key ->
             c.apps.search(key)?.let { app -> if (c.apps.launch(app)) return msg("Opening ${app.label}", "تم، فتحت ${app.label}") }
         }
-        return msg("Sorry, I didn't catch that: \"$raw\"", "عذراً، لم أفهم: \"$raw\"")
+        return null
     }
 
     /** Examples shown in Settings › Voice. */
     val EXAMPLES_AR = listOf(
+        "يا نوفا، افتح يوتيوب", "ودّني لأقرب محطة بنزين", "شغّل سورة البقرة", "وش آخر الأخبار", "اتصل بأحمد", "واجهة كلاسيك",
         "افتح اليوتيوب", "خذني إلى البيت", "كم الساعة الآن", "قلل الإضاءة", "متى أوصل", "وش الأغنية",
         "افتح الخرائط", "اعرض الخريطة", "اعرض الموسيقى", "قسم الشاشة", "الواجهة البسيطة", "الواجهة الذكية",
         "كم الحرارة", "وين أنا", "كم سرعتي", "التالي", "ارفع الصوت", "اكتم الصوت", "أقصى إضاءة",

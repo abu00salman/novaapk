@@ -221,6 +221,10 @@ fun NovaRoot(onVoice: () -> Unit) {
                     cmd.startsWith("mode:") -> runCatching { HomeMode.valueOf(cmd.removePrefix("mode:")) }.getOrNull()?.let(onMode)
                     cmd.startsWith("screen:") -> runCatching { Screen.valueOf(cmd.removePrefix("screen:")) }.getOrNull()?.let(go)
                     cmd == "quick" -> quick = true
+                    cmd == "big" -> {
+                        val pkg = c.styleOptions.get(c.settings.current.uiStyle).bigApp
+                        if (pkg == null || !c.apps.launchPackage(pkg)) actions.phone()
+                    }
                     cmd == "split" -> split = true
                 }
             }
@@ -260,6 +264,10 @@ fun NovaRoot(onVoice: () -> Unit) {
                         AnimatedVisibility(split, enter = fadeIn(tween(180)), exit = fadeOut(tween(150))) {
                             SplitSheet(c, settings) { split = false }
                         }
+                        val aiState by c.assistant.ui.collectAsStateWithLifecycle()
+                        com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                            aiState, onListen = onVoice, onStop = { c.assistant.interrupt() }, onClose = { c.assistant.close() },
+                        )
                         if (c.safeMode && screen == Screen.HOME) Box(Modifier.fillMaxSize()) {
                             Pill(
                                 tr("Safe mode — tap for options", "الوضع الآمن — اضغط للخيارات"), p.danger,

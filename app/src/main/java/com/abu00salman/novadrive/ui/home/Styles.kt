@@ -344,7 +344,7 @@ private fun TeslaStatusBar(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             Modifier.size(42.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFF3B82F6))))
                 .clickable(onClick = act.onVoice),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), tint = Color.White, modifier = Modifier.size(22.dp)) }
+        ) { Icon(Icons.Rounded.AutoAwesome, "Nova AI", tint = Color.White, modifier = Modifier.size(22.dp)) }
     }
 }
 

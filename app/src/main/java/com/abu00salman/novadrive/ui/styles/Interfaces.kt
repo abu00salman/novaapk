@@ -101,7 +101,7 @@ private fun TopRow(
         Spacer(Modifier.weight(1f))
         StatusIcons(ui, act)
         Spacer(Modifier.width(8.dp))
-        if (voiceLabel) VoicePill(act) else SRound(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), 48.dp, filled = true, onClick = act.onVoice)
+        if (voiceLabel) VoicePill(act) else SRound(Icons.Rounded.AutoAwesome, "Nova AI", 48.dp, filled = true, onClick = act.onVoice)
         Spacer(Modifier.width(8.dp))
         SRound(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), 48.dp, onClick = act.onSettings)
     }
@@ -116,7 +116,7 @@ private fun VoicePill(act: HomeActions, big: Boolean = false) {
     ) {
         Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(if (big) 30.dp else 24.dp))
         Spacer(Modifier.width(8.dp))
-        UiDirection { Text(tr("Ask me", "أمرني"), style = st(if (big) 22.sp else 17.sp, FontWeight.SemiBold, Color.White), maxLines = 1) }
+        UiDirection { Text("Nova AI", style = st(if (big) 22.sp else 17.sp, FontWeight.SemiBold, Color.White), maxLines = 1) }
     }
 }
 
@@ -170,7 +170,7 @@ private fun MercedesLayout(ui: HomeUi, act: HomeActions) {
             Box(
                 Modifier.size(60.dp).clip(CircleShape).background(Brush.sweepGradient(listOf(k.accent, k.accent2, k.accent)))
                     .clickable(onClick = act.onVoice), contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), tint = Color.White, modifier = Modifier.size(28.dp)) }
+            ) { Icon(Icons.Rounded.AutoAwesome, "Nova AI", tint = Color.White, modifier = Modifier.size(28.dp)) }
             Spacer(Modifier.width(18.dp))
             val clock = rememberClock(ui.use24h)
             UiDirection {

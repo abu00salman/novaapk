@@ -97,6 +97,23 @@ class NavLogicTest {
         assertEquals(StyleOptions(dark = null), StyleOptionsRepository.decode("|0|0|0|0"))
     }
 
+    @Test fun novaAiToolsAreWellFormed() {
+        val specs = com.abu00salman.novadrive.data.ai.NovaTools.specs
+        assertEquals(specs.size, specs.map { it.name }.toSet().size)
+        specs.forEach { t ->
+            assertTrue(t.name, Regex("^[a-z_]{3,40}$").matches(t.name))
+            assertTrue(t.name, t.description.isNotBlank())
+            assertTrue(t.name, t.properties.keys.containsAll(t.required))
+        }
+        assertTrue(specs.any { it.name == "switch_interface" } && specs.any { it.name == "navigate_nearby" })
+    }
+
+    @Test fun bigShortcutOptionRoundTrip() {
+        val o = StyleOptions(bigApp = "com.google.android.youtube", bigSize = 1)
+        assertEquals(o, StyleOptionsRepository.decode(StyleOptionsRepository.encode(o)))
+        assertEquals(null, StyleOptionsRepository.decode(StyleOptionsRepository.encode(StyleOptions())).bigApp)
+    }
+
     @Test fun twelveInterfacesWithFixedTeslaAndBmw() {
         assertEquals(12, UiStyles.all.size)
         assertEquals(12, UiStyles.all.map { it.id }.toSet().size)

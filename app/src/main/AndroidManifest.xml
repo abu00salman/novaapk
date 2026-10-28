@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Nova AI: "call <name>" looks the number up and opens the dialer (asked only when used). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Screen dimmer over every app (brightness on units that ignore Android's setting). -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

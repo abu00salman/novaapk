@@ -318,7 +318,7 @@ fun menuItems(act: HomeActions, withVoice: Boolean = true): List<MenuItem> = bui
     add(MenuItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), act.onNavDetails))
     add(MenuItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), act.onMusicDetails))
     add(MenuItem(Icons.Rounded.Phone, tr("Phone", "الهاتف"), act.onPhone))
-    if (withVoice) add(MenuItem(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), act.onVoice, special = true))
+    if (withVoice) add(MenuItem(Icons.Rounded.AutoAwesome, "Nova AI", act.onVoice, special = true))
     add(MenuItem(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), act.onVehicle))
     add(MenuItem(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), act.onApps))
     add(MenuItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), act.onSettings))
@@ -577,7 +577,7 @@ fun BrightnessControl(act: HomeActions, modifier: Modifier = Modifier, compact: 
 /** Quick row used by several interfaces: voice + quick controls. */
 @Composable
 fun RowScope.QuickButtons(act: HomeActions, size: Dp = 48.dp) {
-    SRound(Icons.Rounded.AutoAwesome, tr("Ask me", "أمرني"), size, filled = true, onClick = act.onVoice)
+    SRound(Icons.Rounded.AutoAwesome, "Nova AI", size, filled = true, onClick = act.onVoice)
     Spacer(Modifier.width(8.dp))
     SRound(Icons.Rounded.Tune, tr("Quick controls", "التحكم السريع"), size, onClick = act.onQuick)
 }
