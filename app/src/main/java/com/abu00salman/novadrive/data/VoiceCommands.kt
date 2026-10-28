@@ -20,8 +20,9 @@ data class CustomCommand(val phrase: String, val packageName: String)
 
 /**
  * Small, deterministic intent parser for Arabic and English car commands ("أمرني").
- * Speech-to-text is done by the device's installed recognizer (RecognizerIntent); the reply is
- * returned as text and spoken by the caller with Android's text-to-speech.
+ * This is Nova AI's local command engine: it needs no API key or credit, and every command that
+ * doesn't need data from the internet works offline. Speech-to-text and speaking the reply are done
+ * by the voice session (data/voice).
  */
 object VoiceCommands {
 
@@ -58,13 +59,25 @@ object VoiceCommands {
      * Runs a command that can be understood without AI and returns what happened, or null when
      * the sentence isn't a known command (Nova AI then takes over, when configured).
      */
-    suspend fun handle(c: AppContainer, raw: String, window: Window? = null, driving: Boolean = false): String? {
+    suspend fun handle(c: AppContainer, raw: String, window: Window? = null, driving: Boolean = false, aiReady: Boolean = false): String? {
         val s = c.settings.current
         val ar = s.arabic
         // "يا نوفا، افتح يوتيوب" → "افتح يوتيوب"
-        val t = normalize(raw).replace(Regex("^(يا نوفا|ي نوفا|نوفا|hey nova|ok nova|nova)[ ،,]*"), "").trim()
+        val t = stripWake(normalize(raw))
         fun msg(en: String, a: String) = if (ar) a else en
-        fun has(vararg words: String) = words.any { t.contains(normalize(it)) }
+        fun has(vararg words: String) = words.any { containsWord(t, normalize(it)) }
+
+        // "افتح الخرائط وابحث عن محطة وقود": the selected AI does both (it has the same tools);
+        // without AI each part runs as its own local command.
+        val parts = splitCompound(t)
+        if (parts.size > 1) {
+            if (aiReady) return null
+            val done = parts.mapNotNull { handle(c, it, window, driving, aiReady = false) }
+            return if (done.isEmpty()) null else done.joinToString(if (ar) "، و" else ", ")
+        }
+        // A general question ("كم عاصمة اليابان؟", "اشرح لي…") is never mistaken for a car command.
+        val question = isQuestion(t)
+        if (question && aiReady && t.split(' ').size > 6) return null
 
         // User's own commands win.
         s.voiceCommands.firstOrNull { it.phrase.isNotBlank() && t.contains(normalize(it.phrase)) }?.let { cmd ->
@@ -88,7 +101,7 @@ object VoiceCommands {
         }
 
         // Interface style & theme ("واجهة تسلا", "Mercedes interface", …)
-        if (has("واجهه", "interface", "theme", "شكل")) {
+        if (!question && has("واجهه", "interface", "theme", "شكل")) {
             val aliases = mapOf(
                 "tesla" to listOf("تسلا", "tesla"), "bmw" to listOf("بي ام", "bmw", "بي ام دبليو"), "mercedes" to listOf("مرسيدس", "mercedes"),
                 "ford" to listOf("فورد", "ford"), "apple" to listOf("ابل", "apple"), "jetour" to listOf("جيتور", "jetour"),
@@ -101,30 +114,30 @@ object VoiceCommands {
                 return msg("${st.en} interface", "تم التبديل إلى ${st.ar}")
             }
         }
-        if (has("الواجهه البسيطه", "الشكل البسيط", "simple interface", "simple mode", "simple layout")) {
+        if (!question && has("الواجهه البسيطه", "الشكل البسيط", "simple interface", "simple mode", "simple layout")) {
             c.settings.update { it.copy(uiStyle = "simple") }; emit("screen:HOME"); return msg("Simple interface", "تم التبديل إلى الواجهة البسيطة")
         }
-        if (has("الواجهه الذكيه", "الشكل الذكي", "smart interface", "smart mode", "smart layout")) {
+        if (!question && has("الواجهه الذكيه", "الشكل الذكي", "smart interface", "smart mode", "smart layout")) {
             c.settings.update { it.copy(uiStyle = "smart") }; emit("screen:HOME"); return msg("Smart interface", "تم التبديل إلى الواجهة الذكية")
         }
-        if (has("الوضع التلقائي", "auto theme", "automatic theme")) {
+        if (!question && has("الوضع التلقائي", "auto theme", "automatic theme")) {
             c.settings.update { it.copy(themeMode = ThemeMode.AUTO) }; return msg("Automatic theme", "الوضع التلقائي حسب الشروق والغروب")
         }
 
         // Home layouts and NovaDrive screens
-        val show = has("اعرض", "ورني", "وريني", "اظهر", "وضع", "شاشه", "show", "mode")
-        if (has("قسم الشاشه", "تقسيم الشاشه", "نصف الشاشه", "split")) { emit("mode:SPLIT"); return msg("Split view", "تم تقسيم الشاشة") }
+        val show = !question && has("اعرض", "ورني", "وريني", "اظهر", "وضع", "شاشه", "show", "mode")
+        if (!question && has("قسم الشاشه", "تقسيم الشاشه", "نصف الشاشه", "split")) { emit("mode:SPLIT"); return msg("Split view", "تم تقسيم الشاشة") }
         if (show && has("الملاحه", "الخريطه", "الخرائط", "map", "navigation")) { emit("mode:NAVIGATION"); return msg("Showing the map", "هذه الخريطة") }
         if (show && has("الموسيقي", "الاغاني", "music", "media")) { emit("mode:MUSIC"); return msg("Showing music", "هذه الموسيقى") }
-        if (has("الشاشه الرئيسيه", "الرئيسيه", "home screen")) { emit("mode:CAR"); return msg("Home", "الشاشة الرئيسية") }
-        if (has("معلومات السياره", "حاله السياره", "vehicle", "car info")) { emit("screen:VEHICLE"); return msg("Vehicle", "معلومات السيارة") }
-        if (has("اعدادات نوفا", "الاعدادات", "settings")) { emit("screen:SETTINGS"); return msg("Settings", "الإعدادات") }
-        if (has("كل التطبيقات", "قائمه التطبيقات", "التطبيقات", "all apps", "app list")) { emit("screen:APPS"); return msg("All apps", "كل التطبيقات") }
-        if (has("الاختصارات", "التحكم السريع", "quick settings", "control center")) { emit("quick"); return msg("Quick controls", "التحكم السريع") }
+        if (!question && has("الشاشه الرئيسيه", "الرئيسيه", "الصفحه الرئيسيه", "ارجع للرئيسيه", "home screen", "go home")) { emit("mode:CAR"); return msg("Home", "الشاشة الرئيسية") }
+        if (!question && has("معلومات السياره", "حاله السياره", "vehicle", "car info")) { emit("screen:VEHICLE"); return msg("Vehicle", "معلومات السيارة") }
+        if (!question && has("اعدادات نوفا", "الاعدادات", "settings")) { emit("screen:SETTINGS"); return msg("Settings", "الإعدادات") }
+        if (!question && has("كل التطبيقات", "قائمه التطبيقات", "التطبيقات", "all apps", "app list")) { emit("screen:APPS"); return msg("All apps", "كل التطبيقات") }
+        if (!question && has("الاختصارات", "التحكم السريع", "quick settings", "control center")) { emit("quick"); return msg("Quick controls", "التحكم السريع") }
 
         // Connectivity
-        if (has("البلوتوث", "bluetooth")) { c.controls.openBluetooth(); return msg("Bluetooth settings", "إعدادات البلوتوث") }
-        if (has("الواي فاي", "الوايفاي", "الانترنت", "wifi", "wi-fi")) { c.controls.openWifi(); return msg("Wi-Fi", "الواي فاي") }
+        if (!question && has("البلوتوث", "bluetooth")) { c.controls.openBluetooth(); return msg("Bluetooth settings", "إعدادات البلوتوث") }
+        if (!question && has("الواي فاي", "الوايفاي", "wifi", "wi-fi")) { c.controls.openWifi(); return msg("Wi-Fi", "الواي فاي") }
 
         // Ending an in-app trip
         if (c.navEngine.state.value != null && has("انه الملاحه", "انهاء الملاحه", "الغ الملاحه", "الغاء الملاحه", "اوقف الملاحه", "وقف الملاحه", "stop navigation", "end navigation", "cancel route")) {
@@ -153,30 +166,30 @@ object VoiceCommands {
         }
 
         // Volume level / mute
-        if (has("اكتم", "كتم الصوت", "اسكت", "mute")) { c.controls.setVolume(0f); return msg("Muted", "تم كتم الصوت") }
+        if (!question && has("اكتم", "كتم الصوت", "اسكت", "mute")) { c.controls.setVolume(0f); return msg("Muted", "تم كتم الصوت") }
         if (has("الصوت كم", "كم الصوت", "مستوي الصوت", "volume level")) return msg("Volume ${(c.controls.volume() * 100).toInt()}%", "مستوى الصوت ${(c.controls.volume() * 100).toInt()}٪")
-        if (has("الصوت علي الاخر", "اقصي صوت", "max volume")) { c.controls.setVolume(1f); return msg("Volume 100%", "الصوت ١٠٠٪") }
+        if (!question && has("الصوت علي الاخر", "اقصي صوت", "max volume")) { c.controls.setVolume(1f); return msg("Volume 100%", "الصوت ١٠٠٪") }
 
         // Brightness extremes
-        if (has("اقصي اضاءه", "اضاءه كامله", "اعلي اضاءه", "full brightness", "max brightness")) {
+        if (!question && has("اقصي اضاءه", "اضاءه كامله", "اعلي اضاءه", "full brightness", "max brightness")) {
             c.controls.setBrightness(1f, window); return msg("Brightness 100%", "السطوع ١٠٠٪")
         }
-        if (has("اقل اضاءه", "اضاءه خفيفه", "minimum brightness")) {
+        if (!question && has("اقل اضاءه", "اضاءه خفيفه", "minimum brightness")) {
             c.controls.setBrightness(0.05f, window); return msg("Brightness 5%", "السطوع ٥٪")
         }
 
         // Time, date, weather, speed
-        if (has("كم الساعه", "الساعه كم", "الوقت", "what time", "the time")) {
+        if (has("كم الساعه", "الساعه كم", "وش الساعه", "what time") || t == "الوقت" || t == "الساعه" || t == "the time") {
             val fmt = SimpleDateFormat(if (s.use24h) "HH:mm" else "h:mm", if (ar) Locale.forLanguageTag("ar-SA-u-nu-latn") else Locale.US)
             val pm = Calendar.getInstance().get(Calendar.AM_PM) == Calendar.PM
             val now = fmt.format(Date())
             return if (ar) "الساعة الآن $now ${if (s.use24h) "" else if (pm) "مساءً" else "صباحاً"}".trim() else "It's $now${if (s.use24h) "" else if (pm) " PM" else " AM"}"
         }
-        if (has("التاريخ", "اليوم كم", "وش اليوم", "اي يوم", "what day", "the date")) {
+        if (has("تاريخ اليوم", "اليوم كم", "وش اليوم", "اي يوم اليوم", "what day is it", "today's date") || t == "التاريخ" || t == "the date") {
             val d = SimpleDateFormat(if (ar) "EEEE d MMMM" else "EEEE, d MMMM", if (ar) Locale.forLanguageTag("ar-SA-u-nu-latn") else Locale.US).format(Date())
             return msg("Today is $d", "اليوم $d")
         }
-        if (has("الطقس", "الحراره", "الجو", "weather", "temperature")) {
+        if (has("الطقس", "الحراره", "كيف الجو", "الجو اليوم", "weather", "temperature") && t.split(' ').size <= 5) {
             val w = c.weather.weather.value ?: return msg("Weather isn't available yet", "الطقس غير متاح حالياً")
             val label = WeatherRepository.label(w.code, ar)
             return msg("It's ${Math.round(w.tempC)} degrees, $label", "الحرارة ${Math.round(w.tempC)} درجة، $label")
@@ -189,14 +202,14 @@ object VoiceCommands {
         // Brightness
         val dimmer = has("قلل الاضاءه", "خفف الاضاءه", "اخفض الاضاءه", "قلل السطوع", "خفف السطوع", "dim", "darker", "brightness down")
         val brighter = has("زد الاضاءه", "ارفع الاضاءه", "زود الاضاءه", "ارفع السطوع", "زد السطوع", "brighter", "brightness up")
-        if (dimmer || brighter) {
+        if (!question && (dimmer || brighter)) {
             val next = (c.controls.brightness() + if (brighter) 0.25f else -0.25f).coerceIn(0.05f, 1f)
             c.controls.setBrightness(next, window)
             return msg("Brightness ${(next * 100).toInt()}%", "السطوع ${(next * 100).toInt()}٪")
         }
 
         // Nearest fuel station / mosque / … ("ودّني لأقرب محطة بنزين")
-        if (has("اقرب", "nearest", "closest")) {
+        if (has("اقرب", "nearest", "closest", "ابحث عن", "دور علي", "دورلي", "find a", "search for")) {
             NovaActions.nearbyKinds.entries.firstOrNull { (_, words) -> words.any { t.contains(normalize(it)) } }?.let { (kind, _) ->
                 return NovaActions.navigateNearby(c, kind, ar).message
             }
@@ -208,6 +221,9 @@ object VoiceCommands {
             return if (h.isEmpty()) msg("Couldn't load the news (check the connection)", "تعذّر جلب الأخبار (تحقق من الإنترنت)")
             else msg("Top headlines: ", "أبرز الأخبار: ") + h.take(3).joinToString(if (ar) "، ثم " else "; ")
         }
+
+        // Everything below performs an action; a question never triggers one.
+        if (question) return null
 
         // The interface's big shortcut
         if (has("الايقونه الكبيره", "الاختصار الكبير", "big shortcut")) { emit("big"); return msg("Opening the big shortcut", "فتحت الاختصار الكبير") }
@@ -272,11 +288,40 @@ object VoiceCommands {
         }
 
         // Last resort: maybe they just said an app name
-        (appAliases.entries.firstOrNull { normalize(it.key) == t }?.value ?: t).let { key ->
+        if (t.split(' ').size <= 3) (appAliases.entries.firstOrNull { normalize(it.key) == t }?.value ?: t).let { key ->
             c.apps.search(key)?.let { app -> if (c.apps.launch(app)) return msg("Opening ${app.label}", "تم، فتحت ${app.label}") }
         }
         return null
     }
+
+    private val wake = Regex("^(يا نوفا|ي نوفا|نوفا|hey nova|ok nova|nova)[ ،,]*")
+    fun stripWake(t: String) = t.replace(wake, "").trim()
+
+    /**
+     * Whole-word match, so "وقف" doesn't fire inside "موقف" or "الجو" inside "الجوال". Arabic
+     * attached prefixes (و ب ل ف ك ال …) are allowed before the word.
+     */
+    fun containsWord(text: String, phrase: String): Boolean {
+        if (phrase.isBlank()) return false
+        val p = Regex.escape(phrase)
+        return Regex("(^|[\\s،,.؟?!])(?:و|ف|ب|ل|ك|ال|وال|بال|فال|لل|كال)?$p($|[\\s،,.؟?!])").containsMatchIn(text)
+    }
+
+    private val questionStarts = listOf(
+        "كم ", "ليش", "لماذا", "ليه ", "كيف", "وش ", "ايش", "شو ", "ماذا", "ما هو", "ما هي", "ماهو", "ماهي", "ما ", "متي", "وين", "اين", "هل ",
+        "من هو", "من هي", "مين ", "اشرح", "احكي", "حدثني", "كلمني عن", "عرفني", "قل لي", "قولي", "علمني", "اعطني معلومات", "ابي اعرف", "ودي اعرف", "ابغي اعرف",
+        "what", "why", "how", "who", "when", "where", "which", "explain", "tell me", "is ", "are ", "do ", "does ", "can you", "could you",
+    )
+
+    /** "كم عاصمة اليابان؟", "اشرح لي…", "what is…" — a question rather than a command. */
+    fun isQuestion(t: String): Boolean = t.endsWith("؟") || t.endsWith("?") || questionStarts.any { t.startsWith(it) }
+
+    private val compoundVerbs = "افتح|شغل|ابحث|دور|خذني|ودني|وديني|اتصل|ارفع|اخفض|قلل|زد|اعرض|اوقف|وقف|كمل"
+
+    /** Splits "افتح الخرائط وابحث عن محطة" / "… ثم …" / "… and then …" into separate commands. */
+    fun splitCompound(t: String): List<String> =
+        t.split(Regex("\\s+(?:ثم|وبعدين|بعدها|and then|then)\\s+|\\s+و(?=(?:$compoundVerbs)(?:\\s|$))|\\s+and (?=(?:open|play|find|search|navigate|call)(?:\\s|$))"))
+            .map { it.trim() }.filter { it.isNotEmpty() }
 
     /** Examples shown in Settings › Voice. */
     val EXAMPLES_AR = listOf(

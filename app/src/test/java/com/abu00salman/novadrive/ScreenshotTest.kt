@@ -213,13 +213,38 @@ class ScreenshotTest {
         HomeLayout(styled("classic", ui(true, guiding = false)).copy(bigApp = youtube), HomeMode.CAR, false, HomeActions())
     }
 
+    private val noAi = com.abu00salman.novadrive.ui.ai.NovaAiActions({}, {}, {}, {}, {}, {}, {})
+
     @Test fun novaAiPanel() = shot("36_nova_ai_panel_ar", Screen.HOME, dark = false, chrome = false) {
         androidx.compose.foundation.layout.Box {
             HomeLayout(styled("tesla", ui(true)), HomeMode.CAR, false, HomeActions())
             com.abu00salman.novadrive.ui.ai.NovaAiPanel(
-                com.abu00salman.novadrive.data.ai.AiUi(visible = true, status = com.abu00salman.novadrive.data.ai.AiStatus.SPEAKING,
-                    heard = "ودّني لأقرب محطة بنزين", reply = "أقرب محطة: محطة الدريس (1.2 كم). بدأت الملاحة.", engine = "Claude"),
-                {}, {}, {},
+                com.abu00salman.novadrive.data.voice.VoiceUi(visible = true, state = com.abu00salman.novadrive.data.voice.VoiceState.SPEAKING,
+                    heard = "كم عاصمة اليابان؟", reply = "عاصمة اليابان هي طوكيو، ويسكنها نحو 14 مليون نسمة.", provider = "ChatGPT"),
+                noAi,
+            )
+        }
+    }
+
+    @Test fun novaAiOffline() = shot("37_nova_ai_offline_ar", Screen.HOME, dark = false, chrome = false) {
+        androidx.compose.foundation.layout.Box {
+            HomeLayout(styled("tesla", ui(true)), HomeMode.CAR, false, HomeActions())
+            com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                com.abu00salman.novadrive.data.voice.VoiceUi(visible = true, state = com.abu00salman.novadrive.data.voice.VoiceState.ERROR, online = false,
+                    showKeyboard = true, canRetry = true, provider = "Claude",
+                    notice = "لا يوجد إنترنت: التعرف الصوتي غير متاح دون اتصال على هذا الجهاز. اكتب الأمر أو استخدم الأزرار."),
+                noAi,
+            )
+        }
+    }
+
+    @Test fun novaAiListening() = shot("38_nova_ai_listening_ar", Screen.HOME, dark = true, chrome = false) {
+        androidx.compose.foundation.layout.Box {
+            HomeLayout(styled("classic", ui(true)), HomeMode.CAR, false, HomeActions())
+            com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                com.abu00salman.novadrive.data.voice.VoiceUi(visible = true, state = com.abu00salman.novadrive.data.voice.VoiceState.LISTENING,
+                    partial = "افتح الخرائط وابحث عن", level = 0.6f, provider = "Claude"),
+                noAi,
             )
         }
     }

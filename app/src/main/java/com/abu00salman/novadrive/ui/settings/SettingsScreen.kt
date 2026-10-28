@@ -807,19 +807,28 @@ private fun EditButton(icon: ImageVector, label: String, enabled: Boolean, tint:
 }
 
 
-/** Nova AI: engine (local / ChatGPT / Claude) and keys, voice, examples and the user's own phrases. */
+/** Nova AI › AI provider: exactly one agent answers general questions; saved across restarts. */
 @Composable
 private fun AiEngineSettings(c: AppContainer) {
     val p = LocalNova.current
     val cfg by c.ai.config.collectAsStateWithLifecycle()
-    Text(tr("AI engine", "محرك الذكاء الاصطناعي"), style = NovaType.label, color = p.textDim)
-    Spacer(Modifier.height(6.dp))
+    Header(tr("AI provider", "وكيل الذكاء الاصطناعي"), tr("General questions go only to the provider chosen here — never to several, never switched automatically.",
+        "الأسئلة العامة تُرسل فقط للوكيل المختار هنا — ليس لعدة خدمات، ولا يتم التبديل تلقائيًا."))
     Choice(
-        listOf(com.abu00salman.novadrive.data.ai.AiProvider.LOCAL to tr("Local commands only", "الأوامر المحلية فقط"),
-            com.abu00salman.novadrive.data.ai.AiProvider.OPENAI to "ChatGPT (OpenAI API)",
-            com.abu00salman.novadrive.data.ai.AiProvider.ANTHROPIC to "Claude (Anthropic API)"),
+        listOf(com.abu00salman.novadrive.data.ai.AiProvider.LOCAL to tr("Google / local voice", "Google / الصوت المحلي"),
+            com.abu00salman.novadrive.data.ai.AiProvider.OPENAI to "ChatGPT",
+            com.abu00salman.novadrive.data.ai.AiProvider.ANTHROPIC to "Claude"),
         cfg.provider,
     ) { v -> c.ai.update { it.copy(provider = v) } }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        when (cfg.provider) {
+            com.abu00salman.novadrive.data.ai.AiProvider.LOCAL -> tr("Google is used here to turn speech into text, and Nova's local commands run it. It is not a chat assistant: open questions need ChatGPT or Claude.",
+                "يُستخدم Google هنا لتحويل الكلام إلى نص، وتنفّذه أوامر نوفا المحلية. ليس وكيل محادثة: الأسئلة العامة تحتاج ChatGPT أو Claude.")
+            com.abu00salman.novadrive.data.ai.AiProvider.OPENAI -> tr("ChatGPT (OpenAI API) answers questions; car commands still run locally.", "ChatGPT (OpenAI API) يجيب على الأسئلة، وأوامر السيارة تبقى محلية.")
+            com.abu00salman.novadrive.data.ai.AiProvider.ANTHROPIC -> tr("Claude (Anthropic API) answers questions; car commands still run locally.", "Claude (Anthropic API) يجيب على الأسئلة، وأوامر السيارة تبقى محلية.")
+        }, style = NovaType.small, color = p.textDim,
+    )
     if (cfg.provider != com.abu00salman.novadrive.data.ai.AiProvider.LOCAL) {
         val openAi = cfg.provider == com.abu00salman.novadrive.data.ai.AiProvider.OPENAI
         Gap()
@@ -840,11 +849,170 @@ private fun AiEngineSettings(c: AppContainer) {
             cfg.shareLocation) { v -> c.ai.update { it.copy(shareLocation = v) } }
         Gap()
         Text(
-            tr("Keys are stored encrypted on this unit only (Android Keystore) and are not part of the APK. Or point to your own backend proxy that holds the key. API usage is billed by OpenAI/Anthropic separately from ChatGPT Plus or Claude Pro subscriptions.",
-                "يُحفظ المفتاح مشفّرًا على هذا الجهاز فقط (Android Keystore) وليس داخل ملف APK، أو استخدم خادمًا وسيطًا خاصًا بك يحفظ المفتاح. استخدام الـ API يُحاسَب لدى OpenAI أو Anthropic بشكل منفصل عن اشتراكات ChatGPT Plus أو Claude Pro."),
+            tr("Keys are stored encrypted on this unit only (Android Keystore), never logged, never backed up and not part of the APK. Or point to your own backend proxy that holds the key. API usage is billed by OpenAI/Anthropic separately from ChatGPT Plus or Claude Pro subscriptions.",
+                "يُحفظ المفتاح مشفّرًا على هذا الجهاز فقط (Android Keystore)، لا يُكتب في السجلات ولا يُنسخ احتياطيًا وليس داخل ملف APK، أو استخدم خادمًا وسيطًا خاصًا بك يحفظ المفتاح. استخدام الـ API يُحاسَب لدى OpenAI أو Anthropic بشكل منفصل عن اشتراكات ChatGPT Plus أو Claude Pro."),
             style = NovaType.small, color = p.textDim,
         )
     }
+}
+
+/** A diagnostic/test result line (green ✓ / red ✗). */
+@Composable
+private fun ResultLine(r: com.abu00salman.novadrive.data.voice.DiagResult?) {
+    val p = LocalNova.current
+    if (r == null) return
+    Spacer(Modifier.height(4.dp))
+    Text((if (r.ok) "✓ " else "✗ ") + r.detail, style = NovaType.label, color = if (r.ok) p.ok else p.danger)
+}
+
+@Composable
+private fun StatusLine(ok: Boolean, text: String) {
+    val p = LocalNova.current
+    Text((if (ok) "● " else "○ ") + text, style = NovaType.label, color = if (ok) p.ok else p.warn)
+}
+
+/** Nova AI › recognition, voice output, conversation, connection and diagnostics. */
+@Composable
+private fun NovaVoiceSettings(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    val cfg by c.ai.config.collectAsStateWithLifecycle()
+    val tts by c.speaker.status.collectAsStateWithLifecycle()
+    val net by c.network.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val diag = remember { com.abu00salman.novadrive.data.voice.NovaDiagnostics(c) }
+    var running by remember { mutableStateOf<String?>(null) }
+    var micR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    var recR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    var ttsR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    var apiR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    var convR by remember { mutableStateOf<List<String>>(emptyList()) }
+    var convDone by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    val micPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { c.refreshPermissions() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { c.speaker.warmUp() }
+    fun run(tag: String, block: suspend () -> Unit) {
+        if (running != null) return
+        running = tag
+        scope.launch { try { block() } finally { running = null } }
+    }
+    val speech = c.assistant.speech
+    val online = c.assistant.online()
+
+    // ── Voice recognition
+    Header(tr("Voice recognition", "التعرف الصوتي"), tr("Speech is turned into text by the unit's recognizer (Google on most units), then routed to a local command or the AI.",
+        "يُحوَّل الكلام إلى نص بخدمة التعرف في الجهاز (Google في أغلب الأجهزة)، ثم يُوجَّه لأمر محلي أو للذكاء الاصطناعي."))
+    Choice(listOf(true to tr("Inside NovaDrive", "داخل NovaDrive"), false to tr("Google window", "نافذة Google")), cfg.inAppSpeech) { v -> c.ai.update { it.copy(inAppSpeech = v) } }
+    Gap()
+    Toggle(tr("Prefer on-device recognition", "تفضيل التعرف على الجهاز (دون إنترنت)"),
+        tr("Always tried automatically when there's no internet. Works only if the unit has offline speech for the language.",
+            "يُجرَّب تلقائيًا دائمًا عند انقطاع الإنترنت. يعمل فقط إذا كان الجهاز يملك التعرف دون إنترنت لهذه اللغة."),
+        cfg.preferOfflineSpeech) { v -> c.ai.update { it.copy(preferOfflineSpeech = v) } }
+    Gap()
+    StatusLine(speech.available(), if (speech.available()) tr("Speech recognizer installed", "خدمة التعرف الصوتي مثبتة") else tr("No speech recognizer — install the Google app", "لا توجد خدمة تعرف صوتي — ثبّت تطبيق Google"))
+    StatusLine(speech.onDeviceAvailable(), if (speech.onDeviceAvailable()) tr("On-device recognition available", "التعرف دون إنترنت متاح") else tr("On-device recognition not reported by this unit", "الجهاز لا يوفّر تعرفًا دون إنترنت"))
+    StatusLine(speech.hasMicPermission(), if (speech.hasMicPermission()) tr("Microphone allowed", "الميكروفون مسموح") else tr("Microphone not allowed yet", "الميكروفون غير مسموح بعد"))
+    if (!speech.hasMicPermission()) {
+        Spacer(Modifier.height(6.dp))
+        Pill(tr("Allow microphone", "السماح بالميكروفون"), p.accent) { micPerm.launch(Manifest.permission.RECORD_AUDIO) }
+    }
+    Gap()
+
+    // ── Voice output
+    Header(tr("Voice output", "النطق الصوتي"), tr("Replies are spoken by the unit's own text-to-speech (no paid voice service).", "تُنطق الردود بمحرك النطق في الجهاز نفسه (دون خدمة صوت مدفوعة)."))
+    Toggle(tr("Answer out loud", "الرد بالصوت"), null, s.voiceReply) { v -> c.settings.update { it.copy(voiceReply = v) } }
+    Gap()
+    Choice(listOf(com.abu00salman.novadrive.data.VoiceLang.AUTO to tr("Automatic", "تلقائي"),
+        com.abu00salman.novadrive.data.VoiceLang.ARABIC to "العربية", com.abu00salman.novadrive.data.VoiceLang.ENGLISH to "English"), cfg.voice.lang) { v ->
+        c.ai.update { it.copy(voice = it.voice.copy(lang = v)) }
+    }
+    Gap()
+    Text(tr("Voice", "الصوت"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { Pill(tr("Best installed", "أفضل صوت مثبت"), if (cfg.voice.voiceName.isBlank()) p.accent else p.textDim) { c.ai.update { it.copy(voice = it.voice.copy(voiceName = "")) } } }
+        items(tts.voices.size) { i ->
+            val (name, label) = tts.voices[i]
+            Pill(label, if (cfg.voice.voiceName == name) p.accent else p.textDim) { c.ai.update { it.copy(voice = it.voice.copy(voiceName = name)) } }
+        }
+    }
+    Gap()
+    Text(tr("Speed", "سرعة النطق") + " · ${"%.1f".format(cfg.voice.rate)}×", style = NovaType.label, color = p.textDim)
+    androidx.compose.material3.Slider(cfg.voice.rate, { v -> c.ai.update { it.copy(voice = it.voice.copy(rate = (v * 10).toInt() / 10f)) } }, valueRange = 0.6f..1.6f)
+    Text(tr("Voice volume", "مستوى صوت النطق") + " · ${(cfg.voice.volume * 100).toInt()}%", style = NovaType.label, color = p.textDim)
+    androidx.compose.material3.Slider(cfg.voice.volume, { v -> c.ai.update { it.copy(voice = it.voice.copy(volume = v)) } }, valueRange = 0.2f..1f)
+    Text(tr("Audio channel", "قناة الصوت"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(listOf(com.abu00salman.novadrive.data.VoiceChannel.MEDIA to tr("Media (recommended)", "الوسائط (موصى به)"),
+        com.abu00salman.novadrive.data.VoiceChannel.NAVIGATION to tr("Navigation", "الملاحة")), cfg.voice.channel) { v ->
+        c.ai.update { it.copy(voice = it.voice.copy(channel = v)) }
+    }
+    Gap()
+    StatusLine(tts.ready && !tts.failed, when {
+        tts.failed -> tr("Text-to-speech engine failed to start", "تعذّر تشغيل محرك النطق")
+        !tts.ready -> tr("Text-to-speech starting…", "محرك النطق يبدأ…")
+        else -> (tts.engine ?: "TTS") + if (tts.arabic) tr(" · Arabic voice installed", " · الصوت العربي مثبت") else tr(" · no Arabic voice", " · لا يوجد صوت عربي")
+    })
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Pill(if (running == "tts") tr("Speaking…", "ينطق…") else tr("Test voice", "اختبار الصوت"), p.accent) { run("tts") { ttsR = diag.tts() } }
+        Pill(tr("Voice settings", "إعدادات النطق"), p.textDim) { c.speaker.openSettings() }
+    }
+    ResultLine(ttsR)
+    Gap()
+
+    // ── Conversation
+    Header(tr("Conversation", "المحادثة"), null)
+    Toggle(tr("Keep context", "الاحتفاظ بالسياق"), tr("Follow-up questions understand what was said before (last 6 exchanges).", "أسئلة المتابعة تفهم ما قيل قبلها (آخر 6 تبادلات)."), cfg.keepContext) { v -> c.ai.update { it.copy(keepContext = v) } }
+    Gap()
+    Toggle(tr("Continue the conversation", "متابعة المحادثة"), tr("After a reply is spoken, Nova listens again for your next question.", "بعد نطق الرد يستمع نوفا مجددًا لسؤالك التالي."), cfg.followUp) { v -> c.ai.update { it.copy(followUp = v) } }
+    Spacer(Modifier.height(6.dp))
+    Text(tr("Interrupt a reply any time by pressing the microphone or Stop.", "يمكنك مقاطعة الرد في أي وقت بالضغط على الميكروفون أو «إيقاف»."), style = NovaType.small, color = p.textDim)
+    Gap()
+    Text(tr("Listening time", "مدة الاستماع"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(listOf(8 to "8s", 12 to "12s", 20 to "20s"), cfg.listenTimeoutSec) { v -> c.ai.update { it.copy(listenTimeoutSec = v) } }
+    Gap()
+    Text(tr("Answer timeout", "مهلة الرد"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(listOf(20 to "20s", 30 to "30s", 60 to "60s"), cfg.replyTimeoutSec) { v -> c.ai.update { it.copy(replyTimeoutSec = v) } }
+    Gap()
+    Pill(tr("Clear conversation", "مسح المحادثة"), p.danger) { c.assistant.clearConversation(); com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تم مسح المحادثة" else "Conversation cleared") }
+    Gap()
+
+    // ── Connection
+    Header(tr("Connection", "الاتصال"), null)
+    StatusLine(online, if (online) tr("Internet connected", "الإنترنت متصل") + (if (net.wifi == com.abu00salman.novadrive.data.Link.CONNECTED) " · Wi-Fi" else if (net.cellular) " · 4G" else "")
+        else tr("No internet — offline mode: local commands only", "لا يوجد إنترنت — وضع عدم الاتصال: الأوامر المحلية فقط"))
+    StatusLine(cfg.hasOpenAiKey, "OpenAI API · " + if (cfg.hasOpenAiKey) tr("key saved (not tested)", "المفتاح محفوظ (لم يُختبر)") else tr("no key", "لا يوجد مفتاح"))
+    StatusLine(cfg.hasClaudeKey, "Anthropic API · " + if (cfg.hasClaudeKey) tr("key saved (not tested)", "المفتاح محفوظ (لم يُختبر)") else tr("no key", "لا يوجد مفتاح"))
+    Spacer(Modifier.height(6.dp))
+    Pill(if (running == "api") tr("Testing…", "جارٍ الاختبار…") else tr("Test connection", "اختبار الاتصال"), p.accent) { run("api") { apiR = diag.api() } }
+    ResultLine(apiR)
+    Gap()
+
+    // ── Diagnostics
+    Header(tr("Diagnostics", "التشخيص"), tr("Each test does the real thing and reports what actually happened.", "كل اختبار ينفّذ العملية فعليًا ويعرض النتيجة الحقيقية."))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Pill(if (running == "mic") tr("Speak now…", "تكلّم الآن…") else tr("Test microphone & recognition", "اختبار الميكروفون والتعرف"), p.accent) {
+            run("mic") { val (m, r) = diag.speech(); micR = m; recR = r }
+        }
+        Pill(tr("Test API", "اختبار API"), p.accent) { run("api") { apiR = diag.api() } }
+        Pill(tr("Test speech", "اختبار النطق"), p.accent) { run("tts") { ttsR = diag.tts() } }
+    }
+    ResultLine(micR)
+    ResultLine(recR)
+    Gap()
+    Pill(if (running == "conv") tr("Running 5 conversations…", "تجري 5 محادثات…") else tr("Test 5 conversations in a row", "اختبار خمس محادثات متتابعة"), p.accent2) {
+        run("conv") {
+            convR = emptyList(); convDone = null
+            convDone = diag.conversation { i, r -> convR = convR + ((if (r.ok) "✓ " else "✗ ") + "$i · " + r.detail) }
+        }
+    }
+    Spacer(Modifier.height(4.dp))
+    Text(tr("Uses 5 small API requests with the selected provider.", "يستخدم 5 طلبات API صغيرة مع الوكيل المختار."), style = NovaType.small, color = p.textDim)
+    convR.forEach { Text(it, style = NovaType.small, color = if (it.startsWith("✓")) p.ok else p.danger, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+    ResultLine(convDone)
 }
 
 /** Masked API-key entry; the saved key is never shown again. */
@@ -878,27 +1046,17 @@ private fun VoiceSection(c: AppContainer, s: NovaSettings) {
     var phrase by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     Column {
-        Header("Nova AI", tr("Tap Nova AI in the side bar (or the microphone) and speak. Car commands run locally and instantly; open questions go to the AI you choose below.",
-            "اضغط Nova AI في القائمة الجانبية (أو الميكروفون) وتكلّم. أوامر السيارة تُنفّذ محليًا وفورًا، والأسئلة العامة تذهب للذكاء الاصطناعي الذي تختاره بالأسفل."))
+        Header("Nova AI", tr("Tap Nova AI in the side bar (or the microphone) and speak. Car commands run locally and instantly — even offline; open questions go to the AI you choose below.",
+            "اضغط Nova AI في القائمة الجانبية (أو الميكروفون) وتكلّم. أوامر السيارة تُنفّذ محليًا وفورًا — حتى دون إنترنت، والأسئلة العامة تذهب للوكيل الذي تختاره بالأسفل."))
         AiEngineSettings(c)
+        Gap()
+        NovaVoiceSettings(c, s)
         Gap()
         Text(tr("Try:", "جرّب:"), style = NovaType.label, color = p.textDim)
         Spacer(Modifier.height(6.dp))
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val ex = if (ar) com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_AR else com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_EN
             items(ex.size) { i -> Pill("«${ex[i]}»", p.accent) }
-        }
-        Gap()
-        Toggle(tr("Answer out loud", "الرد بالصوت"),
-            tr("Uses the unit's text-to-speech. Install the Arabic voice from voice settings if replies sound English.",
-                "يستخدم محرك النطق في الجهاز. إذا كان الرد بلكنة إنجليزية ثبّت الصوت العربي من إعدادات النطق."),
-            s.voiceReply) { v -> c.settings.update { it.copy(voiceReply = v) } }
-        Gap()
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Pill(tr("Test voice", "تجربة الصوت"), p.accent) {
-                c.speaker.speak(if (ar) "مرحباً، أنا نوفا. جاهز لأوامرك." else "Hi, I'm Nova. Ready when you are.", ar)
-            }
-            Pill(tr("Voice settings", "إعدادات النطق"), p.textDim) { c.speaker.openSettings() }
         }
         Gap()
         Header(tr("My commands", "أوامري الخاصة"), tr("When you say the phrase, the chosen app opens.", "عندما تقول العبارة يُفتح التطبيق الذي اخترته."))

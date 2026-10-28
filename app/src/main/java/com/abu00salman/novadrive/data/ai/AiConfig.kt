@@ -27,6 +27,18 @@ data class AiConfig(
     val hasClaudeKey: Boolean = false,
     /** The assistant may tell the AI service the current city/coordinates. Off by default. */
     val shareLocation: Boolean = false,
+    /** Speech output: language, voice, rate, volume and audio channel. */
+    val voice: com.abu00salman.novadrive.data.VoicePrefs = com.abu00salman.novadrive.data.VoicePrefs(),
+    /** Recognise speech in the app (true) or in the system's Google window (false). */
+    val inAppSpeech: Boolean = true,
+    /** Ask the recognizer to work on the device when it can (always done when there's no internet). */
+    val preferOfflineSpeech: Boolean = false,
+    /** Keep the last questions/answers so follow-up questions make sense. */
+    val keepContext: Boolean = true,
+    /** Listen again automatically after a reply has been spoken. */
+    val followUp: Boolean = false,
+    val listenTimeoutSec: Int = 12,
+    val replyTimeoutSec: Int = 30,
 ) {
     companion object {
         const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
@@ -51,13 +63,32 @@ class AiConfigRepository(ctx: Context) {
         hasOpenAiKey = prefs.contains("openai_key"),
         hasClaudeKey = prefs.contains("claude_key"),
         shareLocation = prefs.getBoolean("share_location", false),
+        voice = com.abu00salman.novadrive.data.VoicePrefs(
+            lang = runCatching { com.abu00salman.novadrive.data.VoiceLang.valueOf(prefs.getString("voice_lang", null) ?: "AUTO") }.getOrDefault(com.abu00salman.novadrive.data.VoiceLang.AUTO),
+            voiceName = prefs.getString("voice_name", "") ?: "",
+            rate = prefs.getFloat("voice_rate", 1f),
+            volume = prefs.getFloat("voice_volume", 1f),
+            channel = runCatching { com.abu00salman.novadrive.data.VoiceChannel.valueOf(prefs.getString("voice_channel", null) ?: "MEDIA") }.getOrDefault(com.abu00salman.novadrive.data.VoiceChannel.MEDIA),
+        ),
+        inAppSpeech = prefs.getBoolean("in_app_speech", true),
+        preferOfflineSpeech = prefs.getBoolean("prefer_offline_speech", false),
+        keepContext = prefs.getBoolean("keep_context", true),
+        followUp = prefs.getBoolean("follow_up", false),
+        listenTimeoutSec = prefs.getInt("listen_timeout", 12),
+        replyTimeoutSec = prefs.getInt("reply_timeout", 30),
     )
 
     fun update(block: (AiConfig) -> AiConfig) {
         val n = block(_config.value)
         prefs.edit().putString("provider", n.provider.name).putString("openai_model", n.openAiModel)
             .putString("claude_model", n.claudeModel).putString("proxy", n.proxyUrl.trim())
-            .putBoolean("share_location", n.shareLocation).apply()
+            .putBoolean("share_location", n.shareLocation)
+            .putString("voice_lang", n.voice.lang.name).putString("voice_name", n.voice.voiceName)
+            .putFloat("voice_rate", n.voice.rate).putFloat("voice_volume", n.voice.volume).putString("voice_channel", n.voice.channel.name)
+            .putBoolean("in_app_speech", n.inAppSpeech).putBoolean("prefer_offline_speech", n.preferOfflineSpeech)
+            .putBoolean("keep_context", n.keepContext).putBoolean("follow_up", n.followUp)
+            .putInt("listen_timeout", n.listenTimeoutSec.coerceIn(5, 30)).putInt("reply_timeout", n.replyTimeoutSec.coerceIn(10, 90))
+            .apply()
         _config.value = read()
     }
 

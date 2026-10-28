@@ -265,9 +265,13 @@ fun NovaRoot(onVoice: () -> Unit) {
                             SplitSheet(c, settings) { split = false }
                         }
                         val aiState by c.assistant.ui.collectAsStateWithLifecycle()
-                        com.abu00salman.novadrive.ui.ai.NovaAiPanel(
-                            aiState, onListen = onVoice, onStop = { c.assistant.interrupt() }, onClose = { c.assistant.close() },
-                        )
+                        val aiActions = remember {
+                            com.abu00salman.novadrive.ui.ai.NovaAiActions(
+                                onListen = onVoice, onStop = c.assistant::stop, onRetry = c.assistant::retry, onReplay = c.assistant::replay,
+                                onAsk = c.assistant::ask, onKeyboard = c.assistant::showKeyboard, onClose = c.assistant::close,
+                            )
+                        }
+                        com.abu00salman.novadrive.ui.ai.NovaAiPanel(aiState, aiActions)
                         if (c.safeMode && screen == Screen.HOME) Box(Modifier.fillMaxSize()) {
                             Pill(
                                 tr("Safe mode — tap for options", "الوضع الآمن — اضغط للخيارات"), p.danger,
