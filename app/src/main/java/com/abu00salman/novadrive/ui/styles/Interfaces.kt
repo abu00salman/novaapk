@@ -151,13 +151,7 @@ private fun ClassicLayout(ui: HomeUi, act: HomeActions) {
                         }
                     }
                 }
-                SCard(Modifier.weight(0.8f).fillMaxWidth(), onClick = act.onPhone, fill = Color(0xFF16A34A)) {
-                    Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Phone, null, tint = Color.White, modifier = Modifier.size(54.dp))
-                        Spacer(Modifier.width(14.dp))
-                        UiDirection { Text(tr("Phone", "الهاتف"), style = st(30.sp, FontWeight.Bold, Color.White)) }
-                    }
-                }
+                BigShortcut(ui, act, Modifier.weight(0.8f).fillMaxWidth())
             }
         }
         AppStrip(ui, act, Modifier.fillMaxWidth().height(156.dp), icon = 84.dp, label = 20.sp, tile = true, spacing = 12.dp)

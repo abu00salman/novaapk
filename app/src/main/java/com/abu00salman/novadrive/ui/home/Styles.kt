@@ -295,7 +295,7 @@ private fun TeslaCarPanel(ui: HomeUi, act: HomeActions, modifier: Modifier) {
                     Row(Modifier.fillMaxSize()) {
                         TeslaAction(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), Modifier.weight(1f), act.onVehicle)
                         Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 18.dp).background(TLine))
-                        TeslaAction(Icons.Rounded.VerticalSplit, tr("Half screen", "نصف الشاشة"), Modifier.weight(1f), act.onNavBeside)
+                        TeslaAction(Icons.Rounded.VerticalSplit, tr("Split", "تقسيم"), Modifier.weight(1f), act.onNavBeside)
                     }
                 }
             }
@@ -355,12 +355,87 @@ private fun TStatus(icon: ImageVector, tint: Color, onClick: () -> Unit) {
     }
 }
 
+/** The dock with YouTube right after Music (Tesla bar), unless the user already placed it. */
+private fun teslaDock(ui: HomeUi): List<DockSlot> {
+    val yt = ui.youtube ?: return ui.dock
+    if (ui.driving || ui.dock.any { it.id == "youtube" || it.app?.packageName == yt.app?.packageName }) return ui.dock
+    val at = ui.dock.indexOfFirst { it.id == "music" }
+    return if (at < 0) ui.dock + yt else ui.dock.toMutableList().apply { add(at + 1, yt) }
+}
+
 @Composable
 private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
-    val (zoom, setZoom) = MapZoomState()
-    var headingUp by rememberSaveable { mutableStateOf(true) }
+    var video by rememberSaveable { mutableStateOf(false) }
     val shape = RoundedCornerShape(18.dp)
     Box(modifier.clip(shape).border(1.dp, TLine, shape)) {
+        if (video && ui.youtube != null) TeslaVideoPanel(ui, act, Modifier.fillMaxSize())
+        else TeslaMapLayer(ui, act)
+        // Maps | YouTube switch (the trip keeps running while YouTube is shown).
+        if (ui.youtube != null) Row(
+            Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 22.dp).clip(RoundedCornerShape(14.dp)).background(TCard)
+                .border(1.dp, TLine, RoundedCornerShape(14.dp)),
+        ) {
+            TSegment(tr("Maps", "الخرائط"), !video) { video = false }
+            TSegment("YouTube", video) { video = true }
+        }
+    }
+}
+
+@Composable
+private fun TSegment(label: String, active: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(if (active) TText else Color.Transparent)
+            .clickable(onClick = onClick).padding(horizontal = 18.dp),
+        contentAlignment = Alignment.Center,
+    ) { UiDirection { Text(label, style = NovaType.label.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = if (active) Color.White else TText, maxLines = 1) } }
+}
+
+/**
+ * YouTube in the large card. Android offers no supported way to embed another app's screen inside
+ * a launcher, so this uses the official routes: YouTube beside NovaDrive in split screen (Android
+ * multi-window) or full screen. Video is unavailable while driving.
+ */
+@Composable
+private fun TeslaVideoPanel(ui: HomeUi, act: HomeActions, modifier: Modifier) {
+    val yt = ui.youtube ?: return
+    Column(modifier.background(Color(0xFFF7F7F8)).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        com.abu00salman.novadrive.ui.home.DockIcon(yt, 84.dp)
+        Spacer(Modifier.height(14.dp))
+        UiDirection {
+            if (ui.driving) {
+                Text(tr("Video is available when parked", "الفيديو متاح عند التوقف"), style = NovaType.title.copy(fontSize = 22.sp), color = TText)
+                Text(tr("Navigation keeps running.", "الملاحة مستمرة."), style = NovaType.label, color = TDim)
+            } else {
+                Text("YouTube", style = NovaType.title.copy(fontSize = 22.sp), color = TText)
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TCardBox(Modifier.height(58.dp), corner = 14.dp, onClick = act.onVideoBeside) {
+                        Row(Modifier.align(Alignment.Center).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.VerticalSplit, null, tint = TText, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(tr("Beside NovaDrive", "بجانب NovaDrive"), style = NovaType.label.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold), color = TText)
+                        }
+                    }
+                    TCardBox(Modifier.height(58.dp), corner = 14.dp, onClick = { act.onDock(yt) }) {
+                        Row(Modifier.align(Alignment.Center).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.OpenInNew, null, tint = TText, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(tr("Full screen", "ملء الشاشة"), style = NovaType.label.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold), color = TText)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(tr("Navigation keeps running in the background.", "الملاحة تستمر في الخلفية."), style = NovaType.small, color = TDim)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.TeslaMapLayer(ui: HomeUi, act: HomeActions) {
+    val (zoom, setZoom) = MapZoomState()
+    var headingUp by rememberSaveable { mutableStateOf(true) }
+    run {
         TileMap(
             ui.lat, ui.lon, ui.bearing, MapTiles.Style.LIGHT, MapMarker.TESLA, headingUp, zoom, setZoom,
             onTap = act.onNavDetails,
@@ -410,7 +485,7 @@ private fun TeslaMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             corner = 18.dp,
         ) {
             Column(Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                TMapButton(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), act.onOpenNav)
+                TMapButton(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), act.onNavDetails)
                 TMapButton(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), act.onMusicDetails)
                 TMapButton(Icons.Rounded.Phone, tr("Phone", "الهاتف"), act.onPhone)
                 TMapButton(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), act.onApps)
@@ -560,7 +635,7 @@ private fun TeslaBottomBar(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             TStatus(Icons.Rounded.Mic, TText, act.onVoice)
             Spacer(Modifier.width(14.dp))
             Row(Modifier.weight(1f).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-                ui.dock.forEach { s ->
+                teslaDock(ui).forEach { s ->
                     Column(
                         Modifier.weight(1f).fillMaxHeight().press({ act.onDock(s) }, { act.onDockLong(s) }),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,

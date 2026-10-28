@@ -100,8 +100,13 @@ fun dockSlots(c: AppContainer, s: NovaSettings, sc: Shortcuts, apps: List<AppEnt
                 builtIn = id == "phone" || id == "apps",
             )
         }
+            // A shortcut whose app is missing only stays when it can actually be installed (Play Store present).
+            .filter { it.app != null || it.builtIn || (it.storePackage != null && hasStore(c)) }
     }
 }
+
+private fun hasStore(c: AppContainer): Boolean =
+    runCatching { c.appContext.packageManager.getPackageInfo("com.android.vending", 0); true }.getOrDefault(false)
 
 /** Collects live state for the home screen. Flows are only observed while home is visible. */
 @Composable
@@ -130,6 +135,10 @@ fun HomeScreen(
     val hasLocation = remember(perms) { c.location.hasPermission() }
     val access = remember(perms) { MediaRepository.hasAccess(ctx) }
     val dock = dockSlots(c, settings, sc, apps, driving)
+    val youtubeApp = remember(apps) { c.apps.byPackage(YOUTUBE_PKG) }
+    val youtube = youtubeApp?.let { DockSlot("youtube", "YouTube", it, Icons.Rounded.OndemandVideo, storePackage = YOUTUBE_PKG) }
+    val bigPkg = (styleOptsFor(c, settings.uiStyle)).bigApp
+    val bigApp = remember(apps, bigPkg) { bigPkg?.let { c.apps.byPackage(it) } }
     val fullScreenStyle = settings.uiStyle == "tesla" || settings.uiStyle == "bmw"
     val bt by c.bluetooth.collectAsStateWithLifecycle()
     val net by c.network.collectAsStateWithLifecycle()
@@ -171,6 +180,10 @@ fun HomeScreen(
         gps = gps,
         carPlayConnected = iPhone,
         railRight = settings.railRight,
+        youtube = youtube,
+        driving = driving,
+        bigApp = bigApp,
+        bigAppMissing = bigPkg != null && bigApp == null,
         routePoints = trip?.route?.points,
         routeProgress = trip?.progressIndex ?: 0,
         destination = trip?.destination?.point,
@@ -179,4 +192,10 @@ fun HomeScreen(
         video = if (driving) null else c.apps.byPackage(YOUTUBE_PKG),
     )
     HomeLayout(ui, mode, autoPromoted, remember(ui) { actions(ui) })
+}
+
+@Composable
+private fun styleOptsFor(c: AppContainer, style: String): com.abu00salman.novadrive.core.StyleOptions {
+    val all by c.styleOptions.all.collectAsStateWithLifecycle()
+    return all[style] ?: com.abu00salman.novadrive.core.StyleOptions()
 }

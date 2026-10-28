@@ -61,6 +61,10 @@ data class StyleOptions(
     val font: Int = 0,
     /** Changes whenever a new wallpaper photo is chosen. */
     val wallpaperVersion: Long = 0,
+    /** Package opened by the interface's big shortcut (Classic/Ford); null = the phone. */
+    val bigApp: String? = null,
+    /** 0 = normal, 1 = large icon on the big shortcut. */
+    val bigSize: Int = 0,
 ) {
     companion object {
         const val WALLPAPER_PRESETS = 4
@@ -86,6 +90,7 @@ class StyleOptionsRepository(ctx: Context) {
     companion object {
         fun encode(o: StyleOptions) = listOf(
             when (o.dark) { true -> "1"; false -> "0"; null -> "" }, o.accent, o.wallpaper, o.font, o.wallpaperVersion,
+            o.bigApp.orEmpty(), o.bigSize,
         ).joinToString("|")
 
         fun decode(s: String?): StyleOptions {
@@ -97,6 +102,8 @@ class StyleOptionsRepository(ctx: Context) {
                 wallpaper = p.getOrNull(2)?.toIntOrNull() ?: 0,
                 font = p.getOrNull(3)?.toIntOrNull() ?: 0,
                 wallpaperVersion = p.getOrNull(4)?.toLongOrNull() ?: 0,
+                bigApp = p.getOrNull(5)?.takeIf { it.isNotBlank() },
+                bigSize = p.getOrNull(6)?.toIntOrNull() ?: 0,
             )
         }
     }

@@ -581,3 +581,39 @@ fun RowScope.QuickButtons(act: HomeActions, size: Dp = 48.dp) {
     Spacer(Modifier.width(8.dp))
     SRound(Icons.Rounded.Tune, tr("Quick controls", "التحكم السريع"), size, onClick = act.onQuick)
 }
+
+// ============================================================================ big shortcut
+
+/**
+ * The interface's big shortcut: the phone by default, or any installed app the user picked
+ * (long-press or Settings). Independent of the dock's Phone button.
+ */
+@Composable
+fun BigShortcut(ui: HomeUi, act: HomeActions, modifier: Modifier, icon: Dp = 54.dp, label: TextUnit = 30.sp, phoneFill: Color = Color(0xFF16A34A)) {
+    val k = LocalSkin.current
+    val app = ui.bigApp
+    val size = if (ui.styleOptions.bigSize == 1) icon * 1.35f else icon
+    when {
+        app != null -> SCard(modifier, onClick = act.onBig, onLongClick = act.onBigLong) {
+            Row(Modifier.align(Alignment.Center).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Image(app.icon, null, Modifier.size(size))
+                Spacer(Modifier.width(14.dp))
+                UiDirection { Text(app.label, style = st(label, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+        }
+        ui.bigAppMissing -> SCard(modifier, onClick = act.onBigLong, onLongClick = act.onBigLong) {
+            UiDirection {
+                Text(tr("The chosen app isn't installed — tap to choose another", "التطبيق المختار غير مثبت — اضغط لاختيار آخر"),
+                    style = st(label * 0.6f, FontWeight.SemiBold, k.dim), textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center).padding(12.dp))
+            }
+        }
+        else -> SCard(modifier, onClick = act.onBig, onLongClick = act.onBigLong, fill = phoneFill) {
+            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Phone, null, tint = Color.White, modifier = Modifier.size(size))
+                Spacer(Modifier.width(14.dp))
+                UiDirection { Text(tr("Phone", "الهاتف"), style = st(label, FontWeight.Bold, Color.White)) }
+            }
+        }
+    }
+}

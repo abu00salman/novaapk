@@ -320,6 +320,35 @@ private fun StyleCustomizer(c: AppContainer, style: com.abu00salman.novadrive.co
                 picker.launch(arrayOf("image/png", "image/webp", "image/jpeg", "image/*"))
             }
         }
+        if (style.id == "classic" || style.id == "ford") {
+            Gap()
+            val apps by c.apps.apps.collectAsStateWithLifecycle()
+            var picking by remember { mutableStateOf(false) }
+            val chosen = o.bigApp?.let { pkg -> apps.firstOrNull { it.packageName == pkg } }
+            Text(tr("Big shortcut", "الاختصار الكبير"), style = NovaType.label, color = p.textDim)
+            Text(
+                when {
+                    o.bigApp == null -> tr("Phone (default)", "الهاتف (افتراضي)")
+                    chosen == null -> tr("Chosen app isn't installed", "التطبيق المختار غير مثبت")
+                    else -> chosen.label
+                } + tr(" — separate from the Phone button in the bar", " — مستقل عن زر الهاتف في الشريط"),
+                style = NovaType.body, color = p.text,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Pill(tr("Choose app", "اختيار تطبيق"), p.accent) { picking = true }
+                if (o.bigApp != null) Pill(tr("Restore phone", "استعادة الهاتف"), p.textDim) { set { it.copy(bigApp = null) } }
+                Pill(if (o.bigSize == 1) tr("Large icon ✓", "أيقونة كبيرة ✓") else tr("Large icon", "أيقونة كبيرة"), if (o.bigSize == 1) p.accent else p.textDim) {
+                    set { it.copy(bigSize = if (it.bigSize == 1) 0 else 1) }
+                }
+            }
+            if (picking) com.abu00salman.novadrive.ui.components.AppPickerDialog(
+                tr("Customise shortcut", "تخصيص الاختصار"), apps, allowNone = true,
+                onPick = { a -> set { it.copy(bigApp = a?.packageName) }; picking = false },
+                onDismiss = { picking = false },
+                noneLabel = tr("Restore the default phone", "استعادة الهاتف الافتراضي"),
+            )
+        }
         Gap()
         Text(tr("Font", "الخط"), style = NovaType.label, color = p.textDim)
         Spacer(Modifier.height(6.dp))

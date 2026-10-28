@@ -304,6 +304,7 @@ private fun Routes(
     when (s) {
         Screen.HOME -> {
           var dockPick by remember { mutableStateOf<String?>(null) }
+          var bigPick by remember { mutableStateOf(false) }
           HomeScreen(c, settings, driving, mode, autoPromoted) { ui ->
             HomeActions(
                 onDockLong = { slot ->
@@ -346,6 +347,18 @@ private fun Routes(
                 volume = { c.controls.volume() },
                 onVolume = { c.controls.setVolume(it) },
                 brightness = { c.controls.brightness() },
+                onBig = {
+                    val app = ui.bigApp
+                    when {
+                        app != null -> a.launch(app)
+                        ui.bigAppMissing -> bigPick = true
+                        else -> a.phone()
+                    }
+                },
+                onBigLong = {
+                    if (lockEdits) toast(ctx, if (settings.arabic) "تخصيص الاختصار متاح عند التوقف" else "Available when parked")
+                    else bigPick = true
+                },
                 onBrightness = { level ->
                     // Ask once to dim over every app; NovaDrive itself dims immediately either way.
                     if (!c.controls.dimmer.canOverlay() && !askedWriteSettings) {
@@ -357,6 +370,12 @@ private fun Routes(
                 },
             )
           }
+          if (bigPick) AppPickerDialog(
+              if (settings.arabic) "تخصيص الاختصار" else "Customise shortcut", apps, allowNone = true,
+              onPick = { app -> c.styleOptions.update(settings.uiStyle) { it.copy(bigApp = app?.packageName) }; bigPick = false },
+              onDismiss = { bigPick = false },
+              noneLabel = if (settings.arabic) "استعادة الهاتف الافتراضي" else "Restore the default phone",
+          )
           dockPick?.let { id ->
               AppPickerDialog(
                   if (settings.arabic) "اختر تطبيقاً لهذا الزر" else "Choose an app for this button", apps, allowNone = false,
