@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -116,7 +117,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
         Modifier.fillMaxSize().background(p.bgBottom.copy(alpha = 0.97f))
             .clickable(remember { MutableInteractionSource() }, null) { }
             // Only Settings makes room for the keyboard; the rest of NovaDrive keeps its size.
-            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.ime)
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.Companion.ime)
     ) {
         Row(Modifier.fillMaxSize().padding(20.dp)) {
             // Navigation column
