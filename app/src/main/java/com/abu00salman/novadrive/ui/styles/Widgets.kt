@@ -304,11 +304,11 @@ private fun Reading(icon: ImageVector, title: String, value: String?, unit: Stri
 
 /** GPS speed on a 0–220 km/h arc. */
 @Composable
-private fun SpeedWidget(ui: HomeUi, act: HomeActions, size: WidgetSize) {
+private fun SpeedWidget(ui: HomeUi, act: HomeActions, widget: WidgetSize) {
     val k = LocalSkin.current
     val speed = if (ui.hasLocation) ui.speedKmh ?: 0f else 0f
     val anim by animateFloatAsState(speed, tween(600), label = "speed")
-    if (size == WidgetSize.SMALL || size == WidgetSize.WIDE) {
+    if (widget == WidgetSize.SMALL || widget == WidgetSize.WIDE) {
         Box(Modifier.fillMaxSize().clickable(onClick = act.onVehicle), contentAlignment = Alignment.Center) { SpeedText(ui, 52.sp, act) }
         return
     }
