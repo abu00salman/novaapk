@@ -49,6 +49,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Map
@@ -236,8 +237,9 @@ private fun WidgetFrame(
             if (item.kind.sizes.size > 1) Handle(Icons.Rounded.OpenInFull, tr("Size", "الحجم"), k.accent, Modifier.align(Alignment.TopEnd), onResize)
             FixedLtr {
                 Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (!first) Handle(Icons.Rounded.ChevronLeft, tr("Earlier", "للأمام"), k.surfaceHi, Modifier, { onMove(-1) }, iconTint = k.text)
-                    if (!last) Handle(Icons.Rounded.ChevronRight, tr("Later", "للخلف"), k.surfaceHi, Modifier, { onMove(1) }, iconTint = k.text)
+                    // ExpandLess turned sideways: a plain arrow that never mirrors (the board flows left to right).
+                    if (!first) Handle(Icons.Rounded.ExpandLess, tr("Earlier", "للأمام"), k.surfaceHi, Modifier, { onMove(-1) }, iconTint = k.text, turn = -90f)
+                    if (!last) Handle(Icons.Rounded.ExpandLess, tr("Later", "للخلف"), k.surfaceHi, Modifier, { onMove(1) }, iconTint = k.text, turn = 90f)
                 }
             }
             UiDirection {
@@ -249,11 +251,11 @@ private fun WidgetFrame(
 }
 
 @Composable
-private fun Handle(icon: ImageVector, description: String, bg: Color, modifier: Modifier, onClick: () -> Unit, iconTint: Color = Color.White) {
+private fun Handle(icon: ImageVector, description: String, bg: Color, modifier: Modifier, onClick: () -> Unit, iconTint: Color = Color.White, turn: Float = 0f) {
     Box(
         modifier.padding(6.dp).size(40.dp).clip(CircleShape).background(bg).border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, description, tint = iconTint, modifier = Modifier.size(22.dp)) }
+    ) { Icon(icon, description, tint = iconTint, modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = turn }) }
 }
 
 @Composable

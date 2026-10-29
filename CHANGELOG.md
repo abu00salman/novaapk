@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0-beta2
+
+- «أمرني» is back on the voice button: Google's official speech recognition with local commands, or Google Assistant / Gemini; other questions open in the Google app. No API.
+- Nova AI moved to Settings › Experimental and is off by default.
+- BMW: day mode (night stays the default) and YouTube beside Music in its bottom apps.
+- New Widgets interface: 18 live gauges/readings, phone-style sizes and flow, edit mode (add, remove, resize, reorder), GPS trip computer, Hijri date, sunrise/sunset.
+
 ## 2.3.0-beta1 — Nova AI voice repair
 
 - Voice session state machine with numbered sessions, timeouts and cancellation: the microphone never stays stuck on "listening" or "speaking".
