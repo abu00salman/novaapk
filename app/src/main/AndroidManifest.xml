@@ -56,7 +56,7 @@
             android:clearTaskOnLaunch="true"
             android:resizeableActivity="true"
             android:screenOrientation="sensorLandscape"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustNothing"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|locale|layoutDirection"
             tools:ignore="DiscouragedApi,LockedOrientationActivity">
             <intent-filter>

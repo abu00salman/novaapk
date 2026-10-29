@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -114,6 +115,8 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
     Box(
         Modifier.fillMaxSize().background(p.bgBottom.copy(alpha = 0.97f))
             .clickable(remember { MutableInteractionSource() }, null) { }
+            // Only Settings makes room for the keyboard; the rest of NovaDrive keeps its size.
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.ime)
     ) {
         Row(Modifier.fillMaxSize().padding(20.dp)) {
             // Navigation column
@@ -774,8 +777,14 @@ private fun AboutSection(c: AppContainer) {
         RowItem(tr("Memory", "الذاكرة"), String.format(Locale.US, "%.1f GB RAM", c.controls.totalRamGb()))
         Gap()
         Spacer(Modifier.height(18.dp))
-        Text(tr("Developed by abu00salman", "تطوير abu00salman"), style = NovaType.title, color = p.text)
-        Text("github.com/abu00salman", style = NovaType.label, color = p.textDim)
+        Text(tr("Developed by iRaMzi", "تطوير iRaMzi"), style = NovaType.title, color = p.text)
+        Spacer(Modifier.height(6.dp))
+        Pill("X · @iRaMzi7", p.accent) {
+            runCatching {
+                ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://x.com/iRaMzi7"))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
     }
 }
 

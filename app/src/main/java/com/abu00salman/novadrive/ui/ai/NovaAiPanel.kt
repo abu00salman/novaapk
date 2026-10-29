@@ -98,7 +98,9 @@ fun NovaAiPanel(state: VoiceUi, actions: NovaAiActions, modifier: Modifier = Mod
     LaunchedEffect(state.state, state.session, state.showKeyboard, state.reply) {
         if (state.state == VoiceState.IDLE && !state.showKeyboard) { delay(25_000); actions.onClose() }
     }
-    Box(modifier.fillMaxSize().padding(bottom = 118.dp), contentAlignment = Alignment.BottomCenter) {
+    // While typing the card sits at the top so the keyboard never hides it.
+    Box(modifier.fillMaxSize().padding(top = if (state.showKeyboard) 12.dp else 0.dp, bottom = if (state.showKeyboard) 0.dp else 118.dp),
+        contentAlignment = if (state.showKeyboard) Alignment.TopCenter else Alignment.BottomCenter) {
         Column(
             Modifier.widthIn(max = 780.dp).clip(RoundedCornerShape(28.dp))
                 .background(Brush.linearGradient(listOf(Color(0xF2121A33), Color(0xF20B1022))))

@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
@@ -236,7 +239,8 @@ fun NovaRoot(onVoice: () -> Unit) {
         val overlayDims = remember(perms) { c.controls.dimmer.canOverlay() }
         LaunchedEffect(perms) { c.controls.dimmer.apply() }
         Box(Modifier.fillMaxSize().novaBackdrop(p)) {
-            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            // The keyboard is not part of the insets: it floats over the launcher instead of squeezing it.
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))) {
                 ShellLayout(
                     railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
                     iconTint = com.abu00salman.novadrive.ui.components.IconTints.getOrNull(settings.iconTint),

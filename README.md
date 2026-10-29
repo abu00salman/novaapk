@@ -3,7 +3,7 @@
 Native Android car launcher (Kotlin + Jetpack Compose) designed for the
 **Tech Caravan Android 16 head unit** (Allwinner A133, 4 GB RAM, 1280×720).
 
-**Developed by abu00salman**
+**Developed by iRaMzi (@iRaMzi7 on X)**
 
 ![NovaDrive home — Arabic, night](docs/screenshots/01_home_ar_dark.png)
 
