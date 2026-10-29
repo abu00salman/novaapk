@@ -74,6 +74,7 @@ fun StyledHome(ui: HomeUi, act: HomeActions, modifier: Modifier = Modifier) {
                     "byd" -> BydLayout(ui, act)
                     "haval" -> HavalLayout(ui, act)
                     "tank" -> TankLayout(ui, act)
+                    "widgets" -> WidgetsLayout(ui, act)
                 }
             }
         }
@@ -101,7 +102,7 @@ internal fun TopRow(
         Spacer(Modifier.weight(1f))
         StatusIcons(ui, act)
         Spacer(Modifier.width(8.dp))
-        if (voiceLabel) VoicePill(act) else SRound(Icons.Rounded.AutoAwesome, "Nova AI", 48.dp, filled = true, onClick = act.onVoice)
+        if (voiceLabel) VoicePill(act) else SRound(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), 48.dp, filled = true, onClick = act.onVoice)
         Spacer(Modifier.width(8.dp))
         SRound(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), 48.dp, onClick = act.onSettings)
     }
@@ -114,9 +115,9 @@ internal fun VoicePill(act: HomeActions, big: Boolean = false) {
         Modifier.height(if (big) 64.dp else 50.dp).clip(k.shape(32.dp)).background(k.accent).clickable(onClick = act.onVoice).padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(if (big) 30.dp else 24.dp))
+        Icon(com.abu00salman.novadrive.ui.components.voiceIcon(), null, tint = Color.White, modifier = Modifier.size(if (big) 30.dp else 24.dp))
         Spacer(Modifier.width(8.dp))
-        UiDirection { Text("Nova AI", style = st(if (big) 22.sp else 17.sp, FontWeight.SemiBold, Color.White), maxLines = 1) }
+        UiDirection { Text(com.abu00salman.novadrive.ui.components.voiceName(), style = st(if (big) 22.sp else 17.sp, FontWeight.SemiBold, Color.White), maxLines = 1) }
     }
 }
 

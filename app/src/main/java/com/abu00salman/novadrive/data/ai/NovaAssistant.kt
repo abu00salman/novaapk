@@ -17,13 +17,18 @@ import kotlinx.coroutines.flow.StateFlow
 import java.lang.ref.WeakReference
 
 /**
- * Nova AI on the unit: wires the voice session to Android — speech recognition in the app
+ * «أمرني» and Nova AI on the unit.
+ *
+ * «أمرني» (default): Google's official speech recognition → NovaDrive's local commands; anything that
+ * isn't a car command can be handed to Google. No API, no key.
+ * Nova AI (experimental, opt-in in Settings): wires the voice session to Android — speech recognition in the app
  * ([SpeechInput]), the local command engine ([VoiceCommands], works offline and without any API
  * credit), the ONE AI provider selected in Settings (ChatGPT or Claude; never both, never switched
  * automatically) and the unit's text-to-speech.
  */
 class NovaAssistant(private val c: AppContainer) {
-    val speech = SpeechInput(c.appContext) { !c.ai.config.value.inAppSpeech }
+    // «أمرني» uses Google's own recognition window (official, no permission needed).
+    val speech = SpeechInput(c.appContext) { c.ai.config.value.let { !it.novaEnabled || !it.inAppSpeech } }
     private var windowRef = WeakReference<Window>(null)
 
     private val router = object : VoiceRouter {
@@ -33,6 +38,12 @@ class NovaAssistant(private val c: AppContainer) {
             val ar = c.settings.current.arabic
             val window = windowRef.get()
             val driving = driving()
+            if (!c.ai.config.value.novaEnabled) {
+                VoiceCommands.handle(c, text, window, driving, aiReady = false)?.let { return RouteResult(Route.LOCAL, it) }
+                val google = c.ai.config.value.unknownToGoogle && online && GoogleVoice.search(c.appContext, text)
+                return if (google) RouteResult(Route.NONE, if (ar) "سألت Google: «$text»" else "Asked Google: \"$text\"", speak = false)
+                else RouteResult(Route.NONE, notUnderstood(text, ar))
+            }
             val ai = if (online) engine() else null
             // Direct car/app commands run locally and instantly — no API call.
             VoiceCommands.handle(c, text, window, driving, aiReady = ai != null)?.let { return RouteResult(Route.LOCAL, it) }
@@ -56,10 +67,10 @@ class NovaAssistant(private val c: AppContainer) {
         val cfg = c.ai.config.value
         val s = c.settings.current
         SessionConfig(
-            arabic = s.arabic, speakReplies = s.voiceReply, keepContext = cfg.keepContext, followUp = cfg.followUp,
+            arabic = s.arabic, speakReplies = s.voiceReply, keepContext = cfg.novaEnabled && cfg.keepContext, followUp = cfg.novaEnabled && cfg.followUp,
             preferOfflineSpeech = cfg.preferOfflineSpeech,
             // The system window has its own timeout; ours is only a safety net there.
-            listenTimeoutMs = if (cfg.inAppSpeech) cfg.listenTimeoutSec * 1000L + 4_000L else 60_000L, replyTimeoutMs = cfg.replyTimeoutSec * 1000L,
+            listenTimeoutMs = if (cfg.novaEnabled && cfg.inAppSpeech) cfg.listenTimeoutSec * 1000L + 4_000L else 60_000L, replyTimeoutMs = cfg.replyTimeoutSec * 1000L,
         )
     }
 
@@ -83,6 +94,7 @@ class NovaAssistant(private val c: AppContainer) {
     /** "Claude", "ChatGPT" or null when only local commands are available. */
     fun engineName(): String? {
         val cfg = c.ai.config.value
+        if (!cfg.novaEnabled) return null
         return when (cfg.provider) {
             AiProvider.ANTHROPIC -> if (cfg.hasClaudeKey || cfg.proxyUrl.isNotBlank()) "Claude" else null
             AiProvider.OPENAI -> if (cfg.hasOpenAiKey || cfg.proxyUrl.isNotBlank()) "ChatGPT" else null
@@ -93,6 +105,7 @@ class NovaAssistant(private val c: AppContainer) {
     /** The selected provider, ready to call, or null (local only / no key). */
     fun engine(): AiEngine? {
         val cfg = c.ai.config.value
+        if (!cfg.novaEnabled) return null
         val proxy = cfg.proxyUrl.ifBlank { null }
         val timeout = cfg.replyTimeoutSec * 1000L
         return when (cfg.provider) {
@@ -103,6 +116,10 @@ class NovaAssistant(private val c: AppContainer) {
             AiProvider.LOCAL -> null
         }
     }
+
+    private fun notUnderstood(text: String, ar: Boolean): String =
+        if (ar) "لم أفهم «$text» كأمر. جرّب مثلًا: افتح الخرائط، شغّل الموسيقى، ارفع الصوت."
+        else "I didn't understand \"$text\" as a command. Try: open maps, play music, volume up."
 
     private fun noAiMessage(text: String, online: Boolean, ar: Boolean): String {
         val provider = c.ai.config.value.provider

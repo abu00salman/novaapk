@@ -16,8 +16,8 @@ android {
         applicationId = "com.abu00salman.novadrive"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "2.3.0-beta1"
+        versionCode = 6
+        versionName = "2.3.0-beta2"
         resourceConfigurations += listOf("en", "ar")
     }
 

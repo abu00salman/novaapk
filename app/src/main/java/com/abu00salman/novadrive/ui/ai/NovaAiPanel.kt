@@ -112,7 +112,8 @@ fun NovaAiPanel(state: VoiceUi, actions: NovaAiActions, modifier: Modifier = Mod
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "Nova AI" + (state.provider?.let { " · $it" } ?: tr(" · local", " · محلي")) + "  —  " + statusText(state),
+                                (if (com.abu00salman.novadrive.ui.components.LocalNovaAi.current) "Nova AI" + (state.provider?.let { " · $it" } ?: tr(" · local", " · محلي"))
+                                else tr("Ask me · Google", "أمرني · Google")) + "  —  " + statusText(state),
                                 style = NovaType.label.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = Color(0xFFB9C4FF), maxLines = 1,
                                 overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                             )

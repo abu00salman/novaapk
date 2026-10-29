@@ -204,7 +204,7 @@ internal fun FordLayout(ui: HomeUi, act: HomeActions) {
         Row(Modifier.fillMaxWidth().height(96.dp).background(k.surface).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             SyncBarItem(Icons.Rounded.Home, tr("Home", "الرئيسية"), true) {}
             ui.dock.forEach { s -> Box(Modifier.weight(1f).fillMaxHeight()) { AppItem(s, act, Modifier.fillMaxSize(), 42.dp, 12.sp) } }
-            SyncBarItem(Icons.Rounded.AutoAwesome, "Nova AI", false, act.onVoice)
+            SyncBarItem(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), false, act.onVoice)
             SyncBarItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), false, act.onSettings)
         }
     }
@@ -256,7 +256,7 @@ internal fun AppleLayout(ui: HomeUi, act: HomeActions) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
                     ui.dock.take(5).forEach { s -> AppItem(s, act, Modifier.size(78.dp), 62.dp, 0.sp, labels = false) }
                 }
-                SRound(Icons.Rounded.AutoAwesome, "Nova AI", 58.dp, filled = true, onClick = act.onVoice)
+                SRound(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), 58.dp, filled = true, onClick = act.onVoice)
             }
         }
         // Dashboard
@@ -319,7 +319,7 @@ internal fun JetourLayout(ui: HomeUi, act: HomeActions) {
             JetourTab(tr("Apps", "التطبيقات"), false, act.onApps)
             Spacer(Modifier.weight(1f))
             StatusIcons(ui, act)
-            SRound(Icons.Rounded.AutoAwesome, "Nova AI", 46.dp, filled = true, onClick = act.onVoice)
+            SRound(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), 46.dp, filled = true, onClick = act.onVoice)
             Spacer(Modifier.width(8.dp))
             SRound(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), 46.dp, onClick = act.onSettings)
         }
@@ -538,7 +538,7 @@ private fun TankGauge(modifier: Modifier, value: String, label: String) {
  * ("--") when the unit has no such sensor.
  */
 @Composable
-private fun Inclinometer(modifier: Modifier) {
+internal fun Inclinometer(modifier: Modifier) {
     val k = LocalSkin.current
     val ctx = LocalContext.current
     var pitch by remember { mutableStateOf<Float?>(null) }

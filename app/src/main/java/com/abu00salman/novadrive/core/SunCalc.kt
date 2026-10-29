@@ -28,4 +28,33 @@ object SunCalc {
     /** Night once the sun is below the horizon (incl. refraction). */
     fun isNight(lat: Double, lon: Double, timeMillis: Long): Boolean =
         altitude(lat, lon, timeMillis) < -0.833
+
+    /**
+     * Sunrise and sunset for the local day that contains [timeMillis] (epoch ms, ±1 min), or null
+     * when the sun doesn't cross the horizon that day.
+     */
+    fun riseSet(lat: Double, lon: Double, timeMillis: Long, zone: java.util.TimeZone = java.util.TimeZone.getDefault()): Pair<Long?, Long?> {
+        val cal = java.util.Calendar.getInstance(zone).apply {
+            this.timeInMillis = timeMillis
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val start = cal.timeInMillis
+        val step = 10 * 60_000L
+        fun up(t: Long) = altitude(lat, lon, t) > -0.833
+        fun refine(a: Long, b: Long): Long {
+            var lo = a; var hi = b
+            val target = up(b)
+            while (hi - lo > 60_000L) { val m = (lo + hi) / 2; if (up(m) == target) hi = m else lo = m }
+            return hi
+        }
+        var rise: Long? = null; var set: Long? = null
+        var t = start
+        while (t < start + 86_400_000L) {
+            val a = up(t); val b = up(t + step)
+            if (!a && b && rise == null) rise = refine(t, t + step)
+            if (a && !b && set == null) set = refine(t, t + step)
+            t += step
+        }
+        return rise to set
+    }
 }

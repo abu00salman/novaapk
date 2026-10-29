@@ -16,8 +16,20 @@ import javax.crypto.spec.GCMParameterSpec
 /** Which engine answers what the local command parser doesn't understand. */
 enum class AiProvider { LOCAL, OPENAI, ANTHROPIC }
 
+/** What «أمرني» does when Nova AI (experimental) is off. */
+enum class VoiceButton {
+    /** Google speech recognition → NovaDrive's local commands. */ COMMANDS,
+    /** Opens Google Assistant. */ ASSISTANT,
+    /** Opens the Gemini app. */ GEMINI,
+}
+
 @Immutable
 data class AiConfig(
+    /** Nova AI is experimental: off until the user switches it on in Settings › Experimental. */
+    val novaEnabled: Boolean = false,
+    val voiceButton: VoiceButton = VoiceButton.COMMANDS,
+    /** «أمرني»: a sentence that isn't a car command is handed to Google (search/answers). */
+    val unknownToGoogle: Boolean = true,
     val provider: AiProvider = AiProvider.LOCAL,
     val openAiModel: String = DEFAULT_OPENAI_MODEL,
     val claudeModel: String = DEFAULT_CLAUDE_MODEL,
@@ -56,6 +68,9 @@ class AiConfigRepository(ctx: Context) {
     val config: StateFlow<AiConfig> = _config
 
     private fun read() = AiConfig(
+        novaEnabled = prefs.getBoolean("nova_enabled", false),
+        voiceButton = runCatching { VoiceButton.valueOf(prefs.getString("voice_button", null) ?: "COMMANDS") }.getOrDefault(VoiceButton.COMMANDS),
+        unknownToGoogle = prefs.getBoolean("unknown_to_google", true),
         provider = runCatching { AiProvider.valueOf(prefs.getString("provider", null) ?: "LOCAL") }.getOrDefault(AiProvider.LOCAL),
         openAiModel = prefs.getString("openai_model", null)?.takeIf { it.isNotBlank() } ?: AiConfig.DEFAULT_OPENAI_MODEL,
         claudeModel = prefs.getString("claude_model", null)?.takeIf { it.isNotBlank() } ?: AiConfig.DEFAULT_CLAUDE_MODEL,
@@ -80,7 +95,9 @@ class AiConfigRepository(ctx: Context) {
 
     fun update(block: (AiConfig) -> AiConfig) {
         val n = block(_config.value)
-        prefs.edit().putString("provider", n.provider.name).putString("openai_model", n.openAiModel)
+        prefs.edit().putBoolean("nova_enabled", n.novaEnabled).putString("voice_button", n.voiceButton.name)
+            .putBoolean("unknown_to_google", n.unknownToGoogle)
+            .putString("provider", n.provider.name).putString("openai_model", n.openAiModel)
             .putString("claude_model", n.claudeModel).putString("proxy", n.proxyUrl.trim())
             .putBoolean("share_location", n.shareLocation)
             .putString("voice_lang", n.voice.lang.name).putString("voice_name", n.voice.voiceName)

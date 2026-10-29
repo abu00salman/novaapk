@@ -105,7 +105,7 @@ object VoiceCommands {
             val aliases = mapOf(
                 "tesla" to listOf("تسلا", "tesla"), "bmw" to listOf("بي ام", "bmw", "بي ام دبليو"), "mercedes" to listOf("مرسيدس", "mercedes"),
                 "ford" to listOf("فورد", "ford"), "apple" to listOf("ابل", "apple"), "jetour" to listOf("جيتور", "jetour"),
-                "byd" to listOf("بي واي دي", "byd"), "haval" to listOf("هافال", "haval"), "tank" to listOf("تانك", "tank"),
+                "byd" to listOf("بي واي دي", "byd"), "haval" to listOf("هافال", "haval"), "tank" to listOf("تانك", "tank"), "widgets" to listOf("الويدجت", "ويدجت", "widgets", "widget"),
                 "classic" to listOf("كلاسيك", "الكلاسيكيه", "classic"),
             )
             aliases.entries.firstOrNull { (_, words) -> words.any { t.contains(normalize(it)) } }?.let { (id, _) ->

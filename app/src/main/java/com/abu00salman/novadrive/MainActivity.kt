@@ -12,6 +12,8 @@ import android.Manifest
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.abu00salman.novadrive.ui.NovaRoot
+import com.abu00salman.novadrive.data.ai.GoogleVoice
+import com.abu00salman.novadrive.data.ai.VoiceButton
 import com.abu00salman.novadrive.data.voice.SpeechCallback
 import com.abu00salman.novadrive.data.voice.SpeechError
 import com.abu00salman.novadrive.data.voice.SystemDialogLauncher
@@ -77,9 +79,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startVoice() {
+        val cfg = nova.ai.config.value
+        if (!cfg.novaEnabled) {
+            // «أمرني»: Google Assistant / Gemini open as they are; otherwise Google speech → local commands.
+            val opened = when (cfg.voiceButton) {
+                VoiceButton.ASSISTANT -> GoogleVoice.assistant(this)
+                VoiceButton.GEMINI -> GoogleVoice.gemini(this) || GoogleVoice.assistant(this)
+                VoiceButton.COMMANDS -> false
+            }
+            if (!opened) nova.assistant.listen()
+            return
+        }
         val speech = nova.assistant.speech
         val prefs = getSharedPreferences("nova_ai", MODE_PRIVATE)
-        if (nova.ai.config.value.inAppSpeech && speech.available() && !speech.hasMicPermission() && !prefs.getBoolean("mic_asked", false)) {
+        if (cfg.inAppSpeech && speech.available() && !speech.hasMicPermission() && !prefs.getBoolean("mic_asked", false)) {
             prefs.edit().putBoolean("mic_asked", true).apply()
             micPermission.launch(Manifest.permission.RECORD_AUDIO)
             return
@@ -92,7 +105,7 @@ class MainActivity : ComponentActivity() {
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-            .putExtra(RecognizerIntent.EXTRA_PROMPT, if (arabic) "Nova AI… مثل: افتح يوتيوب، ودّني لأقرب محطة بنزين، كيف الجو" else "Nova AI… e.g. \"open YouTube\", \"nearest fuel station\", \"weather\"")
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, if (arabic) "أمرني… مثل: افتح يوتيوب، ودّني لأقرب محطة بنزين، كيف الجو" else "Ask me… e.g. \"open YouTube\", \"nearest fuel station\", \"weather\"")
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         return try {
             dialogCallback = cb

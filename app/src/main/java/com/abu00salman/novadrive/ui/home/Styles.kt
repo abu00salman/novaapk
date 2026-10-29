@@ -344,7 +344,7 @@ private fun TeslaStatusBar(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             Modifier.size(42.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFF3B82F6))))
                 .clickable(onClick = act.onVoice),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.AutoAwesome, "Nova AI", tint = Color.White, modifier = Modifier.size(22.dp)) }
+        ) { Icon(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), tint = Color.White, modifier = Modifier.size(22.dp)) }
     }
 }
 
@@ -669,8 +669,29 @@ private fun TStepper(icon: ImageVector, value: String, onDown: () -> Unit, onUp:
 // ============================================================================ BMW
 
 private val BAccent = Color(0xFF2F8BFF)
-private val BText = Color(0xFFF2F6FF)
-private val BDim = Color(0xFF9AA8C3)
+
+/** BMW cockpit colours: night (the original design, default) or day. */
+@androidx.compose.runtime.Immutable
+private class BmwPalette(
+    val text: Color, val dim: Color, val panelTop: Color, val panelBottom: Color, val chip: Color,
+    /** Frames, ticks, tracks and dividers. */
+    val line: Color,
+    /** Shade over the cluster photo. */
+    val shade: Color,
+    val mapBg: Color, val mapStyle: MapTiles.Style,
+)
+
+private val BmwNight = BmwPalette(
+    Color(0xFFF2F6FF), Color(0xFF9AA8C3), Color(0xFF111C34), Color(0xFF080E1C), Color(0xE60A1222),
+    Color.White, Color(0xFF070C18), Color(0xFF0D1528), MapTiles.Style.DARK,
+)
+private val BmwDay = BmwPalette(
+    Color(0xFF0E1A2E), Color(0xFF5B6B85), Color(0xFFFFFFFF), Color(0xFFE6ECF5), Color(0xF2FFFFFF),
+    Color(0xFF1B2A44), Color(0xFFF1F5FB), Color(0xFFE8ECF2), MapTiles.Style.LIGHT,
+)
+private val LocalBmw = androidx.compose.runtime.staticCompositionLocalOf { BmwNight }
+private val BText: Color @Composable get() = LocalBmw.current.text
+private val BDim: Color @Composable get() = LocalBmw.current.dim
 
 /** OpenStreetMap tiles inverted to a dark navy map with light labels, matching the cockpit. */
 private val BmwMapTint = ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(
@@ -688,6 +709,13 @@ private val BmwMapTint = ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(
  */
 @Composable
 internal fun BmwLayout(ui: HomeUi, act: HomeActions, modifier: Modifier) {
+    // Night by default (the original design); day when chosen in Settings › Appearance.
+    val night = ui.styleOptions.dark ?: true
+    androidx.compose.runtime.CompositionLocalProvider(LocalBmw provides if (night) BmwNight else BmwDay) { BmwContent(ui, act, modifier) }
+}
+
+@Composable
+private fun BmwContent(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     Column(modifier.fillMaxSize()) {
         Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BmwCluster(ui, act, Modifier.weight(0.37f).fillMaxHeight())
@@ -714,7 +742,7 @@ private fun BmwPanel(modifier: Modifier, onClick: (() -> Unit)? = null, content:
     val shape = RoundedCornerShape(22.dp)
     Box(
         modifier.clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xFF111C34), Color(0xFF080E1C))))
+            .background(Brush.verticalGradient(listOf(LocalBmw.current.panelTop, LocalBmw.current.panelBottom)))
             .border(1.dp, Brush.verticalGradient(listOf(BAccent.copy(alpha = 0.55f), BAccent.copy(alpha = 0.10f))), shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         content = content,
@@ -727,12 +755,13 @@ private fun BmwCluster(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     val speed = if (ui.hasLocation) ui.speedKmh ?: 0f else 0f
     BmwPanel(modifier, onClick = act.onVehicle) {
         Image(painterResource(R.drawable.scenic_road), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, alpha = 0.6f)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x33070C18), 0.45f to Color(0xCC070C18), 1f to Color(0xF2070C18))))
+        val k = LocalBmw.current
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to k.shade.copy(alpha = 0.2f), 0.45f to k.shade.copy(alpha = 0.8f), 1f to k.shade.copy(alpha = 0.95f))))
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wDp = maxWidth; val hDp = maxHeight
             Canvas(Modifier.fillMaxSize()) {
                 val w = size.width; val h = size.height
-                val frame = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.85f), Color.White.copy(alpha = 0.25f)))
+                val frame = Brush.verticalGradient(listOf(k.line.copy(alpha = 0.85f), k.line.copy(alpha = 0.25f)))
                 // Side frames of the cluster.
                 for (s in listOf(-1f, 1f)) {
                     val x = { f: Float -> if (s < 0) w * f else w * (1 - f) }
@@ -746,7 +775,7 @@ private fun BmwCluster(ui: HomeUi, act: HomeActions, modifier: Modifier) {
                     val xr = w * (0.19f + 0.08f * t)
                     val len = w * if (i % 5 == 0) 0.07f else 0.04f
                     val lit = i * 10f <= speed && speed > 0f
-                    drawLine(if (lit) BAccent else Color.White.copy(alpha = 0.35f), Offset(xr - len, y), Offset(xr, y),
+                    drawLine(if (lit) BAccent else k.line.copy(alpha = 0.35f), Offset(xr - len, y), Offset(xr, y),
                         strokeWidth = (if (i % 5 == 0) 3.dp else 2.dp).toPx(), cap = StrokeCap.Round)
                 }
                 // Light trails under the car.
@@ -806,9 +835,9 @@ private fun BmwMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     var headingUp by rememberSaveable { mutableStateOf(true) }
     BmwPanel(modifier) {
         TileMap(
-            ui.lat, ui.lon, ui.bearing, MapTiles.Style.DARK, MapMarker.BMW, headingUp, zoom, setZoom,
+            ui.lat, ui.lon, ui.bearing, LocalBmw.current.mapStyle, MapMarker.BMW, headingUp, zoom, setZoom,
             onTap = act.onNavDetails,
-            modifier = Modifier.fillMaxSize(), tint = BmwMapTint, background = Color(0xFF0D1528), focusY = 0.64f,
+            modifier = Modifier.fillMaxSize(), tint = if (LocalBmw.current === BmwNight) BmwMapTint else null, background = LocalBmw.current.mapBg, focusY = 0.64f,
             route = ui.routePoints, routeProgress = ui.routeProgress, routeColor = BAccent, destination = ui.destination,
         )
         if (ui.lat == null) UiDirection {
@@ -824,7 +853,7 @@ private fun BmwMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
         val nav = ui.nav
         Box(
             Modifier.align(Alignment.TopStart).padding(12.dp).width(280.dp).clip(RoundedCornerShape(16.dp))
-                .background(Color(0xE60A1222)).border(1.dp, BAccent.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                .background(LocalBmw.current.chip).border(1.dp, BAccent.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                 .clickable(onClick = if (nav != null) act.onNavCard else act.onOpenNav)
         ) {
             UiDirection {
@@ -857,7 +886,7 @@ private fun BmwMap(ui: HomeUi, act: HomeActions, modifier: Modifier) {
 @Composable
 private fun BRound(icon: ImageVector, description: String, rotation: Float = 0f, tint: Color = BText, onClick: () -> Unit) {
     Box(
-        Modifier.size(54.dp).clip(CircleShape).background(Color(0xE60A1222)).border(1.dp, BAccent.copy(alpha = 0.3f), CircleShape).clickable(onClick = onClick),
+        Modifier.size(54.dp).clip(CircleShape).background(LocalBmw.current.chip).border(1.dp, BAccent.copy(alpha = 0.3f), CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = tint, modifier = Modifier.size(26.dp).rotate(rotation)) }
 }
@@ -915,7 +944,7 @@ private fun BmwMedia(ui: HomeUi, act: HomeActions, modifier: Modifier) {
             }
             if (pos != null) FixedLtr {
                 Column {
-                    Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))) {
+                    Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(LocalBmw.current.line.copy(alpha = 0.15f))) {
                         Box(Modifier.fillMaxHeight().fillMaxWidth(pos.first).background(Brush.horizontalGradient(listOf(BAccent, Color(0xFF8B7CFF)))))
                     }
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
@@ -974,7 +1003,7 @@ private fun BmwLevel(icon: ImageVector, label: String, read: () -> Float, write:
             }
             BIcon(Icons.Rounded.Add, "+") { step(0.1f) }
         }
-        Box(Modifier.padding(top = 6.dp).width(170.dp).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f))) {
+        Box(Modifier.padding(top = 6.dp).width(170.dp).height(4.dp).clip(CircleShape).background(LocalBmw.current.line.copy(alpha = 0.12f))) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(v).background(Brush.horizontalGradient(listOf(BAccent, Color(0xFFFF4D6D)))))
         }
     }
@@ -982,10 +1011,12 @@ private fun BmwLevel(icon: ImageVector, label: String, read: () -> Float, write:
 
 @Composable
 private fun BmwDock(ui: HomeUi, act: HomeActions, modifier: Modifier) {
+    // YouTube next to Music (Settings › Appearance › BMW), like the Tesla bar; hidden while driving.
+    val dock = if (ui.styleOptions.showYoutube) teslaDock(ui) else ui.dock
     BmwPanel(modifier) {
         Row(Modifier.fillMaxSize().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            ui.dock.forEachIndexed { i, s ->
-                if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight(0.6f).background(Color.White.copy(alpha = 0.10f)))
+            dock.forEachIndexed { i, s ->
+                if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight(0.6f).background(LocalBmw.current.line.copy(alpha = 0.10f)))
                 Column(
                     Modifier.weight(1f).fillMaxHeight().press({ act.onDock(s) }, { act.onDockLong(s) }),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,

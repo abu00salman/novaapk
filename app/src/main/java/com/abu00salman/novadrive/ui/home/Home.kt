@@ -176,6 +176,9 @@ data class HomeUi(
     val bigApp: com.abu00salman.novadrive.data.AppEntry? = null,
     /** A big-shortcut app was chosen but is no longer installed. */
     val bigAppMissing: Boolean = false,
+    /** Widgets interface: the user's board and the GPS trip computer. */
+    val widgets: List<com.abu00salman.novadrive.core.WidgetItem> = com.abu00salman.novadrive.core.WidgetGrid.DEFAULT,
+    val trip: com.abu00salman.novadrive.data.TripStats? = null,
 )
 
 class HomeActions(
@@ -219,6 +222,9 @@ class HomeActions(
     /** Big customisable shortcut: tap opens the chosen app (phone by default), long-press changes it. */
     val onBig: () -> Unit = {},
     val onBigLong: () -> Unit = {},
+    /** Widgets interface: save the edited board / reset the trip computer. */
+    val onWidgets: (List<com.abu00salman.novadrive.core.WidgetItem>) -> Unit = {},
+    val onTripReset: () -> Unit = {},
 )
 
 /**
@@ -231,7 +237,7 @@ fun HomeLayout(ui: HomeUi, mode: HomeMode, autoPromoted: Boolean, act: HomeActio
     when (ui.style) {
         "tesla" -> { TeslaLayout(ui, act, modifier); return@FixedLtr }
         "bmw" -> { BmwLayout(ui, act, modifier); return@FixedLtr }
-        "classic", "mercedes", "ford", "apple", "jetour", "byd", "haval", "tank" -> {
+        "classic", "mercedes", "ford", "apple", "jetour", "byd", "haval", "tank", "widgets" -> {
             com.abu00salman.novadrive.ui.styles.StyledHome(ui, act, modifier); return@FixedLtr
         }
     }

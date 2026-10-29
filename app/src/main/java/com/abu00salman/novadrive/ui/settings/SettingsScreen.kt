@@ -32,6 +32,8 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PhoneIphone
@@ -100,7 +102,7 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 import java.util.Locale
 
-private enum class Section { CAR, APPEARANCE, SHORTCUTS, VOICE, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
+private enum class Section { CAR, APPEARANCE, SHORTCUTS, VOICE, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, EXPERIMENTAL, ABOUT }
 
 @Composable
 fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: String? = null, onClose: () -> Unit) {
@@ -129,13 +131,14 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                         Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("Car", "السيارة")),
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
-                        Triple(Section.VOICE, Icons.Rounded.AutoAwesome, Pair("Nova AI", "Nova AI")),
+                        Triple(Section.VOICE, Icons.Rounded.Mic, Pair("Ask me (voice)", "أمرني")),
                         Triple(Section.CARPLAY, Icons.Rounded.PhoneIphone, Pair("CarPlay", "كاربلاي")),
                         Triple(Section.DRIVING, Icons.Rounded.DirectionsCar, Pair("Driving", "القيادة")),
                         Triple(Section.VEHICLE, Icons.Rounded.Speed, Pair("Vehicle (OBD-II)", "المركبة (OBD-II)")),
                         Triple(Section.PROFILES, Icons.Rounded.Person, Pair("Profiles", "الملفات الشخصية")),
                         Triple(Section.SETUP, Icons.Rounded.VerifiedUser, Pair("Permissions", "الأذونات")),
                         Triple(Section.LAUNCHER, Icons.Rounded.Restore, Pair("Launcher", "المشغّل")),
+                        Triple(Section.EXPERIMENTAL, Icons.Rounded.Science, Pair("Experimental", "تجريبي")),
                         Triple(Section.ABOUT, Icons.Rounded.Info, Pair("About", "حول")),
                     )
                     items.forEach { (sec, icon, names) ->
@@ -162,6 +165,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                                 Section.APPEARANCE -> Appearance(c, s)
                                 Section.SHORTCUTS -> ShortcutsSection(c, s)
                                 Section.VOICE -> VoiceSection(c, s)
+                                Section.EXPERIMENTAL -> ExperimentalSection(c, s)
                                 Section.CARPLAY -> CarPlaySection(c, s)
                                 Section.DRIVING -> DrivingSection(c, s)
                                 Section.VEHICLE -> VehicleSection(c, s)
@@ -273,6 +277,24 @@ private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /** Light/dark, accent, wallpaper and font of one of the eight new interfaces, saved per interface. */
+/** BMW keeps its design; only night/day and YouTube in the bottom apps can be changed. */
+@Composable
+private fun BmwOptions(c: AppContainer) {
+    val all by c.styleOptions.all.collectAsStateWithLifecycle()
+    val o = all["bmw"] ?: com.abu00salman.novadrive.core.StyleOptions()
+    Column {
+        Header(tr("BMW interface", "واجهة BMW"), tr("Saved for this interface only.", "يُحفظ لهذه الواجهة فقط."))
+        Choice(listOf(true to tr("Night", "ليلي"), false to tr("Day", "نهاري")), o.dark ?: true) { v ->
+            c.styleOptions.update("bmw") { it.copy(dark = v) }
+        }
+        Gap()
+        Toggle(tr("YouTube in the bottom apps", "YouTube ضمن التطبيقات بالأسفل"),
+            tr("Next to Music; hidden while driving.", "بجانب الموسيقى، ويختفي أثناء القيادة."), o.showYoutube) { v ->
+            c.styleOptions.update("bmw") { it.copy(showYoutube = v) }
+        }
+    }
+}
+
 @Composable
 private fun StyleCustomizer(c: AppContainer, style: com.abu00salman.novadrive.core.UiStyle) {
     val p = LocalNova.current
@@ -428,8 +450,8 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
     val p = LocalNova.current
     Column {
         Header(tr("Interface", "الواجهات"),
-            tr("Twelve home interfaces. Tesla and BMW keep their fixed look; the eight new ones can be customised below. Your choice is saved.",
-                "اثنتا عشرة واجهة. Tesla وBMW بتصميم ثابت، والواجهات الثماني الجديدة قابلة للتخصيص بالأسفل. يُحفظ اختيارك تلقائيًا."))
+            tr("Thirteen home interfaces. Tesla and BMW keep their design (BMW offers day/night); the others can be customised below. Your choice is saved.",
+                "ثلاث عشرة واجهة. Tesla وBMW بتصميمهما (مع ليلي/نهاري لـBMW)، وبقية الواجهات قابلة للتخصيص بالأسفل. يُحفظ اختيارك تلقائيًا."))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             com.abu00salman.novadrive.core.UiStyles.all.chunked(4).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -445,6 +467,9 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
         if (current.customizable) {
             Gap()
             StyleCustomizer(c, current)
+        } else if (current.id == "bmw") {
+            Gap()
+            BmwOptions(c)
         }
         Gap()
         Header(tr("Theme", "السمة"), tr("Auto follows sunrise and sunset at your location.", "التلقائي يتبع الشروق والغروب حسب موقعك."))
@@ -856,6 +881,80 @@ private fun AiEngineSettings(c: AppContainer) {
     }
 }
 
+/** «أمرني»: Google's official voice → local commands, or Google Assistant / Gemini. No API. */
+@Composable
+private fun AskMeSettings(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ctx = LocalContext.current
+    val ar = LocalArabic.current
+    val cfg by c.ai.config.collectAsStateWithLifecycle()
+    val tts by c.speaker.status.collectAsStateWithLifecycle()
+    var ttsR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    val scope = rememberCoroutineScope()
+    androidx.compose.runtime.LaunchedEffect(Unit) { c.speaker.warmUp() }
+    Header(tr("Ask me", "أمرني"), tr("Voice commands through Google's official speech recognition — no API key or subscription. Car commands run on the unit, even offline.",
+        "أوامر صوتية عبر التعرف الصوتي الرسمي من Google — دون مفتاح API أو اشتراك. أوامر السيارة تُنفّذ على الجهاز، حتى دون إنترنت."))
+    if (cfg.novaEnabled) {
+        Text(tr("Nova AI (experimental) is on and handles the voice button. Turn it off in Settings › Experimental to use these options.",
+            "Nova AI (تجريبي) مفعّل ويتولى زر الصوت. أوقفه من الإعدادات ← تجريبي لاستخدام هذه الخيارات."), style = NovaType.label, color = p.warn)
+        Gap()
+    }
+    Text(tr("The voice button opens", "زر الصوت يفتح"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(listOf(
+        com.abu00salman.novadrive.data.ai.VoiceButton.COMMANDS to tr("Google voice + commands", "أوامر Google الصوتية"),
+        com.abu00salman.novadrive.data.ai.VoiceButton.ASSISTANT to "Google Assistant",
+        com.abu00salman.novadrive.data.ai.VoiceButton.GEMINI to "Gemini",
+    ), cfg.voiceButton) { v -> c.ai.update { it.copy(voiceButton = v) } }
+    Spacer(Modifier.height(6.dp))
+    val hasGoogle = remember { com.abu00salman.novadrive.data.ai.GoogleVoice.hasGoogle(ctx) }
+    val hasGemini = remember { com.abu00salman.novadrive.data.ai.GoogleVoice.hasGemini(ctx) }
+    StatusLine(hasGoogle, if (hasGoogle) tr("Google app installed", "تطبيق Google مثبت") else tr("Google app not installed — install it for voice and Assistant", "تطبيق Google غير مثبت — ثبّته للتعرف الصوتي والمساعد"))
+    StatusLine(hasGemini, if (hasGemini) tr("Gemini installed", "Gemini مثبت") else tr("Gemini not installed (Google Assistant is used instead)", "Gemini غير مثبت (يُستخدم Google Assistant بدلًا منه)"))
+    Gap()
+    Toggle(tr("Send other questions to Google", "إرسال الأسئلة الأخرى إلى Google"),
+        tr("A sentence that isn't a car command (\"what's the capital of Japan?\") opens in the Google app, which answers it.",
+            "الجملة التي ليست أمرًا للسيارة («كم عاصمة اليابان؟») تُفتح في تطبيق Google ليجيب عليها."),
+        cfg.unknownToGoogle) { v -> c.ai.update { it.copy(unknownToGoogle = v) } }
+    Gap()
+    Toggle(tr("Answer out loud", "الرد بالصوت"), null, s.voiceReply) { v -> c.settings.update { it.copy(voiceReply = v) } }
+    Spacer(Modifier.height(6.dp))
+    StatusLine(tts.ready && !tts.failed && (!ar || tts.arabic), when {
+        tts.failed -> tr("Text-to-speech engine failed to start", "تعذّر تشغيل محرك النطق")
+        !tts.ready -> tr("Text-to-speech starting…", "محرك النطق يبدأ…")
+        else -> (tts.engine ?: "TTS") + if (tts.arabic) tr(" · Arabic voice installed", " · الصوت العربي مثبت") else tr(" · no Arabic voice", " · لا يوجد صوت عربي")
+    })
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Pill(tr("Test voice", "اختبار الصوت"), p.accent) { scope.launch { ttsR = com.abu00salman.novadrive.data.voice.NovaDiagnostics(c).tts() } }
+        Pill(tr("Voice settings", "إعدادات النطق"), p.textDim) { c.speaker.openSettings() }
+    }
+    ResultLine(ttsR)
+}
+
+/** Settings › Experimental: Nova AI (ChatGPT / Claude) — off until switched on here. */
+@Composable
+private fun ExperimentalSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val cfg by c.ai.config.collectAsStateWithLifecycle()
+    Column {
+        Header(tr("Experimental", "تجريبي"), tr("Features still being tested. They are off by default and don't affect the rest of NovaDrive.",
+            "ميزات ما زالت قيد التجربة. مطفأة افتراضيًا ولا تؤثر على بقية NovaDrive."))
+        Toggle("Nova AI", tr("AI voice assistant with ChatGPT or Claude (your own API key). When on, it replaces «Ask me» on the voice button.",
+            "مساعد صوتي بالذكاء الاصطناعي عبر ChatGPT أو Claude (بمفتاح API خاص بك). عند تفعيله يحل محل «أمرني» في زر الصوت."),
+            cfg.novaEnabled) { v -> c.ai.update { it.copy(novaEnabled = v) }; if (!v) c.assistant.close() }
+        if (cfg.novaEnabled) {
+            Gap()
+            AiEngineSettings(c)
+            Gap()
+            NovaVoiceSettings(c, s)
+        } else {
+            Spacer(Modifier.height(6.dp))
+            Text(tr("Off: the voice button uses «Ask me» (Google).", "مطفأ: زر الصوت يستخدم «أمرني» (Google)."), style = NovaType.small, color = p.textDim)
+        }
+    }
+}
+
 /** A diagnostic/test result line (green ✓ / red ✗). */
 @Composable
 private fun ResultLine(r: com.abu00salman.novadrive.data.voice.DiagResult?) {
@@ -1046,11 +1145,7 @@ private fun VoiceSection(c: AppContainer, s: NovaSettings) {
     var phrase by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     Column {
-        Header("Nova AI", tr("Tap Nova AI in the side bar (or the microphone) and speak. Car commands run locally and instantly — even offline; open questions go to the AI you choose below.",
-            "اضغط Nova AI في القائمة الجانبية (أو الميكروفون) وتكلّم. أوامر السيارة تُنفّذ محليًا وفورًا — حتى دون إنترنت، والأسئلة العامة تذهب للوكيل الذي تختاره بالأسفل."))
-        AiEngineSettings(c)
-        Gap()
-        NovaVoiceSettings(c, s)
+        AskMeSettings(c, s)
         Gap()
         Text(tr("Try:", "جرّب:"), style = NovaType.label, color = p.textDim)
         Spacer(Modifier.height(6.dp))

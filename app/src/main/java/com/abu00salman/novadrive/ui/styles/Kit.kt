@@ -194,6 +194,8 @@ fun skinFor(style: UiStyle, o: StyleOptions, appDark: Boolean): Skin {
             else mk(listOf(0xFFF4F4F5, 0xFFE4E4E7), 0xFFFFFFFF, 0xFFF8F8F9, 0xFFD4D4D8, 0xFF18181B, 0xFF52525B, 0xFF71717A, 12.dp)
         "tank" -> if (dark) mk(listOf(0xFF14150F, 0xFF1D2016), 0xFF22251A, 0xFF2B2F21, 0xFF4A4F33, 0xFFEDE8D5, 0xFFB3AD92, 0xFF9CB65A, 10.dp, cut = true)
             else mk(listOf(0xFFE9E4D2, 0xFFD8D1B8), 0xFFF3EFE2, 0xFFEAE4D0, 0xFFB5AC88, 0xFF23261B, 0xFF5F5A45, 0xFF6B7D3C, 10.dp, cut = true)
+        "widgets" -> if (dark) mk(listOf(0xFF0B0D12, 0xFF141822, 0xFF0B0D12), 0xFF1A1E27, 0xFF232835, 0xFF2A3040, 0xFFF5F7FA, 0xFF9AA3B5, 0xFF64D2FF, 26.dp)
+            else mk(listOf(0xFFEEF1F6, 0xFFE2E7EF), 0xFFFFFFFF, 0xFFF5F7FA, 0xFFDCE2EA, 0xFF0B0D12, 0xFF5B6475, 0xFF0A84FF, 26.dp)
         else -> mk(listOf(0xFF0B1226, 0xFF060B18), 0xFF111A33, 0xFF18233F, 0xFF27365C, 0xFFF2F6FF, 0xFF9AA8C3, 0xFF8B5CF6, 20.dp)
     }
 }
@@ -318,7 +320,7 @@ fun menuItems(act: HomeActions, withVoice: Boolean = true): List<MenuItem> = bui
     add(MenuItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), act.onNavDetails))
     add(MenuItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), act.onMusicDetails))
     add(MenuItem(Icons.Rounded.Phone, tr("Phone", "الهاتف"), act.onPhone))
-    if (withVoice) add(MenuItem(Icons.Rounded.AutoAwesome, "Nova AI", act.onVoice, special = true))
+    if (withVoice) add(MenuItem(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), act.onVoice, special = true))
     add(MenuItem(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), act.onVehicle))
     add(MenuItem(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), act.onApps))
     add(MenuItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), act.onSettings))
@@ -580,7 +582,7 @@ fun BrightnessControl(act: HomeActions, modifier: Modifier = Modifier, compact: 
 /** Quick row used by several interfaces: voice + quick controls. */
 @Composable
 fun RowScope.QuickButtons(act: HomeActions, size: Dp = 48.dp) {
-    SRound(Icons.Rounded.AutoAwesome, "Nova AI", size, filled = true, onClick = act.onVoice)
+    SRound(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), size, filled = true, onClick = act.onVoice)
     Spacer(Modifier.width(8.dp))
     SRound(Icons.Rounded.Tune, tr("Quick controls", "التحكم السريع"), size, onClick = act.onQuick)
 }

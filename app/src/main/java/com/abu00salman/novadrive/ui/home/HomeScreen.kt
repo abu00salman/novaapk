@@ -11,6 +11,7 @@ import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.PhoneIphone
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.abu00salman.novadrive.ui.nav.toNavInfo
@@ -150,7 +151,13 @@ fun HomeScreen(
         else -> com.abu00salman.novadrive.ui.shell.GpsState.SEARCHING
     }
 
+    val widgetsStyle = settings.uiStyle == "widgets"
+    val board by c.widgets.items.collectAsStateWithLifecycle()
+    if (widgetsStyle) LaunchedEffect(Unit) { c.trip.start() }
+    val tripStats by c.trip.stats.collectAsStateWithLifecycle()
     val ui = HomeUi(
+        widgets = board,
+        trip = if (widgetsStyle) tripStats else null,
         speedKmh = fix?.speedKmh,
         hasLocation = hasLocation,
         vehicle = vehicle,

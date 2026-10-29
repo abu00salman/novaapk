@@ -64,7 +64,8 @@ interface SpeakerPort {
 /** What answered: a local command (works offline, no API) or the selected AI provider. */
 enum class Route { LOCAL, AI, NONE }
 
-class RouteResult(val route: Route, val text: String)
+/** [speak] = false when another app (e.g. Google) answers out loud itself. */
+class RouteResult(val route: Route, val text: String, val speak: Boolean = true)
 
 /** Local command engine first, then the one AI provider the user selected (never several). */
 interface VoiceRouter {
@@ -241,7 +242,7 @@ class VoiceSession(
                 while (history.size > MAX_TURNS) history.removeAt(0)
             }
             set { it.copy(reply = result.text, acting = null, history = history.toList(), online = online()) }
-            speak(id, result.text)
+            if (result.speak) speak(id, result.text) else finish(id, spoken = false)
         }
     }
 

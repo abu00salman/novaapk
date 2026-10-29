@@ -130,12 +130,12 @@ fun NovaRoot(onVoice: () -> Unit) {
         while (true) { delay(60_000); value = System.currentTimeMillis() }
     }
     val place = coarse ?: c.settings.lastLocation() ?: Pair(DEFAULT_LAT, DEFAULT_LON)
-    // The Tesla interface is always light and the BMW interface always dark, as in their designs.
+    // Tesla is always light; BMW is night unless day is chosen for it in Settings.
     val styleOpts by c.styleOptions.all.collectAsStateWithLifecycle()
     val uiStyle = com.abu00salman.novadrive.core.UiStyles.get(settings.uiStyle)
     val styleDark = when {
         uiStyle.id == "tesla" -> false
-        uiStyle.id == "bmw" -> true
+        uiStyle.id == "bmw" -> styleOpts["bmw"]?.dark ?: true
         uiStyle.customizable -> styleOpts[uiStyle.id]?.dark ?: uiStyle.defaultDark
         else -> null
     }
@@ -173,7 +173,9 @@ fun NovaRoot(onVoice: () -> Unit) {
     val sc = rememberShortcuts(c, settings, apps)
     CarPlayAutoLaunch(c, settings, sc)
 
+    val aiCfg by c.ai.config.collectAsStateWithLifecycle()
     NovaTheme(dark = dark, accentIndex = settings.accent, arabic = settings.arabic) {
+      androidx.compose.runtime.CompositionLocalProvider(com.abu00salman.novadrive.ui.components.LocalNovaAi provides aiCfg.novaEnabled) {
         val p = LocalNova.current
         var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
         var settingsStart by remember { mutableStateOf<String?>(null) }
@@ -289,6 +291,7 @@ fun NovaRoot(onVoice: () -> Unit) {
             val dimAlpha = com.abu00salman.novadrive.data.ScreenDimmer.overlayAlpha(dimLevel)
             if (!overlayDims && dimAlpha > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dimAlpha)))
         }
+      }
     }
 }
 
@@ -345,6 +348,8 @@ private fun Routes(
                 onSettings = { openSettings(null) },
                 onPhone = a::phone,
                 onVoice = onVoice,
+                onWidgets = c.widgets::set,
+                onTripReset = c.trip::reset,
                 onCarPlay = {
                     val slot = ui.dock.firstOrNull { it.id == "carplay" && it.app != null }
                     when {

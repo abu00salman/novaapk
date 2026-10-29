@@ -216,6 +216,7 @@ class ScreenshotTest {
     private val noAi = com.abu00salman.novadrive.ui.ai.NovaAiActions({}, {}, {}, {}, {}, {}, {})
 
     @Test fun novaAiPanel() = shot("36_nova_ai_panel_ar", Screen.HOME, dark = false, chrome = false) {
+        androidx.compose.runtime.CompositionLocalProvider(com.abu00salman.novadrive.ui.components.LocalNovaAi provides true) {
         androidx.compose.foundation.layout.Box {
             HomeLayout(styled("tesla", ui(true)), HomeMode.CAR, false, HomeActions())
             com.abu00salman.novadrive.ui.ai.NovaAiPanel(
@@ -223,6 +224,7 @@ class ScreenshotTest {
                     heard = "كم عاصمة اليابان؟", reply = "عاصمة اليابان هي طوكيو، ويسكنها نحو 14 مليون نسمة.", provider = "ChatGPT"),
                 noAi,
             )
+        }
         }
     }
 
@@ -247,6 +249,49 @@ class ScreenshotTest {
                 noAi,
             )
         }
+    }
+
+    @Test fun askMePanel() = shot("39_ask_me_ar", Screen.HOME, dark = true) {
+        androidx.compose.foundation.layout.Box {
+            HomeLayout(ui(true), HomeMode.CAR, false, HomeActions())
+            com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                com.abu00salman.novadrive.data.voice.VoiceUi(visible = true, state = com.abu00salman.novadrive.data.voice.VoiceState.IDLE,
+                    heard = "افتح الخرائط", reply = "تم، فتحت خرائط Google"),
+                noAi,
+            )
+        }
+    }
+
+    @Test fun widgets() = shot("40_widgets_ar", Screen.HOME, dark = true, chrome = false) {
+        HomeLayout(styled("widgets", ui(true)).copy(trip = com.abu00salman.novadrive.data.TripStats(42.7, 2520, 118f)), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun widgetsLight_en() = shot("41_widgets_light_en", Screen.HOME, dark = false, ar = false, chrome = false) {
+        HomeLayout(styled("widgets", ui(false)).copy(trip = com.abu00salman.novadrive.data.TripStats(12.3, 900, 96f),
+            styleOptions = com.abu00salman.novadrive.core.StyleOptions(dark = false)), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun widgetsEditing() = shot("42_widgets_edit_ar", Screen.HOME, dark = true, chrome = false) {
+        val u = styled("widgets", ui(true))
+        val skin = com.abu00salman.novadrive.ui.styles.skinFor(com.abu00salman.novadrive.core.UiStyles.get("widgets"), u.styleOptions, true)
+        androidx.compose.runtime.CompositionLocalProvider(com.abu00salman.novadrive.ui.styles.LocalSkin provides skin) {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                com.abu00salman.novadrive.ui.styles.SkinBackground()
+                com.abu00salman.novadrive.ui.components.FixedLtr {
+                    com.abu00salman.novadrive.ui.styles.WidgetsLayout(u, HomeActions(), startEditing = true)
+                }
+            }
+        }
+    }
+
+    @Test fun widgetsCustomBoard() = shot("43_widgets_custom_ar", Screen.HOME, dark = true, chrome = false) {
+        val board = com.abu00salman.novadrive.core.WidgetGrid.decode(
+            "MAP:LARGE,SPEED:SMALL,COMPASS:SMALL,NAV:WIDE,OBD:WIDE,CLOCK:SMALL,CALENDAR:SMALL,GFORCE:SMALL,SUN:SMALL")
+        HomeLayout(styled("widgets", ui(true)).copy(widgets = board), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun bmwDay() = shot("44_bmw_day_ar", Screen.HOME, dark = false) {
+        HomeLayout(styled("bmw", ui(true)).copy(styleOptions = com.abu00salman.novadrive.core.StyleOptions(dark = false)), HomeMode.CAR, false, HomeActions())
     }
 
     @Test fun tesla() = shot("20_tesla_ar", Screen.HOME, dark = false, chrome = false) {
