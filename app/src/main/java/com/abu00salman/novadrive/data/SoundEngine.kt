@@ -45,6 +45,8 @@ class SoundEngine(private val c: AppContainer) {
     private val pool: SoundPool = SoundPool.Builder().setMaxStreams(3).setAudioAttributes(attrs).build()
     private val loaded = ConcurrentHashMap<String, Int>()      // key → soundId
     private val ready = ConcurrentHashMap.newKeySet<Int>()
+    /** Sounds requested before they finished loading (e.g. right after an import): played as soon as ready. */
+    private val waiting = ConcurrentHashMap<Int, Float>()
     private val durations = ConcurrentHashMap<String, Long>()  // key → ms
     private var player: MediaPlayer? = null
 
@@ -54,7 +56,12 @@ class SoundEngine(private val c: AppContainer) {
     private val sessionDone = HashSet<String>()
 
     init {
-        pool.setOnLoadCompleteListener { _, id, status -> if (status == 0) ready += id }
+        pool.setOnLoadCompleteListener { _, id, status ->
+            if (status == 0) {
+                ready += id
+                waiting.remove(id)?.let { v -> pool.play(id, v, v, 1, 0, 1f) }
+            } else waiting.remove(id)
+        }
         // A new drive (screen off → on) gets its welcome again.
         ContextCompat.registerReceiver(ctx, object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) { sessionDone.clear() }
@@ -71,8 +78,14 @@ class SoundEngine(private val c: AppContainer) {
     }
 
     private fun preload() {
-        for (id in com.abu00salman.novadrive.core.UiStyles.all.map { it.id }) for (e in SoundEvent.entries) sourceFor(id, e)?.let(::ensure)
+        val keep = HashSet<String>()
+        for (id in com.abu00salman.novadrive.core.UiStyles.all.map { it.id }) for (e in SoundEvent.entries) sourceFor(id, e)?.let { keep += it.key; ensure(it) }
+        // Replaced or removed imports free their memory.
+        loaded.keys.filter { it !in keep }.forEach { k -> loaded.remove(k)?.let { ready -= it; pool.unload(it) }; durations.remove(k) }
     }
+
+    /** The built-in bytes of [e], for exporting a pack. */
+    fun openBuiltIn(e: SoundEvent): java.io.InputStream? = builtIn(e).takeIf { it != 0 }?.let { ctx.resources.openRawResource(it) }
 
     private fun builtIn(e: SoundEvent): Int = when (e) {
         SoundEvent.WELCOME -> R.raw.nova_snd_welcome
@@ -81,8 +94,9 @@ class SoundEngine(private val c: AppContainer) {
         SoundEvent.TAP -> R.raw.nova_snd_tap
         SoundEvent.CONFIRM -> R.raw.nova_snd_confirm
         SoundEvent.BACK -> R.raw.nova_snd_back
-        // 07 / 08 are not bundled (redistribution rights not verified): the user imports them.
-        SoundEvent.NOTIFY, SoundEvent.CHIME -> 0
+        // v4: original additive-synthesis sounds made for NovaDrive in a BMW-like style (not BMW recordings).
+        SoundEvent.NOTIFY -> R.raw.nova_snd_notify
+        SoundEvent.CHIME -> R.raw.nova_snd_chime
     }
 
     /** The user's own file first, then the interface's built-in pack; null = silent. */
@@ -166,6 +180,11 @@ class SoundEngine(private val c: AppContainer) {
         return true
     }
 
+    /** Plays a not-yet-saved file so the user can hear it before choosing it. */
+    fun previewFile(f: File) {
+        main.post { startLong(Src("p:${f.absolutePath}", file = f), maxOf(c.sounds.global.value.volume, 0.3f)) }
+    }
+
     fun hasSound(styleId: String, e: SoundEvent) = sourceFor(styleId, e) != null
 
     private fun start(src: Src, volume: Float) {
@@ -173,13 +192,23 @@ class SoundEngine(private val c: AppContainer) {
         val id = loaded[src.key]
         if (id != null) {
             if (id in ready) pool.play(id, v, v, 1, 0, 1f)
+            else { waiting[id] = v; if (id in ready) waiting.remove(id)?.let { pool.play(id, it, it, 1, 0, 1f) } }
             return
         }
-        if ((durations[src.key] ?: 0L) <= SHORT_MS) {
-            // Not preloaded yet: load for next time instead of delaying the UI.
-            c.scope.launch(Dispatchers.Default) { ensure(src) }
+        if (src.key !in durations || (durations[src.key] ?: 0L) <= SHORT_MS) {
+            // Not loaded yet (a fresh import): load now and play the moment it is ready — never skipped.
+            c.scope.launch(Dispatchers.Default) {
+                ensure(src)
+                loaded[src.key]?.let { sid ->
+                    if (sid in ready) pool.play(sid, v, v, 1, 0, 1f) else waiting[sid] = v
+                } ?: main.post { startLong(src, v) }
+            }
             return
         }
+        startLong(src, v)
+    }
+
+    private fun startLong(src: Src, v: Float) {
         runCatching {
             player?.release()
             val mp = MediaPlayer().apply {

@@ -28,11 +28,19 @@ private val calm = PlayContext(driving = false, inCall = false, speaking = false
 private val bmw = StyleSounds(SoundPacks.LUXURY)
 private val on = GlobalSounds(true, 0.45f)
 
+private fun mp3(n: Int = 4000) = "ID3".toByteArray() + ByteArray(n) { (it % 251).toByte() }
+private fun wav(n: Int = 4000) = "RIFF".toByteArray() + ByteArray(4) + "WAVE".toByteArray() + ByteArray(n)
+private fun ogg(n: Int = 4000) = "OggS".toByteArray() + ByteArray(n)
+private fun zipOf(vararg files: Pair<String, ByteArray>) = ByteArrayOutputStream().also { bo ->
+    ZipOutputStream(bo).use { z -> files.forEach { (n, b) -> z.putNextEntry(ZipEntry(n)); z.write(b); z.closeEntry() } }
+}.toByteArray()
+
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], application = Application::class)
 class SoundsTest {
-    private fun repo() = SoundRepository(ApplicationProvider.getApplicationContext<Application>())
-    private fun fakeAudio(n: Int = 4000) = ByteArray(n) { (it % 251).toByte() }
+    private val app = ApplicationProvider.getApplicationContext<Application>()
+    private var duration: Long? = 1_000L
+    private fun repo() = SoundRepository(app) { duration }
 
     @Test fun bmwDefaultsToLuxuryOthersSilent() {
         val r = repo(); r.resetAll()
@@ -48,47 +56,119 @@ class SoundsTest {
         val r = repo(); r.resetAll()
         r.setGlobal { it.copy(enabled = false, volume = 0.2f) }
         r.update("bmw") { it.copy(off = setOf(SoundEvent.TAP), chime = setOf(ChimeTriggers.ARRIVAL)) }
-        r.update("tesla") { it.copy(pack = SoundPacks.LUXURY) }
+        r.update("tesla") { it.copy(pack = SoundPacks.CUSTOM) }
+        assertTrue(r.import("tesla", SoundEvent.TAP, "my.ogg", ByteArrayInputStream(ogg())))
         val again = repo() // a new instance = the unit restarted
         assertFalse(again.global.value.enabled)
         assertEquals(0.2f, again.global.value.volume, 0.001f)
         assertEquals(setOf(SoundEvent.TAP), again.style("bmw").off)
         assertEquals(setOf(ChimeTriggers.ARRIVAL), again.style("bmw").chime)
-        assertEquals(SoundPacks.LUXURY, again.style("tesla").pack)
+        assertEquals(SoundPacks.CUSTOM, again.style("tesla").pack)
+        assertNotNull("imported files and their mapping persist", again.fileFor("tesla", SoundEvent.TAP))
         assertEquals("other interfaces untouched", SoundPacks.NONE, again.style("ford").pack)
-        assertTrue(again.style("ford").off.isEmpty())
         again.resetAll()
         assertTrue(again.global.value.enabled)
         assertEquals(SoundPacks.NONE, again.style("tesla").pack)
+        assertNull(again.fileFor("tesla", SoundEvent.TAP))
     }
 
-    @Test fun importsAreSavedPerInterfaceAndValidated() {
+    @Test fun importsAreSavedPerInterfaceReplaceAndFixLabels() {
         val r = repo(); r.resetAll()
-        assertTrue(r.import("bmw", SoundEvent.NOTIFY, "mp3", ByteArrayInputStream(fakeAudio())))
+        assertTrue(r.import("bmw", SoundEvent.NOTIFY, "a.mp3", ByteArrayInputStream(mp3())))
         assertNotNull(r.fileFor("bmw", SoundEvent.NOTIFY))
         assertNull("not shared with other interfaces", r.fileFor("tesla", SoundEvent.NOTIFY))
-        assertTrue("replacing keeps a single file", r.import("bmw", SoundEvent.NOTIFY, "wav", ByteArrayInputStream(fakeAudio())))
+        val v = r.filesVersion.value
+        assertTrue("replacing keeps a single file", r.import("bmw", SoundEvent.NOTIFY, "b.wav", ByteArrayInputStream(wav())))
         assertEquals("wav", r.fileFor("bmw", SoundEvent.NOTIFY)!!.extension)
-        assertFalse("only audio", r.import("bmw", SoundEvent.CHIME, "exe", ByteArrayInputStream(fakeAudio())))
-        assertFalse("too big", r.import("bmw", SoundEvent.CHIME, "mp3", ByteArrayInputStream(fakeAudio(4 * 1024 * 1024))))
-        assertFalse("empty", r.import("bmw", SoundEvent.CHIME, "ogg", ByteArrayInputStream(ByteArray(10))))
-        assertNull(r.fileFor("bmw", SoundEvent.CHIME))
+        assertTrue("the player is told to reload right away", r.filesVersion.value > v)
+        assertTrue("a WAV called .mp3 is stored for what it is", r.import("bmw", SoundEvent.TAP, "liar.mp3", ByteArrayInputStream(wav())))
+        assertEquals("wav", r.fileFor("bmw", SoundEvent.TAP)!!.extension)
         r.removeImported("bmw", SoundEvent.NOTIFY)
         assertNull(r.fileFor("bmw", SoundEvent.NOTIFY))
     }
 
-    @Test fun zipImportMapsByNumber() {
+    @Test fun unsupportedOrCorruptFilesAreRejectedSafely() {
         val r = repo(); r.resetAll()
-        val bytes = ByteArrayOutputStream().also { bo ->
-            ZipOutputStream(bo).use { z ->
-                listOf("07_BMW_Notification_User.mp3", "08_BMW_Chime_User.mp3", "README.txt", "99_unknown.mp3").forEach {
-                    z.putNextEntry(ZipEntry(it)); z.write(fakeAudio()); z.closeEntry()
-                }
-            }
-        }.toByteArray()
-        val done = r.importZip("bmw", ByteArrayInputStream(bytes))
+        assertTrue(r.import("bmw", SoundEvent.CHIME, "keep.mp3", ByteArrayInputStream(mp3())))
+        val before = r.fileFor("bmw", SoundEvent.CHIME)!!.length()
+        assertFalse("not audio (PNG header)", r.import("bmw", SoundEvent.CHIME, "x.mp3", ByteArrayInputStream(byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte()) + ByteArray(3000))))
+        assertFalse("unsupported m4a", r.import("bmw", SoundEvent.CHIME, "x.m4a", ByteArrayInputStream(ByteArray(3000) { 7 })))
+        assertFalse("too big", r.import("bmw", SoundEvent.CHIME, "x.mp3", ByteArrayInputStream(mp3(4 * 1024 * 1024))))
+        assertFalse("empty / tiny", r.import("bmw", SoundEvent.CHIME, "x.ogg", ByteArrayInputStream(ByteArray(10))))
+        duration = null
+        assertFalse("decoder can't read it", r.import("bmw", SoundEvent.CHIME, "x.mp3", ByteArrayInputStream(mp3())))
+        duration = 120_000L
+        assertFalse("far too long for an effect", r.import("bmw", SoundEvent.CHIME, "x.mp3", ByteArrayInputStream(mp3())))
+        assertEquals("the previous sound is untouched by failed imports", before, r.fileFor("bmw", SoundEvent.CHIME)!!.length())
+    }
+
+    @Test fun stageThenCommitPlaysTheChosenFile() {
+        val r = repo(); r.resetAll()
+        val staged = r.stage("picked.ogg", ByteArrayInputStream(ogg()))
+        assertNotNull(staged)
+        assertEquals("ogg", staged!!.ext); assertEquals(1_000L, staged.durationMs)
+        assertNull("nothing changes until the user confirms", r.fileFor("bmw", SoundEvent.BACK))
+        assertTrue(r.commit("bmw", SoundEvent.BACK, staged))
+        assertEquals("ogg", r.fileFor("bmw", SoundEvent.BACK)!!.extension)
+        val second = r.stage("again.wav", ByteArrayInputStream(wav()))!!
+        r.discard(second)
+        assertFalse(second.file.exists())
+    }
+
+    @Test fun zipImportIsCheckedFirst() {
+        val r = repo(); r.resetAll()
+        val done = r.importZip("bmw", ByteArrayInputStream(zipOf(
+            "07_notify.mp3" to mp3(), "08_chime.ogg" to ogg(), "README.txt" to ByteArray(50), "99_unknown.mp3" to mp3(),
+            "../04_evil.mp3" to mp3(), "03_corrupt.mp3" to ByteArray(3000) { 9 },
+        )))
         assertEquals(setOf(SoundEvent.NOTIFY, SoundEvent.CHIME), done.toSet())
-        assertEquals("mp3", r.fileFor("bmw", SoundEvent.CHIME)!!.extension)
+        assertNull("path tricks are ignored", r.fileFor("bmw", SoundEvent.TAP))
+        assertNull("corrupt entries are skipped", r.fileFor("bmw", SoundEvent.NAV))
+        assertEquals("ogg", r.fileFor("bmw", SoundEvent.CHIME)!!.extension)
+        assertTrue("garbage instead of a ZIP is harmless", r.importZip("bmw", ByteArrayInputStream(ByteArray(500) { 3 })).isEmpty())
+    }
+
+    @Test fun zipWithTooManyEntriesIsCapped() {
+        val r = repo(); r.resetAll()
+        val files = (1..200).map { "noise_$it.txt" to ByteArray(10) }.toTypedArray() + ("01_welcome.mp3" to mp3())
+        assertTrue("the real sound sits after the entry limit", r.importZip("bmw", ByteArrayInputStream(zipOf(*files))).isEmpty())
+    }
+
+    @Test fun exportMakesAPackThatImportsBack() {
+        val r = repo(); r.resetAll()
+        assertTrue(r.import("bmw", SoundEvent.TAP, "mine.wav", ByteArrayInputStream(wav())))
+        val out = ByteArrayOutputStream()
+        val n = r.exportZip("bmw", out) { e -> if (e == SoundEvent.NAV) ByteArrayInputStream(mp3()) else null }
+        assertEquals("the custom sound and the built-in one", 2, n)
+        val names = java.util.zip.ZipInputStream(ByteArrayInputStream(out.toByteArray())).let { z -> generateSequence { z.nextEntry }.map { it.name }.toList() }
+        assertTrue("04_tap.wav" in names && "03_nav.mp3" in names && "pack.json" in names)
+        val tesla = repo()
+        val back = tesla.importZip("tesla", ByteArrayInputStream(out.toByteArray()))
+        assertEquals(setOf(SoundEvent.TAP, SoundEvent.NAV), back.toSet())
+        assertEquals("wav", tesla.fileFor("tesla", SoundEvent.TAP)!!.extension)
+    }
+
+    @Test fun resetOneSoundOneInterfaceOrEverything() {
+        val r = repo(); r.resetAll()
+        r.import("bmw", SoundEvent.TAP, "a.mp3", ByteArrayInputStream(mp3())); r.import("bmw", SoundEvent.NAV, "b.mp3", ByteArrayInputStream(mp3()))
+        r.import("tesla", SoundEvent.TAP, "c.mp3", ByteArrayInputStream(mp3()))
+        r.update("bmw") { it.copy(pack = SoundPacks.CUSTOM, off = setOf(SoundEvent.BACK)) }
+        r.removeImported("bmw", SoundEvent.TAP)
+        assertNull(r.fileFor("bmw", SoundEvent.TAP)); assertNotNull(r.fileFor("bmw", SoundEvent.NAV))
+        r.resetStyle("bmw")
+        assertNull(r.fileFor("bmw", SoundEvent.NAV))
+        assertEquals(SoundPacks.LUXURY, r.style("bmw").pack); assertTrue(r.style("bmw").off.isEmpty())
+        assertNotNull("other interfaces keep theirs", r.fileFor("tesla", SoundEvent.TAP))
+    }
+
+    @Test fun oldPackImportsAreDroppedOnceWhenV4Arrives() {
+        app.getSharedPreferences("sounds", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        val old = java.io.File(app.filesDir, "sounds/bmw").apply { mkdirs() }
+        java.io.File(old, "notify.mp3").writeBytes(mp3())
+        val r = repo()
+        assertNull("the earlier 07/08 files no longer override v4", r.fileFor("bmw", SoundEvent.NOTIFY))
+        assertTrue(r.import("bmw", SoundEvent.NOTIFY, "new.mp3", ByteArrayInputStream(mp3())))
+        assertNotNull("a later import is kept across restarts", repo().fileFor("bmw", SoundEvent.NOTIFY))
     }
 
     // ---- policy (pure)
@@ -130,8 +210,8 @@ class SoundsTest {
         assertFalse(SoundPolicy.isAudioName("a.m4a"))
     }
 
-    @Test fun publicPackIncludesOnlyTheOriginalSounds() {
+    @Test fun theAppBundlesAllEightV4Sounds() {
         val raw = java.io.File("src/main/res/raw").list().orEmpty().toSet()
-        assertEquals(setOf("welcome", "ready", "nav", "tap", "confirm", "back").map { "nova_snd_$it.mp3" }.toSet(), raw)
+        assertEquals(SoundEvent.entries.map { "nova_snd_${it.key}.mp3" }.toSet(), raw)
     }
 }

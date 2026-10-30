@@ -13,7 +13,7 @@ enum class SoundEvent(val number: Int, val key: String, val en: String, val ar: 
     WELCOME(1, "welcome", "Welcome", "الترحيب", SoundGroup.WELCOME),
     READY(2, "ready", "Start / Ready", "بدء التشغيل", SoundGroup.WELCOME),
     NAV(3, "nav", "Navigation switch", "التنقل بين الصفحات", SoundGroup.NAV),
-    TAP(4, "tap", "Button tap", "لمس الأزرار", SoundGroup.TOUCH),
+    TAP(4, "tap", "Button tap", "الضغط على الأزرار", SoundGroup.TOUCH),
     CONFIRM(5, "confirm", "Confirm", "التأكيد", SoundGroup.OTHER),
     BACK(6, "back", "Back", "الرجوع", SoundGroup.NAV),
     NOTIFY(7, "notify", "Notification", "الإشعارات", SoundGroup.OTHER),
@@ -37,9 +37,11 @@ object ChimeTriggers {
 
 object SoundPacks {
     const val NONE = "none"
-    /** NovaDrive Luxury: the six original sounds are built in; 07/08 only exist if the user imports them. */
+    /** NovaDrive Luxury v4: all eight sounds are built into the app. */
     const val LUXURY = "luxury"
-    val all = listOf(LUXURY, NONE)
+    /** Only the sounds the user imported for this interface; nothing built in. */
+    const val CUSTOM = "custom"
+    val all = listOf(LUXURY, CUSTOM, NONE)
 
     /** The pack an interface starts with: BMW gets the luxury pack, everything else stays silent. */
     fun defaultFor(styleId: String) = if (styleId == "bmw") LUXURY else NONE
@@ -62,6 +64,35 @@ data class StyleSounds(
 
 /** What is going on around the sound; the effects stay out of the way of calls, voice and guidance. */
 data class PlayContext(val driving: Boolean, val inCall: Boolean, val speaking: Boolean, val listening: Boolean)
+
+/** What a file really is, judged by its first bytes (the extension is only a hint). */
+object AudioSniff {
+    /** "mp3", "wav", "ogg" or null when it isn't one of the supported formats. */
+    fun detect(head: ByteArray): String? {
+        fun at(i: Int, t: String) = head.size >= i + t.length && t.indices.all { head[i + it] == t[it].code.toByte() }
+        return when {
+            at(0, "RIFF") && at(8, "WAVE") -> "wav"
+            at(0, "OggS") -> "ogg"
+            at(0, "ID3") -> "mp3"
+            head.size >= 2 && head[0] == 0xFF.toByte() && (head[1].toInt() and 0xE0) == 0xE0 -> "mp3"
+            else -> null
+        }
+    }
+}
+
+/** Reads a file's real duration with Android's decoder; null when it can't be decoded. */
+object AudioProbe {
+    fun durationMs(f: File): Long? = runCatching {
+        val r = android.media.MediaMetadataRetriever()
+        try {
+            r.setDataSource(f.absolutePath)
+            r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        } finally { r.release() }
+    }.getOrNull()
+}
+
+/** A checked file waiting for the user's decision (preview, then use or cancel). */
+data class StagedSound(val file: File, val ext: String, val durationMs: Long, val sourceName: String)
 
 object SoundPolicy {
     /** Cues that would startle or distract a moving driver. */
@@ -109,13 +140,26 @@ object SoundPolicy {
 }
 
 /** Sound settings saved on the unit: global switches plus a separate setup per interface. */
-class SoundRepository(private val ctx: Context) {
+class SoundRepository(
+    private val ctx: Context,
+    /** Real duration of an audio file, or null when it can't be decoded (replaced in tests). */
+    private val probe: (File) -> Long? = AudioProbe::durationMs,
+) {
     private val prefs = ctx.getSharedPreferences("sounds", Context.MODE_PRIVATE)
+
+    init {
+        // Pack v4 replaces every earlier pack: imports from older betas (e.g. the first 07/08 files) are dropped once.
+        if (prefs.getInt("pack_version", 0) < PACK_VERSION) {
+            File(ctx.filesDir, "sounds").deleteRecursively()
+            prefs.edit().putInt("pack_version", PACK_VERSION).apply()
+        }
+    }
+
     private val _global = MutableStateFlow(readGlobal())
     val global: StateFlow<GlobalSounds> = _global
     private val _styles = MutableStateFlow(UiStyles.all.associate { it.id to readStyle(it.id) })
     val styles: StateFlow<Map<String, StyleSounds>> = _styles
-    /** Bumps whenever imported files change so the player reloads them. */
+    /** Bumps whenever imported files change so the player reloads them right away. */
     private val _files = MutableStateFlow(0)
     val filesVersion: StateFlow<Int> = _files
 
@@ -142,19 +186,21 @@ class SoundRepository(private val ctx: Context) {
         _styles.value = _styles.value + (id to n)
     }
 
-    // ---- imported sounds (mp3 / wav / ogg), kept per interface
+    // ---- imported sounds (mp3 / wav / ogg), kept in the app's private storage, per interface
 
     private fun dir(id: String) = File(ctx.filesDir, "sounds/$id")
+    private fun stageDir() = File(ctx.cacheDir, "sound_stage").apply { mkdirs() }
 
     /** The imported file for [e] in [id], if any. */
     fun fileFor(id: String, e: SoundEvent): File? =
         dir(id).listFiles()?.firstOrNull { it.nameWithoutExtension == e.key && SoundPolicy.isAudioName(it.name) }
 
-    /** Saves [input] as [e]'s sound for [id]; false when it isn't audio, is too big or can't be read. */
-    fun import(id: String, e: SoundEvent, ext: String, input: InputStream): Boolean {
-        val extension = ext.lowercase().takeIf { it in SoundPolicy.audioExtensions } ?: return false
-        val d = dir(id).apply { mkdirs() }
-        val tmp = File(d, "${e.key}.tmp")
+    /**
+     * Copies [input] into a temporary file and checks it: size limit, real format by header (MP3, WAV or
+     * OGG whatever the name says) and that Android can decode it with a sensible length. Null if not usable.
+     */
+    fun stage(sourceName: String, input: InputStream): StagedSound? {
+        val tmp = File.createTempFile("snd", ".tmp", stageDir())
         val ok = runCatching {
             tmp.outputStream().use { out ->
                 var total = 0L
@@ -169,31 +215,88 @@ class SoundRepository(private val ctx: Context) {
             }
             tmp.length() > 512
         }.getOrDefault(false)
-        if (!ok) { tmp.delete(); return false }
-        d.listFiles()?.filter { it.nameWithoutExtension == e.key && it != tmp }?.forEach { it.delete() }
-        tmp.renameTo(File(d, "${e.key}.$extension"))
-        _files.value++
-        return true
+        if (!ok) { tmp.delete(); return null }
+        val head = ByteArray(16).also { b -> tmp.inputStream().use { it.read(b) } }
+        val ext = AudioSniff.detect(head)
+        val ms = if (ext == null) null else probe(tmp)
+        if (ext == null || ms == null || ms < MIN_MS || ms > MAX_MS) { tmp.delete(); return null }
+        val named = File(tmp.parentFile, tmp.nameWithoutExtension + "." + ext)
+        if (!tmp.renameTo(named)) { tmp.delete(); return null }
+        return StagedSound(named, ext, ms, sourceName)
     }
 
+    /** Makes a staged file the sound of [e] for [id]; it plays instead of the default straight away. */
+    fun commit(id: String, e: SoundEvent, staged: StagedSound): Boolean {
+        val d = dir(id).apply { mkdirs() }
+        val target = File(d, "${e.key}.${staged.ext}")
+        val ok = runCatching {
+            d.listFiles()?.filter { it.nameWithoutExtension == e.key }?.forEach { it.delete() }
+            staged.file.copyTo(target, overwrite = true)
+        }.isSuccess
+        staged.file.delete()
+        if (ok) _files.value++
+        return ok
+    }
+
+    fun discard(staged: StagedSound) { staged.file.delete() }
+
+    /** Stage + commit in one step. */
+    fun import(id: String, e: SoundEvent, name: String, input: InputStream): Boolean =
+        stage(name, input)?.let { commit(id, e, it) } ?: false
+
     /**
-     * Imports a whole pack: a ZIP whose files start with the event number (01_…, 07_…). Returns the
-     * events that were imported.
+     * Imports a whole pack: a ZIP whose audio files start with the event number (01_…, 07_…). The ZIP is
+     * checked before anything is used: limited entry count and total size, names are never used as paths,
+     * and every file goes through the same format/decoder checks. Returns the events imported.
      */
     fun importZip(id: String, input: InputStream): List<SoundEvent> {
-        val done = ArrayList<SoundEvent>()
+        val done = LinkedHashSet<SoundEvent>()
         runCatching {
             ZipInputStream(input).use { zip ->
+                var entries = 0
+                var total = 0L
                 var entry = zip.nextEntry
-                while (entry != null) {
+                while (entry != null && entries < MAX_ZIP_ENTRIES) {
+                    entries++
                     val name = entry.name
-                    val ev = if (!entry.isDirectory && SoundPolicy.isAudioName(name)) SoundPolicy.eventForFileName(name) else null
-                    if (ev != null && import(id, ev, name.substringAfterLast('.'), NoClose(zip))) done += ev
+                    val ev = if (!entry.isDirectory && SoundPolicy.isAudioName(name) && !name.contains("..")) SoundPolicy.eventForFileName(name) else null
+                    if (ev != null) {
+                        val counted = CountingLimit(zip, MAX_ZIP_TOTAL - total)
+                        if (import(id, ev, name.substringAfterLast('/'), counted)) done += ev
+                        total += counted.read
+                        if (total >= MAX_ZIP_TOTAL) break
+                    }
                     entry = zip.nextEntry
                 }
             }
         }
-        return done
+        return done.toList()
+    }
+
+    /**
+     * Writes the interface's effective sounds as a ZIP (01_welcome.mp3 … 08_chime.mp3 + pack.json), using the
+     * user's imports where there are any and [builtIn] for the rest. Returns how many sounds were written.
+     */
+    fun exportZip(id: String, out: java.io.OutputStream, builtIn: (SoundEvent) -> InputStream?): Int {
+        var n = 0
+        java.util.zip.ZipOutputStream(out).use { zip ->
+            val manifest = StringBuilder("{\"app\":\"NovaDrive\",\"interface\":\"$id\",\"pack\":\"${style(id).pack}\",\"sounds\":[")
+            for (e in SoundEvent.entries) {
+                val f = fileFor(id, e)
+                val stream = f?.inputStream() ?: if (style(id).pack == SoundPacks.LUXURY) builtIn(e) else null
+                val ext = f?.extension ?: "mp3"
+                stream?.use { src ->
+                    val name = "%02d_%s.%s".format(e.number, e.key, ext)
+                    zip.putNextEntry(java.util.zip.ZipEntry(name)); src.copyTo(zip); zip.closeEntry()
+                    if (n > 0) manifest.append(',')
+                    manifest.append("{\"event\":\"${e.key}\",\"file\":\"$name\",\"custom\":${f != null}}")
+                    n++
+                }
+            }
+            manifest.append("]}")
+            zip.putNextEntry(java.util.zip.ZipEntry("pack.json")); zip.write(manifest.toString().toByteArray()); zip.closeEntry()
+        }
+        return n
     }
 
     fun removeImported(id: String, e: SoundEvent) {
@@ -201,20 +304,42 @@ class SoundRepository(private val ctx: Context) {
         _files.value++
     }
 
+    /** One interface back to its defaults: pack, switches, chime triggers and every imported sound. */
+    fun resetStyle(id: String) {
+        dir(id).deleteRecursively()
+        prefs.edit().remove("$id.pack").remove("$id.off").remove("$id.chime").apply()
+        _styles.value = _styles.value + (id to readStyle(id))
+        _files.value++
+    }
+
     /** Back to the defaults of every interface (imported files are removed too). */
     fun resetAll() {
-        prefs.edit().clear().apply()
+        prefs.edit().clear().putInt("pack_version", PACK_VERSION).apply()
         File(ctx.filesDir, "sounds").deleteRecursively()
         _global.value = readGlobal()
         _styles.value = UiStyles.all.associate { it.id to readStyle(it.id) }
         _files.value++
     }
 
-    private class NoClose(private val s: InputStream) : InputStream() {
-        override fun read() = s.read()
-        override fun read(b: ByteArray, off: Int, len: Int) = s.read(b, off, len)
+    /** Stops reading after [limit] bytes (a ZIP bomb can't fill the storage). */
+    private class CountingLimit(private val s: InputStream, private val limit: Long) : InputStream() {
+        var read = 0L
+        override fun read(): Int { if (read >= limit) return -1; val b = s.read(); if (b >= 0) read++; return b }
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (read >= limit) return -1
+            val n = s.read(b, off, minOf(len.toLong(), limit - read).toInt())
+            if (n > 0) read += n
+            return n
+        }
         override fun close() {}
     }
 
-    companion object { const val MAX_BYTES = 3L * 1024 * 1024 }
+    companion object {
+        const val MAX_BYTES = 3L * 1024 * 1024
+        const val MAX_ZIP_ENTRIES = 64
+        const val MAX_ZIP_TOTAL = 12L * 1024 * 1024
+        const val MIN_MS = 30L
+        const val MAX_MS = 30_000L
+        const val PACK_VERSION = 4
+    }
 }

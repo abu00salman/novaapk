@@ -78,7 +78,7 @@ class NovaAssistant(private val c: AppContainer) {
 
     fun attach(window: Window?) { windowRef = WeakReference(window) }
 
-    fun listen() = session.listen()
+    fun listen() { c.soundFx.stop(); session.listen() }
     fun ask(text: String) = session.ask(text)
     fun retry() = session.retry()
     fun replay() = session.replay()
