@@ -51,7 +51,21 @@ class NovaNotificationListener : NotificationListenerService() {
 
     override fun onListenerConnected() = rescan()
     override fun onListenerDisconnected() { nav.value = null; media.value = emptyList() }
-    override fun onNotificationPosted(sbn: StatusBarNotification?) { if (sbn != null && (isNav(sbn) || isMedia(sbn))) rescan() }
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        if (sbn == null) return
+        if (isNav(sbn) || isMedia(sbn)) rescan() else if (isNewMessage(sbn)) {
+            // Interface notification sound (only if the current interface has one; rate limited).
+            runCatching { (applicationContext as com.abu00salman.novadrive.NovaApp).container.soundFx.play(com.abu00salman.novadrive.core.SoundEvent.NOTIFY) }
+        }
+    }
+
+    /** A message/e-mail/social notification from another app — not ongoing, not a group summary. */
+    private fun isNewMessage(sbn: StatusBarNotification): Boolean {
+        val n = sbn.notification
+        if (sbn.isOngoing || sbn.packageName == packageName) return false
+        if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return false
+        return n.category == Notification.CATEGORY_MESSAGE || n.category == Notification.CATEGORY_EMAIL || n.category == Notification.CATEGORY_SOCIAL
+    }
     override fun onNotificationRemoved(sbn: StatusBarNotification?) { if (sbn != null && (isNav(sbn) || isMedia(sbn))) rescan() }
 
     private fun rescan() {

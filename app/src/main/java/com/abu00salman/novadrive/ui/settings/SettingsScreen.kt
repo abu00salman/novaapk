@@ -65,6 +65,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.abu00salman.novadrive.AppContainer
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import com.abu00salman.novadrive.core.UiStyles
+import com.abu00salman.novadrive.core.StyleSounds
+import com.abu00salman.novadrive.core.SoundPacks
+import com.abu00salman.novadrive.core.SoundGroup
+import com.abu00salman.novadrive.core.SoundEvent
+import com.abu00salman.novadrive.core.ChimeTriggers
 import com.abu00salman.novadrive.BuildConfig
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.unit.sp
@@ -104,7 +111,7 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 import java.util.Locale
 
-private enum class Section { CAR, APPEARANCE, SHORTCUTS, VOICE, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, EXPERIMENTAL, ABOUT }
+private enum class Section { CAR, APPEARANCE, SHORTCUTS, VOICE, SOUND, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, EXPERIMENTAL, ABOUT }
 
 @Composable
 fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: String? = null, onClose: () -> Unit) {
@@ -136,6 +143,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
                         Triple(Section.VOICE, Icons.Rounded.Mic, Pair("Ask me (voice)", "أمرني")),
+                        Triple(Section.SOUND, Icons.AutoMirrored.Rounded.VolumeUp, Pair("Sound Experience", "تجربة الأصوات")),
                         Triple(Section.CARPLAY, Icons.Rounded.PhoneIphone, Pair("CarPlay", "كاربلاي")),
                         Triple(Section.DRIVING, Icons.Rounded.DirectionsCar, Pair("Driving", "القيادة")),
                         Triple(Section.VEHICLE, Icons.Rounded.Speed, Pair("Vehicle (OBD-II)", "المركبة (OBD-II)")),
@@ -170,6 +178,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                                 Section.SHORTCUTS -> ShortcutsSection(c, s)
                                 Section.VOICE -> VoiceSection(c, s)
                                 Section.EXPERIMENTAL -> ExperimentalSection(c, s)
+                                Section.SOUND -> SoundSection(c, s)
                                 Section.CARPLAY -> CarPlaySection(c, s)
                                 Section.DRIVING -> DrivingSection(c, s)
                                 Section.VEHICLE -> VehicleSection(c, s)
@@ -1186,4 +1195,139 @@ private fun VoiceSection(c: AppContainer, s: NovaSettings) {
         }
         phrase = ""; picking = false
     }, onDismiss = { picking = false })
+}
+
+
+// ============================================================================ Sound Experience
+
+private fun SoundEvent.title(ar: Boolean) = "%02d · %s".format(number, if (ar) this.ar else en)
+
+/** Settings › Sound Experience: interface sound effects, set up separately for every interface. */
+@Composable
+private fun SoundSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    val g by c.sounds.global.collectAsStateWithLifecycle()
+    val all by c.sounds.styles.collectAsStateWithLifecycle()
+    val filesVersion by c.sounds.filesVersion.collectAsStateWithLifecycle()
+    var editing by rememberSaveable { mutableStateOf(s.uiStyle) }
+    val st = all[editing] ?: StyleSounds(SoundPacks.defaultFor(editing))
+    var importFor by remember { mutableStateOf<SoundEvent?>(null) }
+    var zipMode by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val ev = importFor
+        val zip = zipMode
+        scope.launch {
+            val msg = withContext(Dispatchers.IO) {
+                val name = runCatching {
+                    ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else null }
+                }.getOrNull() ?: uri.lastPathSegment.orEmpty()
+                val ext = name.substringAfterLast('.', "").lowercase()
+                runCatching {
+                    ctx.contentResolver.openInputStream(uri)?.use { input ->
+                        when {
+                            zip || ext == "zip" -> c.sounds.importZip(editing, input).let { done ->
+                                if (done.isEmpty()) if (ar) "لم أجد ملفات صوتية مرقّمة (01…08) في الملف" else "No numbered sound files (01…08) found"
+                                else (if (ar) "تم استيراد: " else "Imported: ") + done.sortedBy { it.number }.joinToString(" ") { "%02d".format(it.number) }
+                            }
+                            ev != null -> if (c.sounds.import(editing, ev, ext, input)) (if (ar) "تم الاستيراد" else "Imported")
+                                else if (ar) "تعذّر الاستيراد: استخدم MP3 أو WAV أو OGG حتى 3 ميغابايت" else "Couldn't import: use MP3, WAV or OGG up to 3 MB"
+                            else -> ""
+                        }
+                    }
+                }.getOrNull() ?: (if (ar) "تعذّر قراءة الملف" else "Couldn't read that file")
+            }
+            if (msg.isNotEmpty()) com.abu00salman.novadrive.ui.toast(ctx, msg)
+        }
+    }
+
+    Column {
+        Header(tr("Sound Experience", "تجربة الأصوات"),
+            tr("Quiet interface sounds. Each interface has its own setup — BMW uses the NovaDrive Luxury pack by default; the others are silent until you choose one.",
+                "مؤثرات صوتية هادئة للواجهة. لكل واجهة إعداداتها المستقلة — BMW تستخدم حزمة NovaDrive Luxury افتراضيًا، وبقية الواجهات صامتة حتى تختار لها حزمة."))
+        Toggle(tr("Sound effects", "المؤثرات الصوتية"), tr("Master switch for all interfaces.", "المفتاح الرئيسي لكل الواجهات."), g.enabled) { v -> c.sounds.setGlobal { it.copy(enabled = v) } }
+        Gap()
+        Text(tr("Volume", "مستوى الصوت") + " · ${(g.volume * 100).toInt()}%", style = NovaType.label, color = p.textDim)
+        androidx.compose.material3.Slider(g.volume, { v -> c.sounds.setGlobal { it.copy(volume = (v * 20).toInt() / 20f) } }, valueRange = 0f..1f)
+        Text(tr("Effects play at the media volume and never pause your music, calls, guidance or Nova's voice.",
+            "المؤثرات تعمل بمستوى صوت الوسائط ولا توقف الموسيقى، وتصمت أثناء المكالمات والتوجيه الصوتي وصوت نوفا."), style = NovaType.small, color = p.textDim)
+        Gap()
+
+        Header(tr("Interface", "الواجهة"), tr("Choose which interface's sounds to edit.", "اختر الواجهة التي تريد تعديل أصواتها."))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(UiStyles.all.size) { i ->
+                val u = UiStyles.all[i]
+                Pill(if (ar) u.ar else u.en, if (u.id == editing) p.accent else p.textDim) { editing = u.id }
+            }
+        }
+        Gap()
+        Text(tr("Sound pack", "الحزمة الصوتية"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        Choice(listOf(SoundPacks.LUXURY to "NovaDrive Luxury", SoundPacks.NONE to tr("None (silent)", "بدون (صامت)")), st.pack) { v ->
+            c.sounds.update(editing) { it.copy(pack = v) }
+        }
+        Gap()
+        val groupToggles = listOf(
+            Triple(SoundGroup.WELCOME, tr("Welcome sound", "صوت الترحيب"), tr("Once per session (Welcome, or Start/Ready if you turn Welcome off). Not while driving.", "مرة واحدة في كل جلسة (الترحيب، أو بدء التشغيل إن أوقفت الترحيب). لا يعمل أثناء القيادة.")),
+            Triple(SoundGroup.TOUCH, tr("Touch sounds", "أصوات اللمس"), tr("A soft tick on taps.", "نقرة خفيفة عند اللمس.")),
+            Triple(SoundGroup.NAV, tr("Navigation sounds", "أصوات التنقل"), tr("Between pages, and when going back.", "عند الانتقال بين الصفحات وعند الرجوع.")),
+        )
+        groupToggles.forEach { (gr, title, sub) ->
+            val members = SoundEvent.entries.filter { it.group == gr }
+            Toggle(title, sub, members.any { st.on(it) }) { v ->
+                c.sounds.update(editing) { it.copy(off = if (v) it.off - members.toSet() else it.off + members) }
+            }
+            Gap()
+        }
+
+        Header(tr("Sounds", "الأصوات"), tr("Preview, replace with your own file, or restore.", "معاينة أو استبدال بملفك أو استعادة."))
+        SoundEvent.entries.forEach { e ->
+            val has = remember(editing, e, filesVersion, st.pack) { c.soundFx.hasSound(editing, e) }
+            val imported = remember(editing, e, filesVersion) { c.sounds.fileFor(editing, e) }
+            RowItem(
+                e.title(ar),
+                when {
+                    imported != null -> tr("Your file: ", "ملفك: ") + imported.name
+                    has -> tr("Built-in", "مدمج")
+                    e == SoundEvent.NOTIFY || e == SoundEvent.CHIME -> tr("Not included — import your file", "غير مضمّن — استورد ملفك")
+                    else -> tr("Pack is off", "الحزمة متوقفة")
+                },
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (has) Pill(tr("Preview", "معاينة"), p.accent) { c.soundFx.preview(editing, e) }
+                    Pill(tr("Import", "استيراد"), p.accent2) { importFor = e; zipMode = false; picker.launch(arrayOf("audio/*", "application/ogg", "application/octet-stream")) }
+                    if (imported != null) Pill(tr("Remove", "حذف"), p.danger) { c.sounds.removeImported(editing, e) }
+                }
+            }
+            Gap()
+        }
+        Pill(tr("Import a full pack (ZIP, files 01…08)", "استيراد حزمة كاملة (ZIP، الملفات 01…08)"), p.accent2) {
+            importFor = null; zipMode = true; picker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
+        }
+        Gap()
+
+        Header(tr("Special chime", "النغمة المميزة"),
+            tr("Never plays on ordinary taps. Choose the moments that deserve it (needs the chime sound, #08, imported).",
+                "لا تعمل عند اللمس العادي. اختر اللحظات التي تستحقها (تحتاج صوت النغمة رقم 08 مستوردًا)."))
+        listOf(
+            ChimeTriggers.ARRIVAL to tr("Arriving at the destination", "الوصول إلى الوجهة"),
+            ChimeTriggers.BLUETOOTH to tr("Bluetooth connected", "اتصال البلوتوث"),
+            ChimeTriggers.IPHONE to tr("iPhone connected", "اتصال الآيفون"),
+        ).forEach { (key, label) ->
+            Toggle(label, null, key in st.chime) { v -> c.sounds.update(editing) { it.copy(chime = if (v) it.chime + key else it.chime - key) } }
+            Gap()
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Restore defaults", "استعادة الإعدادات الافتراضية"), p.danger) { c.sounds.resetAll() }
+        }
+        Gap()
+        Text(tr("Sounds 01–06 are original to NovaDrive. Files 07 and 08 are not bundled in the app: their redistribution rights haven't been verified, so you import them yourself and they stay on this unit. They are not presented as official BMW recordings.",
+            "الأصوات 01–06 أصلية من NovaDrive. الملفان 07 و08 غير مضمّنين في التطبيق لأن حقوق إعادة توزيعهما لم تُتحقق، فتستوردهما بنفسك ويبقيان على هذا الجهاز فقط. لا يُقدَّمان كتسجيلات رسمية من BMW."),
+            style = NovaType.small, color = p.textDim)
+    }
 }

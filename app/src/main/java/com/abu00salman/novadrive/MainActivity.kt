@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
         nova.assistant.attach(window)
         nova.assistant.speech.dialog = SystemDialogLauncher { language, cb -> launchDialog(language, cb) }
         nova.speaker.warmUp()
+        nova.soundFx.warmUp()
         setContent { NovaRoot(onVoice = ::startVoice) }
         lifecycleScope.launch {
             nova.voiceActions.collect { if (it == "perm:contacts") contactsPermission.launch(Manifest.permission.READ_CONTACTS) }

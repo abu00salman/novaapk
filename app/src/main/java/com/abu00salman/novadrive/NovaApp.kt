@@ -70,6 +70,9 @@ class AppContainer(private val app: Application) {
     /** Widgets interface: the saved board and the GPS trip computer. */
     val widgets by lazy { com.abu00salman.novadrive.core.WidgetRepository(app) }
     val trip by lazy { com.abu00salman.novadrive.data.TripMeter(scope, fix) }
+    /** Interface sound effects: settings and the player. */
+    val sounds by lazy { com.abu00salman.novadrive.core.SoundRepository(app) }
+    val soundFx by lazy { com.abu00salman.novadrive.data.SoundEngine(this) }
     val speaker by lazy { com.abu00salman.novadrive.data.Speaker(app) { ai.config.value.voice } }
     /** Nova AI settings (provider, models, encrypted keys) and the assistant itself. */
     val ai by lazy { com.abu00salman.novadrive.data.ai.AiConfigRepository(app) }

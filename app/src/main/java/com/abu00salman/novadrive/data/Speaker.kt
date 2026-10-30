@@ -65,6 +65,9 @@ class Speaker(private val ctx: Context, private val prefs: () -> VoicePrefs = { 
     private val _status = MutableStateFlow(TtsStatus())
     val status: StateFlow<TtsStatus> = _status
 
+    /** True while something (a reply or a navigation prompt) is being spoken; main thread. */
+    val isSpeaking: Boolean get() = callbacks.isNotEmpty()
+
     /** False until the engine has started; then whether it has an Arabic voice. */
     val arabicAvailable: Boolean get() = _status.value.arabic
 

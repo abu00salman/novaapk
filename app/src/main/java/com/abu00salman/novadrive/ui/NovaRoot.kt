@@ -39,6 +39,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -218,6 +222,40 @@ fun NovaRoot(onVoice: () -> Unit) {
         val modeState by modeVm.state.collectAsStateWithLifecycle()
         val onMode: (HomeMode) -> Unit = { modeVm.select(it); screen = Screen.HOME; settingsStart = null }
         val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) }, onNav = { go(Screen.NAV) })
+        // Interface sounds (BMW's luxury pack by default; every interface has its own setup).
+        val fx = c.soundFx
+        LaunchedEffect(settings.uiStyle, screen) {
+            if (screen == Screen.HOME) { delay(700); fx.interfaceShown(settings.uiStyle) }
+        }
+        val navKey = Triple(screen, modeState.mode, quick || split)
+        var prevNav by remember { mutableStateOf(navKey) }
+        LaunchedEffect(navKey) {
+            val prev = prevNav; prevNav = navKey
+            if (prev == navKey) return@LaunchedEffect
+            val closedOverlay = prev.third && !navKey.third
+            val backHome = navKey.first == Screen.HOME && prev.first != Screen.HOME
+            fx.play(if (closedOverlay || backHome) com.abu00salman.novadrive.core.SoundEvent.BACK else com.abu00salman.novadrive.core.SoundEvent.NAV)
+        }
+        val tripState by c.navEngine.state.collectAsStateWithLifecycle()
+        var tripWas by remember { mutableStateOf<com.abu00salman.novadrive.data.nav.NavState.Status?>(null) }
+        LaunchedEffect(tripState?.status) {
+            val now = tripState?.status
+            if (tripWas == null && now == com.abu00salman.novadrive.data.nav.NavState.Status.GUIDING) fx.play(com.abu00salman.novadrive.core.SoundEvent.CONFIRM)
+            if (now == com.abu00salman.novadrive.data.nav.NavState.Status.ARRIVED && tripWas != now) fx.chime(com.abu00salman.novadrive.core.ChimeTriggers.ARRIVAL)
+            tripWas = now
+        }
+        val btNow by c.bluetooth.collectAsStateWithLifecycle()
+        var btWas by remember { mutableStateOf(btNow) }
+        LaunchedEffect(btNow) {
+            if (btWas != com.abu00salman.novadrive.data.Link.CONNECTED && btNow == com.abu00salman.novadrive.data.Link.CONNECTED) fx.chime(com.abu00salman.novadrive.core.ChimeTriggers.BLUETOOTH)
+            btWas = btNow
+        }
+        val iphoneNow by c.iPhoneConnected.collectAsStateWithLifecycle()
+        var iphoneWas by remember { mutableStateOf(iphoneNow) }
+        LaunchedEffect(iphoneNow) {
+            if (!iphoneWas && iphoneNow) fx.chime(com.abu00salman.novadrive.core.ChimeTriggers.IPHONE)
+            iphoneWas = iphoneNow
+        }
         // In-app voice actions ("show the map", "open settings", "simple interface") from «أمرني».
         LaunchedEffect(Unit) {
             c.voiceActions.collect { cmd ->
@@ -238,7 +276,7 @@ fun NovaRoot(onVoice: () -> Unit) {
         val dimLevel by c.controls.dimmer.level.collectAsStateWithLifecycle()
         val overlayDims = remember(perms) { c.controls.dimmer.canOverlay() }
         LaunchedEffect(perms) { c.controls.dimmer.apply() }
-        Box(Modifier.fillMaxSize().novaBackdrop(p)) {
+        Box(Modifier.fillMaxSize().novaBackdrop(p).tapSounds { fx.play(com.abu00salman.novadrive.core.SoundEvent.TAP) }) {
             // The keyboard is not part of the insets: it floats over the launcher instead of squeezing it.
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))) {
                 ShellLayout(
@@ -582,4 +620,27 @@ private fun android.content.Context.findActivity(): android.app.Activity? {
         c = c.baseContext
     }
     return null
+}
+
+/**
+ * Calls [onTap] for every quick tap anywhere (without consuming it), so the interface can click.
+ * Drags, scrolls and long presses don't count.
+ */
+private fun Modifier.tapSounds(onTap: () -> Unit): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val start = down.position
+            val t0 = down.uptimeMillis
+            var moved = false
+            var up = false
+            while (!up) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                val ch = e.changes.firstOrNull { it.id == down.id } ?: break
+                if ((ch.position - start).getDistance() > viewConfiguration.touchSlop) moved = true
+                if (ch.changedToUp()) { up = true; if (!moved && ch.uptimeMillis - t0 < 350) onTap() }
+                if (e.changes.size > 1) moved = true
+            }
+        }
+    }
 }
