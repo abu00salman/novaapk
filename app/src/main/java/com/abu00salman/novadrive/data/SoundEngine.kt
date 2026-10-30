@@ -195,7 +195,7 @@ class SoundEngine(private val c: AppContainer) {
             else { waiting[id] = v; if (id in ready) waiting.remove(id)?.let { pool.play(id, it, it, 1, 0, 1f) } }
             return
         }
-        if (src.key !in durations || (durations[src.key] ?: 0L) <= SHORT_MS) {
+        if (!durations.containsKey(src.key) || (durations[src.key] ?: 0L) <= SHORT_MS) {
             // Not loaded yet (a fresh import): load now and play the moment it is ready — never skipped.
             c.scope.launch(Dispatchers.Default) {
                 ensure(src)
