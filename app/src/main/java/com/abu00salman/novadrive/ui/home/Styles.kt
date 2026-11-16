@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.home
 
+import com.abu00salman.novadrive.ui.components.tapTarget
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -319,7 +320,7 @@ private fun TeslaStatusBar(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     Row(modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("$time $ampm".trim(), style = NovaType.title.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium), color = TText,
             // Same look; only the tap area grows to the full height of the bar.
-            modifier = Modifier.com.abu00salman.novadrive.ui.components.tapTarget(minWidth = 0.dp, onClick = act.onQuick))
+            modifier = Modifier.tapTarget(minWidth = 0.dp, onClick = act.onQuick))
         if (ui.showWeather && w != null) {
             Spacer(Modifier.width(24.dp))
             Text("${Math.round(w.tempC)}°", style = NovaType.title.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium), color = TText)

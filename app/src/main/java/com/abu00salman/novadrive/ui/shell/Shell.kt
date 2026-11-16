@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.shell
 
+import com.abu00salman.novadrive.ui.components.tapTarget
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -216,7 +217,7 @@ fun TopBar(
     val date = remember(now, ar) { SimpleDateFormat(if (ar) "EEEE d MMMM yyyy" else "EEEE, d MMMM yyyy", loc).format(Date(now)) }
 
     Row(modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.nova_logo), null, Modifier.com.abu00salman.novadrive.ui.components.tapTarget(minWidth = 40.dp, onClick = onQuick).size(40.dp, 34.dp))
+        Image(painterResource(R.drawable.nova_logo), null, Modifier.tapTarget(minWidth = 40.dp, onClick = onQuick).size(40.dp, 34.dp))
         Spacer(Modifier.width(12.dp))
         Text("NovaDrive", style = NovaType.title.copy(fontSize = 25.sp, fontWeight = FontWeight.SemiBold), color = p.text)
         Spacer(Modifier.weight(1f))

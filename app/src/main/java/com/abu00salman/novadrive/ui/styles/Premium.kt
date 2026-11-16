@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.styles
 
+import com.abu00salman.novadrive.ui.components.tapTarget
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -175,7 +176,7 @@ internal fun FordLayout(ui: HomeUi, act: HomeActions) {
             val clock = rememberClock(ui.use24h)
             ui.weather?.takeIf { ui.showWeather }?.let { Text("${Math.round(it.tempC)}°", style = st(20.sp, FontWeight.Medium)) }
             Spacer(Modifier.weight(1f))
-            UiDirection { Text(clock.time + " " + clock.ampm, style = st(22.sp, FontWeight.SemiBold), modifier = Modifier.com.abu00salman.novadrive.ui.components.tapTarget(onClick = act.onQuick)) }
+            UiDirection { Text(clock.time + " " + clock.ampm, style = st(22.sp, FontWeight.SemiBold), modifier = Modifier.tapTarget(onClick = act.onQuick)) }
             Spacer(Modifier.weight(1f))
             StatusIcons(ui, act, 20.dp)
         }
@@ -251,7 +252,7 @@ internal fun AppleLayout(ui: HomeUi, act: HomeActions) {
         SCard(Modifier.width(126.dp).fillMaxHeight(), corner = 32.dp) {
             Column(Modifier.fillMaxSize().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 val clock = rememberClock(ui.use24h)
-                Text(clock.time, style = st(24.sp, FontWeight.SemiBold), maxLines = 1, modifier = Modifier.com.abu00salman.novadrive.ui.components.tapTarget(onClick = act.onQuick))
+                Text(clock.time, style = st(24.sp, FontWeight.SemiBold), maxLines = 1, modifier = Modifier.tapTarget(onClick = act.onQuick))
                 StatusIcons(ui, act, 16.dp)
                 Spacer(Modifier.height(6.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -387,7 +388,7 @@ internal fun BydLayout(ui: HomeUi, act: HomeActions) {
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly,
         ) {
             val clock = rememberClock(ui.use24h)
-            Text(clock.time, style = st(18.sp, FontWeight.Bold), maxLines = 1, modifier = Modifier.com.abu00salman.novadrive.ui.components.tapTarget(onClick = act.onQuick))
+            Text(clock.time, style = st(18.sp, FontWeight.Bold), maxLines = 1, modifier = Modifier.tapTarget(onClick = act.onQuick))
             menuItems(act).forEach { m -> SRound(m.icon, m.label, 54.dp, filled = m.special, onClick = m.onClick) }
         }
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
