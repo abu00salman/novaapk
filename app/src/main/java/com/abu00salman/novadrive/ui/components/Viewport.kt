@@ -79,3 +79,9 @@ fun iconFilter(): androidx.compose.ui.graphics.ColorFilter? {
         0f, 0f, 0f, 1f, 0f,
     )))
 }
+
+/** NovaDrive runs in a narrow window (split screen beside Maps or YouTube): show the compact panel. */
+val LocalCompactWindow = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+/** Design width of the compact panel (the height stays 720). */
+val COMPACT_DESIGN_W = 560.dp

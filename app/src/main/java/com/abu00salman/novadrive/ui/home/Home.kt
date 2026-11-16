@@ -234,6 +234,8 @@ class HomeActions(
  */
 @Composable
 fun HomeLayout(ui: HomeUi, mode: HomeMode, autoPromoted: Boolean, act: HomeActions, modifier: Modifier = Modifier) = FixedLtr {
+    // Split screen beside Maps / YouTube: one readable column whatever the interface.
+    if (com.abu00salman.novadrive.ui.components.LocalCompactWindow.current) { CompactLayout(ui, act, modifier); return@FixedLtr }
     when (ui.style) {
         "tesla" -> { TeslaLayout(ui, act, modifier); return@FixedLtr }
         "bmw" -> { BmwLayout(ui, act, modifier); return@FixedLtr }

@@ -425,6 +425,23 @@ class ScreenshotTest {
     @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
     fun layoutAudit_1024x600() = auditLayouts("1024x600")
 
+    /** NovaDrive's half of a split screen beside Google Maps (640×720 window). */
+    @Test @Config(qualifiers = "w640dp-h720dp-port-mdpi")
+    fun compactSplit() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            androidx.compose.runtime.CompositionLocalProvider(com.abu00salman.novadrive.ui.components.LocalCompactWindow provides true) {
+                NovaTheme(dark = true, accentIndex = 0, arabic = true) {
+                    Box(Modifier.fillMaxSize().novaBackdrop(LocalNova.current)) {
+                        ShellLayout(chrome = false, rail = {}, topBar = {}) { HomeLayout(ui(true), HomeMode.CAR, false, HomeActions()) }
+                    }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onRoot().captureRoboImage("build/screenshots/45_split_beside_maps_ar.png")
+    }
+
     @Test fun vehicle() = shot("15_vehicle_night_ar", Screen.VEHICLE) {
         VehicleScreen(carBrand("hyundai"), carModel("hyundai", "sonata19"), CarPaints[0], true, live, {})
     }

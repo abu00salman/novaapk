@@ -59,6 +59,10 @@ class MainActivity : ComponentActivity() {
         android.view.Choreographer.getInstance().postFrameCallback {
             android.view.Choreographer.getInstance().postFrameCallback { nova.health.markStarted(); runCatching { reportFullyDrawn() } }
         }
+        // Full screen: hide the status and navigation bars (they come back with a swipe from the edge).
+        lifecycleScope.launch {
+            nova.settings.state.collect { applySystemBars(it.hideSystemBars) }
+        }
         lifecycleScope.launch {
             nova.voiceActions.collect { if (it == "perm:contacts") contactsPermission.launch(Manifest.permission.READ_CONTACTS) }
         }
@@ -75,6 +79,20 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         nova.refreshPermissions()
         nova.assistant.refreshOnline()
+    }
+
+    private fun applySystemBars(hide: Boolean) {
+        val ctl = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        if (hide) {
+            ctl.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            ctl.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        } else ctl.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Dialogs and other apps can bring the bars back; hide them again when NovaDrive has focus.
+        if (hasFocus) applySystemBars(nova.settings.current.hideSystemBars)
     }
 
     override fun onStart() {

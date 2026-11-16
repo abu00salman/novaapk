@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.0-beta2
+
+- Full screen: Android's status and navigation bars are hidden while NovaDrive is in front (swipe from the edge to show them; Settings › Appearance).
+- Music and YouTube open inside NovaDrive: the Music button makes the player the biggest thing on screen in every interface, and YouTube plays on the home screen (YouTube mobile site, parked only — paused and covered while moving).
+- Google Maps / Waze open beside NovaDrive in split screen with their own map and guidance; NovaDrive's half becomes a compact panel (time, speed, the navigation app's next turn, player, large shortcuts).
+- Mercedes interface: clear glass side menu with larger labelled buttons, a status bar with Quick controls and Settings, larger glass tiles over the map, bigger app icons and the navigation app's maneuver icon.
+
 ## 2.5.0-beta1 — NovaDrive NEXT
 
 **New**

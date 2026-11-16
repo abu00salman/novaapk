@@ -498,6 +498,16 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
             BmwOptions(c)
         }
         Gap()
+        Header(tr("Screen & apps", "الشاشة والتطبيقات"), null)
+        Toggle(tr("Full screen", "ملء الشاشة"), tr("Hide Android's status and navigation bars while NovaDrive is in front. Swipe from the edge to show them.",
+            "إخفاء شريط الحالة والتنقل في أندرويد أثناء ظهور NovaDrive. اسحب من حافة الشاشة لإظهارهما."), s.hideSystemBars) { v -> c.settings.update { it.copy(hideSystemBars = v) } }
+        Gap()
+        Toggle(tr("Music and YouTube inside NovaDrive", "الموسيقى ويوتيوب داخل NovaDrive"), tr("The dock opens them on the home screen (YouTube only when parked). Off: they open their own apps.",
+            "الشريط يفتحهما في الشاشة الرئيسية (يوتيوب عند التوقف فقط). عند الإيقاف: يُفتحان في تطبيقاتهما."), s.inPlaceMedia) { v -> c.settings.update { it.copy(inPlaceMedia = v) } }
+        Gap()
+        Toggle(tr("Maps beside NovaDrive", "الخرائط بجانب NovaDrive"), tr("Google Maps / Waze opens with its own map and guidance in split screen, NovaDrive stays on the other side. Full screen if the unit can't split.",
+            "تُفتح خرائط Google أو Waze بخريطتها وتوجيهها في نصف الشاشة، ويبقى NovaDrive في النصف الآخر. تُفتح بملء الشاشة إن لم تدعم الشاشة التقسيم."), s.navBeside) { v -> c.settings.update { it.copy(navBeside = v) } }
+        Gap()
         Header(tr("Theme", "السمة"), tr("Auto follows sunrise and sunset at your location.", "التلقائي يتبع الشروق والغروب حسب موقعك."))
         Choice(
             listOf(ThemeMode.AUTO to tr("Auto", "تلقائي"), ThemeMode.LIGHT to tr("Day", "نهاري"),

@@ -182,7 +182,13 @@ fun NovaRoot(onVoice: () -> Unit) {
 
     val aiCfg by c.ai.config.collectAsStateWithLifecycle()
     NovaTheme(dark = dark, accentIndex = settings.accent, arabic = settings.arabic) {
-      androidx.compose.runtime.CompositionLocalProvider(com.abu00salman.novadrive.ui.components.LocalNovaAi provides aiCfg.novaEnabled) {
+      // A window narrower than ~1.2:1 (split screen) gets the compact panel.
+      val conf = androidx.compose.ui.platform.LocalConfiguration.current
+      val compactWindow = conf.screenWidthDp < conf.screenHeightDp * 1.2f
+      androidx.compose.runtime.CompositionLocalProvider(
+          com.abu00salman.novadrive.ui.components.LocalNovaAi provides aiCfg.novaEnabled,
+          com.abu00salman.novadrive.ui.components.LocalCompactWindow provides compactWindow,
+      ) {
         val p = LocalNova.current
         var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
         var settingsStart by remember { mutableStateOf<String?>(null) }
@@ -221,7 +227,22 @@ fun NovaRoot(onVoice: () -> Unit) {
         )
         val modeState by modeVm.state.collectAsStateWithLifecycle()
         val onMode: (HomeMode) -> Unit = { modeVm.select(it); screen = Screen.HOME; settingsStart = null }
-        val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) }, onNav = { go(Screen.NAV) })
+        // Only the Smart interface has home modes; elsewhere Navigation and Music open their full pages,
+        // so choosing them always makes that content the biggest thing on screen.
+        val smartModes = settings.uiStyle == "smart" && !settings.simple()
+        val railMode: (HomeMode) -> Unit = { m ->
+            if (smartModes || m == HomeMode.CAR) onMode(m)
+            else go(when (m) { HomeMode.MUSIC -> Screen.MUSIC; HomeMode.NAVIGATION -> Screen.NAV; else -> Screen.HOME })
+        }
+        val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) }, onNav = { go(Screen.NAV) },
+            onInPlace = { id ->
+                when {
+                    !settings.inPlaceMedia -> false
+                    id == "music" -> { railMode(HomeMode.MUSIC); true }
+                    id == "youtube" -> { go(Screen.VIDEO); true }
+                    else -> false
+                }
+            })
         // Interface sounds (BMW's luxury pack by default; every interface has its own setup).
         val fx = c.soundFx
         LaunchedEffect(settings.uiStyle, screen) {
@@ -282,8 +303,8 @@ fun NovaRoot(onVoice: () -> Unit) {
                 ShellLayout(
                     railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
                     iconTint = com.abu00salman.novadrive.ui.components.IconTints.getOrNull(settings.iconTint),
-                    chrome = !(uiStyle.fullScreen && screen == Screen.HOME),
-                    rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone, onVoice = onVoice) },
+                    chrome = !((uiStyle.fullScreen || compactWindow) && screen == Screen.HOME),
+                    rail = { Rail(screen, modeState.mode, go, railMode, onPhone = actions::phone, onVoice = onVoice) },
                     topBar = {
                         TopBar(
                             bt = bt, net = net, gps = gps, dark = dark, themeMode = settings.themeMode, use24h = settings.use24h,
@@ -494,11 +515,21 @@ private fun Routes(
             onParkedOnly = { toast(ctx, if (settings.arabic) "متاح عند التوقف" else "Available when parked") },
         )
         Screen.SETTINGS -> SettingsScreen(c, settings, lockEdits, settingsStart) { go(Screen.HOME) }
+        Screen.VIDEO -> com.abu00salman.novadrive.ui.video.VideoScreen(
+            driving = driving,
+            onHome = { go(Screen.HOME) },
+            onOpenApp = { c.apps.byPackage(com.abu00salman.novadrive.ui.home.YOUTUBE_PKG)?.let(a::launch) ?: toast(ctx, if (settings.arabic) "تطبيق YouTube غير مثبت" else "YouTube app isn't installed") },
+            onOpenBeside = { c.apps.byPackage(com.abu00salman.novadrive.ui.home.YOUTUBE_PKG)?.let(a::openBeside) ?: toast(ctx, if (settings.arabic) "تطبيق YouTube غير مثبت" else "YouTube app isn't installed") },
+        )
     }
 }
 
 /** Every outward action, each falling back gracefully when an app or service is missing. */
-private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val driving: Boolean, val onApps: () -> Unit, val onNav: () -> Unit) {
+private class Actions(
+    val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val driving: Boolean, val onApps: () -> Unit, val onNav: () -> Unit,
+    /** Shows a dock item's content inside NovaDrive (Music, YouTube); false = open its app. */
+    val onInPlace: (String) -> Boolean = { false },
+) {
     private val ar get() = s.arabic
     private fun say(en: String, a: String) = toast(c.appContext, if (ar) a else en)
 
@@ -580,6 +611,9 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
         when {
             slot.id == "apps" -> onApps()
             slot.id == "phone" -> phone()
+            onInPlace(slot.id) -> {}
+            // Google Maps / Waze with its own map and guidance, next to NovaDrive (full screen if the unit can't split).
+            slot.id == "maps" && app != null && s.navBeside -> { if (!c.controls.launchAdjacent(c.apps.intentFor(app))) launch(app) }
             app != null -> launch(app)
             slot.storePackage != null -> {
                 val pkg = slot.storePackage

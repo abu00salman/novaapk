@@ -83,7 +83,7 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 
-enum class Screen { HOME, NAV, MUSIC, VEHICLE, APPS, SETTINGS }
+enum class Screen { HOME, NAV, MUSIC, VEHICLE, APPS, SETTINGS, VIDEO }
 
 /** Real-time "now", ticking on the minute boundary (no per-second recomposition). */
 @Composable
@@ -108,7 +108,8 @@ fun ShellLayout(
     chrome: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    DesignViewport(textScale = textScale) {
+    val compact = com.abu00salman.novadrive.ui.components.LocalCompactWindow.current
+    DesignViewport(designW = if (compact) com.abu00salman.novadrive.ui.components.COMPACT_DESIGN_W else 1280.dp, textScale = textScale) {
       CompositionLocalProvider(LocalIconScale provides iconScale.coerceIn(0.8f, 1.6f), LocalIconTint provides iconTint) {
         FixedLtr {
             if (!chrome) Box(Modifier.fillMaxSize()) { UiDirection(content) }
