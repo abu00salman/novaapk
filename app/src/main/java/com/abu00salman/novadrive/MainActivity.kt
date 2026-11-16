@@ -55,6 +55,10 @@ class MainActivity : ComponentActivity() {
         nova.speaker.warmUp()
         nova.soundFx.warmUp()
         setContent { NovaRoot(onVoice = ::startVoice) }
+        // Real cold-start time for Diagnostics: process start → the first frames are on screen.
+        android.view.Choreographer.getInstance().postFrameCallback {
+            android.view.Choreographer.getInstance().postFrameCallback { nova.health.markStarted(); runCatching { reportFullyDrawn() } }
+        }
         lifecycleScope.launch {
             nova.voiceActions.collect { if (it == "perm:contacts") contactsPermission.launch(Manifest.permission.READ_CONTACTS) }
         }
@@ -73,7 +77,13 @@ class MainActivity : ComponentActivity() {
         nova.assistant.refreshOnline()
     }
 
+    override fun onStart() {
+        super.onStart()
+        nova.quickSwitch.onForeground()
+    }
+
     override fun onStop() {
+        nova.quickSwitch.onBackground()
         // Never leave the microphone open behind another app (the system voice window is ours, though).
         if (dialogCallback == null) nova.assistant.onBackground()
         super.onStop()

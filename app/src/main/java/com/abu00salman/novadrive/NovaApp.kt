@@ -56,7 +56,19 @@ class AppContainer(private val app: Application) {
     val settings = SettingsRepository(app)
     /** Colours, wallpaper, font and light/dark of each interface, saved independently. */
     val styleOptions by lazy { com.abu00salman.novadrive.core.StyleOptionsRepository(app) }
-    val apps by lazy { AppsRepository(app, scope) }
+    /** Which apps are opened from NovaDrive (kept on the unit): the Frequent tab and the smart dock slot. */
+    val usage by lazy { com.abu00salman.novadrive.data.AppUsage(app) }
+    val apps by lazy { AppsRepository(app, scope) { usage.record(it.key) } }
+    /** NOVA Scenes (saved dashboards, per profile), Diagnostics and the QuickSwitch overlay. */
+    val scenes by lazy { com.abu00salman.novadrive.core.SceneRepository(app, settings) { widgets } }
+    val health by lazy { com.abu00salman.novadrive.data.SystemHealth(this) }
+    val quickSwitch by lazy { com.abu00salman.novadrive.data.QuickSwitchOverlay(this) }
+
+    /** Restores a scene and shows it. */
+    fun applyScene(scene: com.abu00salman.novadrive.core.Scene) {
+        scenes.apply(scene)
+        voiceActions.tryEmit("mode:" + settings.current.homeMode)
+    }
     val location by lazy { LocationRepository(app) }
     val weather by lazy { WeatherRepository(app, scope) }
     val media by lazy { MediaRepository(app) { settings.current.arabic } }
@@ -99,7 +111,6 @@ class AppContainer(private val app: Application) {
         append(granted(Manifest.permission.ACCESS_COARSE_LOCATION))
         if (Build.VERSION.SDK_INT >= 31) append(granted(Manifest.permission.BLUETOOTH_CONNECT))
         append(MediaRepository.hasAccess(app))
-        append(android.provider.Settings.System.canWrite(app))
         append(android.provider.Settings.canDrawOverlays(app))
     }
 

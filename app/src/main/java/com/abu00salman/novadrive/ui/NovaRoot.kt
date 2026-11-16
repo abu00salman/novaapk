@@ -83,7 +83,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.map
 import com.abu00salman.novadrive.ui.home.DockSlot
 import com.abu00salman.novadrive.ui.home.HomeScreen
-import com.abu00salman.novadrive.ui.home.Shortcuts
+import com.abu00salman.novadrive.data.Shortcuts
 import com.abu00salman.novadrive.ui.home.SplitSheet
 import com.abu00salman.novadrive.ui.home.rememberShortcuts
 import com.abu00salman.novadrive.ui.music.MusicScreen
@@ -420,8 +420,8 @@ private fun Routes(
                 },
                 onBrightness = { level ->
                     // Ask once to dim over every app; NovaDrive itself dims immediately either way.
-                    if (!c.controls.dimmer.canOverlay() && !askedWriteSettings) {
-                        askedWriteSettings = true
+                    if (!c.controls.dimmer.canOverlay() && !askedOverlay) {
+                        askedOverlay = true
                         toast(ctx, if (settings.arabic) "فعّل «الظهور فوق التطبيقات» لـ NovaDrive ليتغير سطوع الشاشة في كل التطبيقات" else "Allow NovaDrive to display over other apps to dim every screen")
                         c.controls.dimmer.requestOverlayPermission()
                     }
@@ -485,6 +485,7 @@ private fun Routes(
             )
         }
         Screen.APPS -> AppsScreen(
+            frequent = c.usage.ranked.collectAsStateWithLifecycle().value,
             apps = apps, favorites = settings.favorites, showSystem = settings.showSystemApps, driving = lockEdits,
             onLaunch = a::launch,
             onToggleFavorite = c.settings::toggleFavorite,
@@ -610,7 +611,7 @@ private fun CarPlayAutoLaunch(c: AppContainer, settings: NovaSettings, sc: Short
     }
 }
 
-private var askedWriteSettings = false
+private var askedOverlay = false
 
 /** The hosting activity, unwrapping any ContextWrapper (needed to dim the launcher window). */
 private fun android.content.Context.findActivity(): android.app.Activity? {

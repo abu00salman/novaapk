@@ -34,6 +34,9 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Palette
@@ -65,6 +68,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.abu00salman.novadrive.AppContainer
+import com.abu00salman.novadrive.data.HealthItem
+import com.abu00salman.novadrive.data.UpdateCenter
+import com.abu00salman.novadrive.core.NovaBackup
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import com.abu00salman.novadrive.core.UiStyles
 import com.abu00salman.novadrive.core.StyleSounds
@@ -112,7 +118,7 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 import java.util.Locale
 
-private enum class Section { CAR, APPEARANCE, SHORTCUTS, VOICE, SOUND, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, EXPERIMENTAL, ABOUT }
+private enum class Section { CAR, APPEARANCE, SCENES, SHORTCUTS, VOICE, SOUND, BACKUP, DIAGNOSTICS, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, EXPERIMENTAL, ABOUT }
 
 @Composable
 fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: String? = null, onClose: () -> Unit) {
@@ -142,6 +148,7 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                     val items = listOf(
                         Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("Car", "السيارة")),
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
+                        Triple(Section.SCENES, Icons.Rounded.Dashboard, Pair("Scenes & QuickSwitch", "المشاهد والتبديل السريع")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
                         Triple(Section.VOICE, Icons.Rounded.Mic, Pair("Ask me (voice)", "أمرني")),
                         Triple(Section.SOUND, Icons.AutoMirrored.Rounded.VolumeUp, Pair("Sound Experience", "تجربة الأصوات")),
@@ -151,6 +158,8 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                         Triple(Section.PROFILES, Icons.Rounded.Person, Pair("Profiles", "الملفات الشخصية")),
                         Triple(Section.SETUP, Icons.Rounded.VerifiedUser, Pair("Permissions", "الأذونات")),
                         Triple(Section.LAUNCHER, Icons.Rounded.Restore, Pair("Launcher", "المشغّل")),
+                        Triple(Section.BACKUP, Icons.Rounded.Backup, Pair("Backup & updates", "النسخ والتحديثات")),
+                        Triple(Section.DIAGNOSTICS, Icons.Rounded.MonitorHeart, Pair("Diagnostics", "التشخيص")),
                         Triple(Section.EXPERIMENTAL, Icons.Rounded.Science, Pair("Experimental", "تجريبي")),
                         Triple(Section.ABOUT, Icons.Rounded.Info, Pair("About", "حول")),
                     )
@@ -180,6 +189,9 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                                 Section.VOICE -> VoiceSection(c, s)
                                 Section.EXPERIMENTAL -> ExperimentalSection(c, s)
                                 Section.SOUND -> SoundSection(c, s)
+                                Section.SCENES -> ScenesSection(c, s)
+                                Section.BACKUP -> BackupSection(c, s)
+                                Section.DIAGNOSTICS -> DiagnosticsSection(c)
                                 Section.CARPLAY -> CarPlaySection(c, s)
                                 Section.DRIVING -> DrivingSection(c, s)
                                 Section.VEHICLE -> VehicleSection(c, s)
@@ -705,7 +717,7 @@ private fun PermissionsSection(c: AppContainer) {
     val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { c.refreshPermissions() }
     val hasLoc = remember(perms) { c.location.hasPermission() }
     val hasMedia = remember(perms) { MediaRepository.hasAccess(ctx) }
-    val canWrite = remember(perms) { c.controls.canWriteSettings() }
+    val canOverlay = remember(perms) { c.controls.dimmer.canOverlay() }
 
     @Composable
     fun status(ok: Boolean) = Box(Modifier.size(14.dp).clip(CircleShape).background(if (ok) p.ok else p.danger))
@@ -719,8 +731,8 @@ private fun PermissionsSection(c: AppContainer) {
         RowItem(tr("Media info access", "الوصول لمعلومات الوسائط"), tr("Track title & artwork (notification access)", "اسم المقطع والصورة (الوصول للإشعارات)"),
             onClick = { c.controls.openNotificationAccess() }) { status(hasMedia) }
         Gap()
-        RowItem(tr("Modify system settings", "تعديل إعدادات النظام"), tr("System-wide brightness slider", "التحكم بسطوع النظام"),
-            onClick = { c.controls.requestWriteSettings() }) { status(canWrite) }
+        RowItem(tr("Display over other apps", "الظهور فوق التطبيقات"), tr("Brightness in every app and the optional QuickSwitch bar", "السطوع في كل التطبيقات وشريط QuickSwitch الاختياري"),
+            onClick = { c.controls.dimmer.requestOverlayPermission() }) { status(canOverlay) }
         Gap()
         RowItem(tr("Location services", "خدمات الموقع"), tr("Make sure GPS is switched on", "تأكد أن GPS مفعّل"), onClick = { c.controls.openLocationSettings() })
     }
@@ -1387,5 +1399,209 @@ private fun SoundSection(c: AppContainer, s: NovaSettings) {
             },
             dismissButton = { Pill(tr("Cancel", "إلغاء"), p.textDim) { confirmReset = null } },
         )
+    }
+}
+
+
+// ============================================================================ Scenes & QuickSwitch
+
+/** NOVA Scenes (saved dashboards of this profile) and the optional QuickSwitch bar over other apps. */
+@Composable
+private fun ScenesSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    val all by c.scenes.all.collectAsStateWithLifecycle()
+    val scenes = all[s.profileId].orEmpty()
+    var name by remember { mutableStateOf("") }
+    val qsOn by c.quickSwitch.enabled.collectAsStateWithLifecycle()
+    val perms by c.permissions.collectAsStateWithLifecycle()
+    val canOverlay = remember(perms) { c.quickSwitch.canOverlay() }
+    Column {
+        Header(tr("NOVA Scenes", "مشاهد نوفا"),
+            tr("Save the dashboard as it is now — interface, home mode, theme, dock and widget board — and bring it back with one tap, from Quick controls or by voice (\"scene <name>\"). Scenes belong to the active profile.",
+                "احفظ اللوحة كما هي الآن — الواجهة ووضع الرئيسية والسمة والشريط ولوحة الويدجت — وأعدها بضغطة واحدة من التحكم السريع أو بالصوت («مشهد <الاسم>»). المشاهد خاصة بالملف النشط."))
+        if (scenes.isEmpty()) Text(tr("No scenes yet.", "لا توجد مشاهد بعد."), style = NovaType.label, color = p.textDim)
+        scenes.forEach { sc ->
+            val style = UiStyles.get(sc.uiStyle)
+            RowItem(sc.name, (if (ar) style.ar else style.en) + " · " + sc.dock.size + tr(" dock apps", " في الشريط")) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill(tr("Apply", "تفعيل"), p.accent) { c.applyScene(sc); com.abu00salman.novadrive.ui.toast(ctx, (if (ar) "تم تفعيل مشهد " else "Scene ") + sc.name) }
+                    Pill(tr("Delete", "حذف"), p.danger) { c.scenes.delete(sc.name) }
+                }
+            }
+            Gap()
+        }
+        Field(tr("Scene name, e.g. \"Road trip\"", "اسم المشهد، مثل: «رحلة»"), name) { name = it }
+        Gap()
+        Pill(tr("Save current dashboard as a scene", "احفظ اللوحة الحالية كمشهد"), p.accent) {
+            if (c.scenes.saveCurrent(name)) { name = ""; com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تم حفظ المشهد" else "Scene saved") }
+            else com.abu00salman.novadrive.ui.toast(ctx, if (ar) "اكتب اسمًا للمشهد" else "Type a name for the scene")
+        }
+        Text(tr("Up to 8 scenes; saving with an existing name replaces it.", "حتى 8 مشاهد، والحفظ باسم موجود يستبدله."), style = NovaType.small, color = p.textDim)
+        Gap()
+
+        Header(tr("NOVA QuickSwitch & Mini Player", "التبديل السريع والمشغّل المصغّر"),
+            tr("A small handle at the screen edge while another app is open (CarPlay, maps, music). Tap it to jump to NovaDrive, navigation, CarPlay or music and to control the current track. It folds back by itself and never shows over NovaDrive.",
+                "مقبض صغير على حافة الشاشة عندما يكون تطبيق آخر مفتوحًا (كاربلاي، الخرائط، الموسيقى). اضغطه للانتقال إلى NovaDrive أو الملاحة أو كاربلاي أو الموسيقى وللتحكم بالمقطع الحالي. ينطوي تلقائيًا ولا يظهر فوق NovaDrive."))
+        Toggle(tr("Show QuickSwitch over other apps", "إظهار التبديل السريع فوق التطبيقات"), tr("Drag the handle up or down to move it.", "اسحب المقبض للأعلى أو الأسفل لتحريكه."), qsOn) { v ->
+            c.quickSwitch.setEnabled(v)
+            if (v && !c.quickSwitch.canOverlay()) c.controls.dimmer.requestOverlayPermission()
+        }
+        if (qsOn && !canOverlay) {
+            Spacer(Modifier.height(6.dp))
+            Pill(tr("Allow \"display over other apps\"", "اسمح بـ«الظهور فوق التطبيقات»"), p.warn) { c.controls.dimmer.requestOverlayPermission() }
+        }
+    }
+}
+
+// ============================================================================ Backup & updates
+
+@Composable
+private fun BackupSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun say(en: String, a: String) = com.abu00salman.novadrive.ui.toast(ctx, if (ar) a else en)
+    var pendingImport by remember { mutableStateOf<String?>(null) }
+    var check by remember { mutableStateOf<UpdateCenter.Check?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    var beta by rememberSaveable { mutableStateOf(BuildConfig.VERSION_NAME.contains('-')) }
+    val whatsNew by androidx.compose.runtime.produceState<Pair<String, String>?>(null) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { ctx.assets.open("CHANGELOG.md").bufferedReader().use { it.readText() } }.getOrNull()?.let(UpdateCenter::latestSection)
+        }
+    }
+
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openOutputStream(uri)?.use { it.write(NovaBackup.export(ctx, BuildConfig.VERSION_NAME).toByteArray()) } != null }.getOrDefault(false)
+            }
+            if (ok) say("Backup saved", "تم حفظ النسخة الاحتياطية") else say("Couldn't save the backup", "تعذّر حفظ النسخة الاحتياطية")
+        }
+    }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readNBytesCompat(NovaBackup.MAX_BYTES + 1) }?.toString(Charsets.UTF_8) }.getOrNull()
+            }
+            if (text == null) say("Couldn't read that file", "تعذّرت قراءة الملف") else pendingImport = text
+        }
+    }
+
+    Column {
+        Header(tr("NOVA Backup", "النسخ الاحتياطي"),
+            tr("One file with every setting: profiles, interfaces, dock, widgets, scenes, sounds and voice options. API keys are never included; photos and imported sound files stay on this unit.",
+                "ملف واحد فيه كل الإعدادات: الملفات الشخصية والواجهات والشريط والويدجت والمشاهد والأصوات وخيارات الصوت. مفاتيح API لا تُضمَّن أبدًا، والصور وملفات الأصوات المستوردة تبقى على هذا الجهاز."))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Export settings", "تصدير الإعدادات"), p.accent) { exporter.launch("NovaDrive-backup-${BuildConfig.VERSION_NAME}.json") }
+            Pill(tr("Import settings", "استيراد الإعدادات"), p.accent2) { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+        }
+        Gap()
+
+        Header(tr("NOVA Update Center", "مركز التحديث"), tr("Checks NovaDrive's own GitHub releases only when you tap. Nothing is downloaded or installed automatically.",
+            "يفحص إصدارات NovaDrive على GitHub فقط عندما تضغط. لا يُنزَّل أو يُثبَّت شيء تلقائيًا."))
+        RowItem(tr("Installed version", "الإصدار المثبت"), "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · ${BuildConfig.BUILD_TYPE}")
+        Gap()
+        Toggle(tr("Include beta releases", "تضمين الإصدارات التجريبية"), null, beta) { beta = it }
+        Gap()
+        Pill(if (checking) tr("Checking…", "جارٍ الفحص…") else tr("Check for updates", "التحقق من التحديثات"), p.accent) {
+            if (!checking) { checking = true; scope.launch { check = UpdateCenter.check(BuildConfig.VERSION_NAME, beta); checking = false } }
+        }
+        when (val r = check) {
+            null -> {}
+            is UpdateCenter.Check.UpToDate -> Text("✓ " + tr("You have the latest version", "لديك أحدث إصدار"), style = NovaType.label, color = p.ok)
+            UpdateCenter.Check.NoReleases -> Text(tr("No published release found yet.", "لا يوجد إصدار منشور بعد."), style = NovaType.label, color = p.textDim)
+            is UpdateCenter.Check.Failed -> Text("✗ " + tr("Couldn't reach GitHub", "تعذّر الوصول إلى GitHub") + " (${r.reason})", style = NovaType.label, color = p.danger)
+            is UpdateCenter.Check.Available -> {
+                Spacer(Modifier.height(6.dp))
+                Text(tr("New version: ", "إصدار جديد: ") + r.release.name + if (r.release.prerelease) tr(" (beta)", " (تجريبي)") else "", style = NovaType.title, color = p.accent)
+                if (r.release.notes.isNotBlank()) Text(r.release.notes.take(700), style = NovaType.small, color = p.textDim)
+                Spacer(Modifier.height(6.dp))
+                Pill(tr("Open the release page", "افتح صفحة الإصدار"), p.accent) {
+                    if (!c.controls.start(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(r.release.url))))
+                        say("No browser on this unit", "لا يوجد متصفح على هذا الجهاز")
+                }
+            }
+        }
+        whatsNew?.let { (title, body) ->
+            Gap()
+            Header(tr("What's new in ", "الجديد في ") + title)
+            Text(body.take(1800), style = NovaType.small, color = p.textDim)
+        }
+    }
+
+    pendingImport?.let { text ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            containerColor = p.bgBottom,
+            title = { Text(tr("Import these settings?", "استيراد هذه الإعدادات؟"), color = p.text) },
+            text = { Text(tr("Current settings are replaced and NovaDrive restarts. Saved API keys are kept.", "ستُستبدل الإعدادات الحالية ويُعاد تشغيل NovaDrive. مفاتيح API المحفوظة تبقى."), color = p.textDim) },
+            confirmButton = {
+                Pill(tr("Import and restart", "استيراد وإعادة التشغيل"), p.accent) {
+                    val r = NovaBackup.import(ctx, text)
+                    pendingImport = null
+                    when (r) {
+                        is NovaBackup.Result.Ok -> NovaBackup.restart(ctx)
+                        is NovaBackup.Result.Invalid -> when (r.reason) {
+                            NovaBackup.Reason.NEWER_FORMAT -> say("This backup is from a newer NovaDrive — update first", "هذه النسخة من إصدار أحدث — حدّث NovaDrive أولًا")
+                            NovaBackup.Reason.TOO_BIG -> say("The file is too big to be a NovaDrive backup", "الملف أكبر من أن يكون نسخة NovaDrive")
+                            else -> say("That isn't a valid NovaDrive backup — nothing was changed", "الملف ليس نسخة NovaDrive صالحة — لم يتغير شيء")
+                        }
+                    }
+                }
+            },
+            dismissButton = { Pill(tr("Cancel", "إلغاء"), p.textDim) { pendingImport = null } },
+        )
+    }
+}
+
+/** Reads at most [max] bytes (InputStream.readNBytes needs API 33). */
+private fun java.io.InputStream.readNBytesCompat(max: Int): ByteArray {
+    val out = java.io.ByteArrayOutputStream()
+    val buf = ByteArray(16 * 1024)
+    while (out.size() < max) {
+        val n = read(buf, 0, minOf(buf.size, max - out.size()))
+        if (n < 0) break
+        out.write(buf, 0, n)
+    }
+    return out.toByteArray()
+}
+
+// ============================================================================ Diagnostics
+
+@Composable
+private fun DiagnosticsSection(c: AppContainer) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    var tick by remember { mutableStateOf(0) }
+    val items by androidx.compose.runtime.produceState(emptyList<HealthItem>(), tick) {
+        value = withContext(Dispatchers.Default) { c.health.snapshot() }
+    }
+    Column {
+        Header(tr("NOVA Diagnostics", "تشخيص نوفا"), tr("Measured on this unit right now. Nothing is estimated, collected or uploaded.", "قياسات فعلية من هذا الجهاز الآن. لا شيء تقديري، ولا يُجمع أو يُرفع شيء."))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Refresh", "تحديث"), p.accent) { tick++ }
+            Pill(tr("Copy report", "نسخ التقرير"), p.accent2) {
+                val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+                cm?.setPrimaryClip(android.content.ClipData.newPlainText("NovaDrive diagnostics", c.health.report()))
+                com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تم نسخ التقرير" else "Report copied")
+            }
+        }
+        Gap()
+        items.forEach { h ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(12.dp).clip(CircleShape).background(when (h.ok) { true -> p.ok; false -> p.danger; null -> p.textDim.copy(alpha = 0.4f) }))
+                Spacer(Modifier.width(12.dp))
+                Text(if (ar) h.ar else h.en, style = NovaType.body, color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.width(12.dp))
+                Text(h.value, style = NovaType.label, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }

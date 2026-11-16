@@ -66,11 +66,28 @@ object AppClassifier {
         systemFlag && category != AppCategory.CAR && category != AppCategory.MEDIA && category != AppCategory.NAVIGATION
 }
 
-class AppsRepository(private val ctx: Context, private val scope: CoroutineScope) {
+/** Resolves user-chosen shortcut apps (configurable package mapping), falling back to smart detection. */
+class Shortcuts(val carPlay: AppEntry?, val nav: AppEntry?, val music: AppEntry?, val radio: AppEntry?, val phone: AppEntry?) {
+    companion object {
+        fun resolve(r: AppsRepository, s: com.abu00salman.novadrive.core.NovaSettings) = Shortcuts(
+            carPlay = r.byPackage(s.carPlayPackage) ?: r.guess(AppsRepository.CARPLAY_PKGS, AppsRepository.CARPLAY_KEYS),
+            nav = r.byPackage(s.navPackage) ?: r.guess(AppsRepository.NAV_PKGS, AppsRepository.NAV_KEYS),
+            music = r.byPackage(s.musicPackage) ?: r.guess(AppsRepository.MUSIC_PKGS, AppsRepository.MUSIC_KEYS),
+            radio = r.byPackage(s.radioPackage) ?: r.guess(emptyList(), AppsRepository.RADIO_KEYS),
+            // Prefer the unit's own dialer (built-in BT phone) over any name-based guess.
+            phone = r.byPackage(s.phonePackage) ?: r.dialer() ?: r.guess(emptyList(), AppsRepository.PHONE_KEYS)
+                ?.takeUnless { it.label.contains("finder", true) || it.packageName.contains("finder", true) },
+        )
+    }
+}
+
+class AppsRepository(private val ctx: Context, private val scope: CoroutineScope, private val onLaunched: (AppEntry) -> Unit = {}) {
     private val _apps = MutableStateFlow<List<AppEntry>>(emptyList())
     val apps: StateFlow<List<AppEntry>> = _apps
     private var job: Job? = null
     private val iconPx = 144
+    /** Decoded icons by activity, reused until the package is updated (decoding is the slow part of a refresh). */
+    private val iconCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, ImageBitmap>>()
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) = refresh(debounce = true)
@@ -114,12 +131,16 @@ class AppsRepository(private val ctx: Context, private val scope: CoroutineScope
                     val cat = AppClassifier.classify(ai.packageName, label, if (Build.VERSION.SDK_INT >= 26) appInfo.category else -1)
                     val sysFlag = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0 &&
                         appInfo.flags and android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP == 0
+                    val key = "${ai.packageName}/${ai.name}"
+                    val stamp = runCatching { pm.getPackageInfo(ai.packageName, 0).lastUpdateTime }.getOrDefault(0L)
+                    val icon = iconCache[key]?.takeIf { it.first == stamp }?.second
+                        ?: ri.loadIcon(pm).toBitmap(iconPx, iconPx).asImageBitmap().also { iconCache[key] = stamp to it }
                     AppEntry(
-                        key = "${ai.packageName}/${ai.name}",
+                        key = key,
                         packageName = ai.packageName,
                         className = ai.name,
                         label = label,
-                        icon = ri.loadIcon(pm).toBitmap(iconPx, iconPx).asImageBitmap(),
+                        icon = icon,
                         category = cat,
                         system = AppClassifier.isHiddenSystem(sysFlag, cat),
                     )
@@ -128,6 +149,7 @@ class AppsRepository(private val ctx: Context, private val scope: CoroutineScope
             .distinctBy { it.key }
             .sortedBy { it.label.lowercase() }
             .toList()
+            .also { list -> iconCache.keys.retainAll(list.map { it.key }.toSet()) }
     }
 
     fun byKey(key: String): AppEntry? = _apps.value.firstOrNull { it.key == key }
@@ -170,13 +192,15 @@ class AppsRepository(private val ctx: Context, private val scope: CoroutineScope
             .setComponent(ComponentName(entry.packageName, entry.className))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
 
-    fun launch(entry: AppEntry): Boolean = try {
+    fun launch(entry: AppEntry): Boolean = (try {
         ctx.startActivity(intentFor(entry)); true
     } catch (e: Exception) {
-        launchPackage(entry.packageName)
-    }
+        start(entry.packageName)
+    }).also { if (it) onLaunched(entry) }
 
-    fun launchPackage(pkg: String?): Boolean {
+    fun launchPackage(pkg: String?): Boolean = start(pkg).also { if (it) byPackage(pkg)?.let(onLaunched) }
+
+    private fun start(pkg: String?): Boolean {
         if (pkg == null) return false
         val i = ctx.packageManager.getLaunchIntentForPackage(pkg) ?: return false
         return try {

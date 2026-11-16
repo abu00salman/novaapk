@@ -35,6 +35,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -60,7 +61,7 @@ fun QuickPanel(c: AppContainer, s: NovaSettings, onClose: () -> Unit, onSettings
     val activity = LocalContext.current as? Activity
     var volume by remember { mutableFloatStateOf(c.controls.volume()) }
     var bright by remember { mutableFloatStateOf(c.controls.brightness()) }
-    val canWrite = remember { c.controls.canWriteSettings() }
+    val canOverlay = remember { c.controls.dimmer.canOverlay() }
 
     Box(
         Modifier.fillMaxSize().background(p.bgBottom.copy(alpha = 0.55f))
@@ -81,11 +82,18 @@ fun QuickPanel(c: AppContainer, s: NovaSettings, onClose: () -> Unit, onSettings
                 SliderRow(Icons.Rounded.BrightnessMedium, tr("Brightness", "السطوع"), bright) {
                     bright = it; c.controls.setBrightness(it, activity?.window)
                 }
-                if (!canWrite) Text(
-                    tr("Tap to allow system-wide brightness ›", "اضغط للسماح بالتحكم في سطوع النظام ›"),
+                if (!canOverlay) Text(
+                    tr("Tap to dim every app, not only NovaDrive ›", "اضغط ليشمل التعتيم كل التطبيقات لا NovaDrive فقط ›"),
                     style = NovaType.label, color = p.accent,
-                    modifier = Modifier.padding(start = 44.dp, bottom = 6.dp).clickable { c.controls.requestWriteSettings() }
+                    modifier = Modifier.padding(start = 44.dp, bottom = 6.dp).clickable { c.controls.dimmer.requestOverlayPermission() }
                 )
+                val scenes = c.scenes.all.collectAsStateWithLifecycle().value[s.profileId].orEmpty()
+                if (scenes.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(scenes.size) { i -> com.abu00salman.novadrive.ui.components.Pill(scenes[i].name, p.accent) { c.applyScene(scenes[i]); onClose() } }
+                    }
+                }
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     IconTile(Icons.Rounded.Wifi, "Wi-Fi") { c.controls.openWifi() }

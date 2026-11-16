@@ -29,24 +29,11 @@ import com.abu00salman.novadrive.data.AppEntry
 import com.abu00salman.novadrive.data.AppsRepository
 import com.abu00salman.novadrive.data.MediaRepository
 import com.abu00salman.novadrive.data.NovaNotificationListener
+import com.abu00salman.novadrive.data.Shortcuts
 import com.abu00salman.novadrive.ui.theme.LocalArabic
 
-/** Resolves user-chosen shortcut apps, falling back to smart detection. */
-class Shortcuts(val carPlay: AppEntry?, val nav: AppEntry?, val music: AppEntry?, val radio: AppEntry?, val phone: AppEntry?)
-
 @Composable
-fun rememberShortcuts(c: AppContainer, s: NovaSettings, apps: List<AppEntry>): Shortcuts = remember(s, apps) {
-    val r = c.apps
-    Shortcuts(
-        carPlay = r.byPackage(s.carPlayPackage) ?: r.guess(AppsRepository.CARPLAY_PKGS, AppsRepository.CARPLAY_KEYS),
-        nav = r.byPackage(s.navPackage) ?: r.guess(AppsRepository.NAV_PKGS, AppsRepository.NAV_KEYS),
-        music = r.byPackage(s.musicPackage) ?: r.guess(AppsRepository.MUSIC_PKGS, AppsRepository.MUSIC_KEYS),
-        radio = r.byPackage(s.radioPackage) ?: r.guess(emptyList(), AppsRepository.RADIO_KEYS),
-        // Prefer the unit's own dialer (built-in BT phone) over any name-based guess.
-        phone = r.byPackage(s.phonePackage) ?: r.dialer() ?: r.guess(emptyList(), AppsRepository.PHONE_KEYS)
-            ?.takeUnless { it.label.contains("finder", true) || it.packageName.contains("finder", true) },
-    )
-}
+fun rememberShortcuts(c: AppContainer, s: NovaSettings, apps: List<AppEntry>): Shortcuts = remember(s, apps) { Shortcuts.resolve(c.apps, s) }
 
 const val ANDROID_AUTO_PKG = "com.google.android.projection.gearhead"
 const val YOUTUBE_PKG = "com.google.android.youtube"
@@ -62,19 +49,20 @@ fun dockTitle(id: String, ar: Boolean): String = when (id) {
     "radio" -> if (ar) "الراديو" else "Radio"
     "youtube" -> "YouTube"
     "netflix" -> "Netflix"
+    "smart" -> if (ar) "الأكثر استخدامًا" else "Most used"
     "apps" -> if (ar) "التطبيقات" else "Apps"
     else -> id
 }
 
 /** The user's dock, bound to real installed apps; duplicates and (while driving) video are removed. */
 @Composable
-fun dockSlots(c: AppContainer, s: NovaSettings, sc: Shortcuts, apps: List<AppEntry>, driving: Boolean): List<DockSlot> {
+fun dockSlots(c: AppContainer, s: NovaSettings, sc: Shortcuts, apps: List<AppEntry>, driving: Boolean, frequent: List<String> = emptyList()): List<DockSlot> {
     val ar = LocalArabic.current
-    return remember(s.dock, sc, apps, driving, ar) {
+    return remember(s.dock, sc, apps, driving, ar, frequent) {
         val r = c.apps
         val androidAuto = r.byPackage(ANDROID_AUTO_PKG) ?: r.guess(emptyList(), listOf("android auto", "androidauto"))
             ?: sc.carPlay?.takeIf { it.packageName.contains("zlink", true) || it.packageName.contains("diplay", true) }
-        fun app(id: String): AppEntry? = if (id.startsWith(CUSTOM_PREFIX)) r.byPackage(id.removePrefix(CUSTOM_PREFIX)) else when (id) {
+        fun fixed(id: String): AppEntry? = if (id.startsWith(CUSTOM_PREFIX)) r.byPackage(id.removePrefix(CUSTOM_PREFIX)) else when (id) {
             "maps" -> sc.nav
             "carplay" -> sc.carPlay
             "auto" -> androidAuto
@@ -85,10 +73,13 @@ fun dockSlots(c: AppContainer, s: NovaSettings, sc: Shortcuts, apps: List<AppEnt
             "netflix" -> r.byPackage(NETFLIX_PKG)
             else -> null
         }
+        val smart = if (com.abu00salman.novadrive.core.SMART_SLOT in s.dock)
+            com.abu00salman.novadrive.core.smartDockApp(frequent, apps, s.dock.mapNotNull { fixed(it)?.packageName }.toSet(), driving) else null
+        fun app(id: String): AppEntry? = if (id == com.abu00salman.novadrive.core.SMART_SLOT) smart else fixed(id)
         resolveDock(s.dock, driving, packageOf = { app(it)?.packageName }) { id ->
             val custom = id.startsWith(CUSTOM_PREFIX)
             DockSlot(
-                id, if (custom) app(id)?.label ?: id.removePrefix(CUSTOM_PREFIX) else dockTitle(id, ar), app(id),
+                id, if (custom) app(id)?.label ?: id.removePrefix(CUSTOM_PREFIX) else if (id == com.abu00salman.novadrive.core.SMART_SLOT) smart?.label ?: dockTitle(id, ar) else dockTitle(id, ar), app(id),
                 when (id) {
                     "maps" -> Icons.Rounded.Map; "carplay" -> Icons.Rounded.PhoneIphone; "auto" -> Icons.Rounded.DirectionsCar
                     "music" -> Icons.Rounded.MusicNote; "phone" -> Icons.Rounded.Phone; "radio" -> Icons.Rounded.Radio
@@ -135,7 +126,8 @@ fun HomeScreen(
     val nav = trip?.toNavInfo(settings.arabic, settings.use24h) ?: externalNav
     val hasLocation = remember(perms) { c.location.hasPermission() }
     val access = remember(perms) { MediaRepository.hasAccess(ctx) }
-    val dock = dockSlots(c, settings, sc, apps, driving)
+    val frequent by c.usage.ranked.collectAsStateWithLifecycle()
+    val dock = dockSlots(c, settings, sc, apps, driving, frequent)
     val youtubeApp = remember(apps) { c.apps.byPackage(YOUTUBE_PKG) }
     val youtube = youtubeApp?.let { DockSlot("youtube", "YouTube", it, Icons.Rounded.OndemandVideo, storePackage = YOUTUBE_PKG) }
     val bigPkg = (styleOptsFor(c, settings.uiStyle)).bigApp

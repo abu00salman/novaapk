@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.5.0-beta1 — NovaDrive NEXT
+
+**New**
+- **NOVA Scenes**: save the dashboard (interface, home mode, theme, dock, widget board) and restore it with one tap from Quick controls, Settings or by voice ("scene <name>" / «مشهد <الاسم>»). Per driver profile, up to 8.
+- **NOVA QuickSwitch + Mini Player** (optional, off by default): a small handle over other apps that opens a bar to jump to NovaDrive, navigation, CarPlay or music and control the current track. Needs "display over other apps"; never shown over NovaDrive.
+- **Smart Dock** slot ("Most used") and a **Frequent** tab in the app library, ranked by what is actually opened from NovaDrive (kept on the unit, recent use counts more).
+- **NOVA Backup**: export / import every setting as one JSON file. API keys are never exported and never overwritten; an invalid file changes nothing.
+- **NOVA Update Center**: installed version, "What's new" from the bundled changelog, and an on-demand check of NovaDrive's own GitHub releases (nothing is downloaded or installed automatically).
+- **NOVA Diagnostics**: measured cold-start time and memory, storage, permissions, services and connections, with a copyable report.
+
+**Fixed / improved**
+- Removed the unused "Modify system settings" permission and its prompts (brightness uses the screen dimmer); Quick controls and Permissions now offer "display over other apps" instead.
+- App icons are cached and only re-decoded for packages that changed, so app-list refreshes are much cheaper.
+- Shortcut resolution (configurable package mapping) is shared by the UI, voice and the overlay.
+- Layout audit in CI: every tappable control of all 13 interfaces, Arabic and English, at 1280×720 and 1024×600, is checked for clipping and minimum size.
+
+**CI / release**
+- Android lint report, SHA-256 checksums, debug builds always named `-debug`, pre-release tags published as pre-releases, superseded runs cancelled.
+
 ## 2.3.0-beta2
 
 - «أمرني» is back on the voice button: Google's official speech recognition with local commands, or Google Assistant / Gemini; other questions open in the Google app. No API.

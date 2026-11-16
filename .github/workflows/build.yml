@@ -10,6 +10,11 @@ on:
 permissions:
   contents: write
 
+# A newer push to the same branch replaces the run in progress.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -56,13 +61,27 @@ jobs:
           name: NovaDrive-APK-debug
           path: app/build/outputs/apk/debug/*.apk
 
+      # Static analysis (Android lint). The report is published; findings don't block the APK.
+      - name: Static analysis (lint)
+        run: ./gradlew :app:lintDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NovaDrive-lint-report
+          path: app/build/reports/lint-results-debug.*
+          if-no-files-found: warn
+
       - name: Publish APK to the apk branch
         if: github.event_name == 'push'
         run: |
           mkdir -p "$RUNNER_TEMP/apk"
           if [ "$NOVA_SIGNED" = "true" ]; then cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/apk/NovaDrive.apk"; fi
           cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/apk/NovaDrive-debug.apk"
+          cp app/build/reports/lint-results-debug.txt "$RUNNER_TEMP/apk/lint-report.txt" 2>/dev/null || true
           cd "$RUNNER_TEMP/apk"
+          sha256sum *.apk > SHA256SUMS.txt
+          ls -l *.apk | awk '{print $5, $9}' > SIZES.txt
           git init -q -b "apk$SUFFIX"
           git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" add .
           git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -qm "APK for ${GITHUB_SHA}"
@@ -73,19 +92,25 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           mkdir -p "$RUNNER_TEMP/release"
-          cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/release/NovaDrive-${GITHUB_REF_NAME}.apk"
+          # The debug-signed build is always named "-debug"; "-signed" exists only with the stable key.
+          cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/release/NovaDrive-${GITHUB_REF_NAME}-debug.apk"
           if [ "$NOVA_SIGNED" = "true" ]; then cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/release/NovaDrive-${GITHUB_REF_NAME}-signed.apk"; fi
+          (cd "$RUNNER_TEMP/release" && sha256sum *.apk > SHA256SUMS.txt)
           NOTES="docs/releases/${GITHUB_REF_NAME}.md"
-          if [ -f "$NOTES" ]; then cp "$NOTES" "$RUNNER_TEMP/release/notes.md"; else echo "NovaDrive ${GITHUB_REF_NAME}" > "$RUNNER_TEMP/release/notes.md"; fi
+          if [ -f "$NOTES" ]; then cp "$NOTES" "$RUNNER_TEMP/notes.md"; else echo "NovaDrive ${GITHUB_REF_NAME}" > "$RUNNER_TEMP/notes.md"; fi
+          if [ "$NOVA_SIGNED" != "true" ]; then printf '\n\n> This release contains a **debug-signed** test build only (no stable signing key is configured). It is not a production-signed APK; installing it over a build signed with another key requires uninstalling first.\n' >> "$RUNNER_TEMP/notes.md"; fi
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           name: NovaDrive ${{ github.ref_name }}
-          body_path: ${{ runner.temp }}/release/notes.md
-          files: ${{ runner.temp }}/release/*.apk
-          make_latest: true
+          body_path: ${{ runner.temp }}/notes.md
+          files: |
+            ${{ runner.temp }}/release/*.apk
+            ${{ runner.temp }}/release/SHA256SUMS.txt
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
 
   # Renders the real Compose screens at 1280×720 (Robolectric + Roborazzi) so every change
   # comes with screenshots. Doesn't block the APK build.
@@ -112,13 +137,14 @@ jobs:
           name: NovaDrive-screenshots
           path: |
             app/build/screenshots/*.png
+            app/build/screenshots/*.txt
             app/build/reports/tests/
           if-no-files-found: warn
 
       - name: Publish to the screenshots branch
         if: github.event_name != 'pull_request'
         run: |
-          mkdir -p "$RUNNER_TEMP/shots" && cp app/build/screenshots/*.png "$RUNNER_TEMP/shots/"
+          mkdir -p "$RUNNER_TEMP/shots" && cp app/build/screenshots/*.png app/build/screenshots/*.txt "$RUNNER_TEMP/shots/"
           if [ "$GITHUB_REF_NAME" = "main" ]; then B=screenshots; else B="screenshots-$(echo "$GITHUB_REF_NAME" | tr '/' '-')"; fi
           cd "$RUNNER_TEMP/shots"
           git init -q -b "$B"

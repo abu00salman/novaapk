@@ -100,6 +100,15 @@ object VoiceCommands {
             return msg("Try: " + EXAMPLES_EN.take(6).joinToString(", "), "جرّب مثلاً: " + EXAMPLES_AR.take(6).joinToString("، "))
         }
 
+        // NOVA Scenes: "مشهد الرحلة" / "scene road trip" restores a saved dashboard of this profile.
+        Regex("^(?:مشهد|المشهد|scene)\\s+(.+)$").find(t)?.let { m ->
+            val wanted = m.groupValues[1].trim()
+            c.scenes.list().firstOrNull { normalize(it.name) == wanted }?.let { sc ->
+                c.applyScene(sc); return msg("Scene ${sc.name}", "تم تفعيل مشهد ${sc.name}")
+            }
+            return msg("No scene called \"$wanted\"", "لا يوجد مشهد باسم «$wanted»")
+        }
+
         // Interface style & theme ("واجهة تسلا", "Mercedes interface", …)
         if (!question && has("واجهه", "interface", "theme", "شكل")) {
             val aliases = mapOf(

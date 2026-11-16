@@ -16,8 +16,8 @@ android {
         applicationId = "com.abu00salman.novadrive"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "2.4.0-beta2"
+        versionCode = 10
+        versionName = "2.5.0-beta1"
         resourceConfigurations += listOf("en", "ar")
     }
 
@@ -56,9 +56,23 @@ android {
             )
         }
     }
-    lint { checkReleaseBuilds = false; abortOnError = false }
+    // Static analysis runs in CI (lintDebug) and publishes its report; findings don't block the APK.
+    lint { checkReleaseBuilds = false; abortOnError = false; htmlReport = true; textReport = true; textOutput = file("build/reports/lint-results-debug.txt") }
     // JVM screenshot tests (Robolectric + Roborazzi) render the real Compose UI to PNG in CI.
     testOptions { unitTests { isIncludeAndroidResources = true } }
+}
+
+// The Update Center shows "What's new" from the repository's own CHANGELOG.md, bundled as an asset.
+abstract class CopyChangelog : DefaultTask() {
+    @get:InputFile abstract val source: RegularFileProperty
+    @get:OutputDirectory abstract val out: DirectoryProperty
+    @TaskAction fun run() { source.get().asFile.copyTo(out.get().file("CHANGELOG.md").asFile, overwrite = true) }
+}
+val copyChangelog = tasks.register<CopyChangelog>("copyChangelog") {
+    source.set(rootProject.layout.projectDirectory.file("CHANGELOG.md"))
+}
+androidComponents {
+    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(copyChangelog, CopyChangelog::out) }
 }
 
 // Screenshot tests write PNGs Gradle doesn't track, so never skip or restore them from cache.

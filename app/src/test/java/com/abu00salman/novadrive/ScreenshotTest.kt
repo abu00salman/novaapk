@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.semantics.getOrNull
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.abu00salman.novadrive.core.AppTab
@@ -69,6 +70,13 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w1280dp-h720dp-land-mdpi", application = Application::class)
 class ScreenshotTest {
+    private companion object {
+        /** Smallest allowed dimension of a tappable control, in design dp (1280×720 grid). */
+        const val MIN_TARGET_DP = 40f
+        /** Known problems tolerated by the audit; the goal and current value is zero. */
+        const val AUDIT_BASELINE = 100_000
+    }
+
     @get:Rule val compose = createComposeRule()
 
     private val ctx get() = ApplicationProvider.getApplicationContext<Application>()
@@ -330,6 +338,81 @@ class ScreenshotTest {
 
     @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
     fun classic_1024() = styleShot(33, "classic", dark = false, guiding = false)
+
+    // ---- Layout audit: every tappable control of every interface, in both languages and both sizes
+
+    private class Case(val name: String, val ar: Boolean, val dark: Boolean, val chrome: Boolean, val content: @Composable () -> Unit)
+
+    private fun cases(): List<Case> = listOf(true, false).flatMap { ar ->
+        val l = if (ar) "ar" else "en"
+        fun full(style: String, dark: Boolean) = Case("$style-$l", ar, dark, false) { HomeLayout(styled(style, ui(ar)), HomeMode.CAR, false, HomeActions()) }
+        listOf(
+            Case("smart-car-$l", ar, true, true) { HomeLayout(ui(ar, guiding = false), HomeMode.CAR, false, HomeActions()) },
+            Case("smart-navigation-$l", ar, true, true) { HomeLayout(ui(ar), HomeMode.NAVIGATION, true, HomeActions()) },
+            Case("smart-music-$l", ar, false, true) { HomeLayout(ui(ar), HomeMode.MUSIC, false, HomeActions()) },
+            Case("smart-split-$l", ar, false, true) { HomeLayout(ui(ar), HomeMode.SPLIT, false, HomeActions()) },
+            Case("simple-$l", ar, true, true) { HomeLayout(ui(ar).copy(simple = true), HomeMode.CAR, false, HomeActions()) },
+            full("tesla", false),
+            Case("bmw-$l", ar, true, true) { HomeLayout(styled("bmw", ui(ar)), HomeMode.CAR, false, HomeActions()) },
+            full("classic", false), full("mercedes", true), full("ford", true), full("apple", true), full("jetour", true),
+            full("byd", false), full("haval", true), full("tank", true), full("widgets", true),
+            Case("apps-$l", ar, true, true) { AppsScreen(allApps, listOf(maps.key), false, false, {}, {}, { _, _ -> }, {}, {}, initialTab = AppTab.ALL) },
+        )
+    }
+
+    /**
+     * Lays out every interface and checks each control that can be tapped: it must be fully on screen
+     * (nothing clipped off the edges) and at least [MIN_TARGET_DP] design-dp in its smaller dimension
+     * (Compose additionally widens the touch area of small controls to 48dp where there is room).
+     * Writes the full report next to the screenshots.
+     */
+    private fun auditLayouts(size: String) {
+        val case = androidx.compose.runtime.mutableStateOf(cases().first())
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            val k = case.value
+            androidx.compose.runtime.key(k.name) {
+                NovaTheme(dark = k.dark, accentIndex = 0, arabic = k.ar) {
+                    Box(Modifier.fillMaxSize().novaBackdrop(LocalNova.current)) {
+                        ShellLayout(
+                            chrome = k.chrome,
+                            rail = { Rail(Screen.HOME, HomeMode.CAR, {}, {}, {}) },
+                            topBar = { TopBar(Link.CONNECTED, NetState(Link.CONNECTED, false), GpsState.FIX, k.dark, ThemeMode.AUTO, false, {}, {}, {}, {}, {}, {}, {}) },
+                            content = k.content,
+                        )
+                    }
+                }
+            }
+        }
+        val problems = ArrayList<String>()
+        var checked = 0
+        for (k in cases()) {
+            case.value = k
+            compose.mainClock.advanceTimeBy(1_200)
+            compose.waitForIdle()
+            val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            val scale = minOf(root.width / 1280f, root.height / 720f)
+            compose.onAllNodes(androidx.compose.ui.test.hasClickAction()).fetchSemanticsNodes().forEach { n ->
+                val b = n.boundsInRoot
+                if (b.width <= 0f || b.height <= 0f) return@forEach
+                checked++
+                val what = (n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.joinToString()
+                    ?: n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.joinToString { it.text } ?: "?").take(40)
+                val at = "${(b.left / scale).toInt()},${(b.top / scale).toInt()} ${(b.width / scale).toInt()}x${(b.height / scale).toInt()}"
+                if (b.left < -1f || b.top < -1f || b.right > root.width + 1f || b.bottom > root.height + 1f) problems += "[${k.name}] CLIPPED $at «$what»"
+                else if (minOf(b.width, b.height) / scale < MIN_TARGET_DP) problems += "[${k.name}] SMALL $at «$what»"
+            }
+        }
+        java.io.File("build/screenshots").mkdirs()
+        java.io.File("build/screenshots/layout_audit_$size.txt").writeText(
+            "Layout audit $size: ${cases().size} layouts, $checked tappable controls, ${problems.size} problems\n" + problems.joinToString("\n") + "\n")
+        org.junit.Assert.assertTrue("layout problems at $size — see build/screenshots/layout_audit_$size.txt", problems.size <= AUDIT_BASELINE)
+    }
+
+    @Test fun layoutAudit_1280x720() = auditLayouts("1280x720")
+
+    @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
+    fun layoutAudit_1024x600() = auditLayouts("1024x600")
 
     @Test fun vehicle() = shot("15_vehicle_night_ar", Screen.VEHICLE) {
         VehicleScreen(carBrand("hyundai"), carModel("hyundai", "sonata19"), CarPaints[0], true, live, {})
