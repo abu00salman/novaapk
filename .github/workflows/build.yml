@@ -141,10 +141,11 @@ jobs:
             app/build/reports/tests/
           if-no-files-found: warn
 
+      # Published even when a test failed, so the layout audit report can be read.
       - name: Publish to the screenshots branch
-        if: github.event_name != 'pull_request'
+        if: always() && github.event_name != 'pull_request'
         run: |
-          mkdir -p "$RUNNER_TEMP/shots" && cp app/build/screenshots/*.png app/build/screenshots/*.txt "$RUNNER_TEMP/shots/"
+          mkdir -p "$RUNNER_TEMP/shots" && cp app/build/screenshots/*.png app/build/screenshots/*.txt "$RUNNER_TEMP/shots/" || true
           if [ "$GITHUB_REF_NAME" = "main" ]; then B=screenshots; else B="screenshots-$(echo "$GITHUB_REF_NAME" | tr '/' '-')"; fi
           cd "$RUNNER_TEMP/shots"
           git init -q -b "$B"
