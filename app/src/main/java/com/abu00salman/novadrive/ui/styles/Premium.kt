@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -174,7 +175,7 @@ internal fun FordLayout(ui: HomeUi, act: HomeActions) {
             val clock = rememberClock(ui.use24h)
             ui.weather?.takeIf { ui.showWeather }?.let { Text("${Math.round(it.tempC)}°", style = st(20.sp, FontWeight.Medium)) }
             Spacer(Modifier.weight(1f))
-            UiDirection { Text(clock.time + " " + clock.ampm, style = st(22.sp, FontWeight.SemiBold), modifier = Modifier.clickable(onClick = act.onQuick)) }
+            UiDirection { Text(clock.time + " " + clock.ampm, style = st(22.sp, FontWeight.SemiBold), modifier = Modifier.com.abu00salman.novadrive.ui.components.tapTarget(onClick = act.onQuick)) }
             Spacer(Modifier.weight(1f))
             StatusIcons(ui, act, 20.dp)
         }
@@ -247,10 +248,10 @@ internal fun AppleLayout(ui: HomeUi, act: HomeActions) {
     val k = LocalSkin.current
     Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Sidebar
-        SCard(Modifier.width(112.dp).fillMaxHeight(), corner = 32.dp) {
+        SCard(Modifier.width(126.dp).fillMaxHeight(), corner = 32.dp) {
             Column(Modifier.fillMaxSize().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 val clock = rememberClock(ui.use24h)
-                Text(clock.time, style = st(24.sp, FontWeight.SemiBold), maxLines = 1, modifier = Modifier.clickable(onClick = act.onQuick))
+                Text(clock.time, style = st(24.sp, FontWeight.SemiBold), maxLines = 1, modifier = Modifier.com.abu00salman.novadrive.ui.components.tapTarget(onClick = act.onQuick))
                 StatusIcons(ui, act, 16.dp)
                 Spacer(Modifier.height(6.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -363,7 +364,7 @@ internal fun JetourLayout(ui: HomeUi, act: HomeActions) {
 @Composable
 private fun JetourTab(label: String, active: Boolean, onClick: () -> Unit) {
     val k = LocalSkin.current
-    Column(Modifier.clickable(onClick = onClick).padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.defaultMinSize(minHeight = 44.dp).clickable(onClick = onClick).padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         UiDirection { Text(label, style = st(17.sp, if (active) FontWeight.Bold else FontWeight.Medium, if (active) k.text else k.dim), maxLines = 1) }
         Spacer(Modifier.height(4.dp))
         Box(Modifier.width(28.dp).height(3.dp).clip(CircleShape).background(if (active) k.accent else Color.Transparent))
@@ -386,7 +387,7 @@ internal fun BydLayout(ui: HomeUi, act: HomeActions) {
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly,
         ) {
             val clock = rememberClock(ui.use24h)
-            Text(clock.time, style = st(18.sp, FontWeight.Bold), maxLines = 1, modifier = Modifier.clickable(onClick = act.onQuick))
+            Text(clock.time, style = st(18.sp, FontWeight.Bold), maxLines = 1, modifier = Modifier.com.abu00salman.novadrive.ui.components.tapTarget(onClick = act.onQuick))
             menuItems(act).forEach { m -> SRound(m.icon, m.label, 54.dp, filled = m.special, onClick = m.onClick) }
         }
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {

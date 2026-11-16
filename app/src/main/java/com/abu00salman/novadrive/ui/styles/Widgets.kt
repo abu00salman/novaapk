@@ -200,7 +200,7 @@ private fun WidgetBoard(
                         val ww by animateDpAsState(cellW * w + gap * (w - 1), spring(stiffness = 500f), label = "w")
                         val hh by animateDpAsState(cellH * h + gap * (h - 1), spring(stiffness = 500f), label = "h")
                         WidgetFrame(
-                            pl.item, editing, Modifier.offset(x, y).size(ww, hh),
+                            pl.item, editing, Modifier.offset { androidx.compose.ui.unit.IntOffset(x.roundToPx(), y.roundToPx()) }.size(ww, hh),
                             first = index == 0, last = index == placements.lastIndex,
                             onEdit = onEdit, onRemove = { onRemove(pl.item.id) }, onResize = { onResize(pl.item.id) },
                             onMove = { onMove(pl.item.id, it) },
@@ -481,7 +481,7 @@ private fun TripWidget(ui: HomeUi, act: HomeActions, size: WidgetSize) {
                 }
             }
         }
-        Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) { SRound(Icons.Rounded.Refresh, tr("Reset trip", "تصفير الرحلة"), 36.dp, onClick = act.onTripReset) }
+        Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) { SRound(Icons.Rounded.Refresh, tr("Reset trip", "تصفير الرحلة"), 40.dp, onClick = act.onTripReset) }
     }
 }
 

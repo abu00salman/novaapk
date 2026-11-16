@@ -74,7 +74,7 @@ class ScreenshotTest {
         /** Smallest allowed dimension of a tappable control, in design dp (1280×720 grid). */
         const val MIN_TARGET_DP = 40f
         /** Known problems tolerated by the audit; the goal and current value is zero. */
-        const val AUDIT_BASELINE = 100_000
+        const val AUDIT_BASELINE = 0
     }
 
     @get:Rule val compose = createComposeRule()
@@ -389,6 +389,9 @@ class ScreenshotTest {
         for (k in cases()) {
             case.value = k
             compose.mainClock.advanceTimeBy(1_200)
+            compose.waitForIdle()
+            // A second pass so nothing of the previous layout is still attached.
+            compose.mainClock.advanceTimeBy(300)
             compose.waitForIdle()
             val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
             val scale = minOf(root.width / 1280f, root.height / 720f)

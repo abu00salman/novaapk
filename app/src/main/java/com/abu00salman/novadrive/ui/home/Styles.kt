@@ -318,7 +318,8 @@ private fun TeslaStatusBar(ui: HomeUi, act: HomeActions, modifier: Modifier) {
     val w = ui.weather
     Row(modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("$time $ampm".trim(), style = NovaType.title.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium), color = TText,
-            modifier = Modifier.clickable(onClick = act.onQuick))
+            // Same look; only the tap area grows to the full height of the bar.
+            modifier = Modifier.com.abu00salman.novadrive.ui.components.tapTarget(minWidth = 0.dp, onClick = act.onQuick))
         if (ui.showWeather && w != null) {
             Spacer(Modifier.width(24.dp))
             Text("${Math.round(w.tempC)}°", style = NovaType.title.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium), color = TText)

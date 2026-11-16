@@ -57,7 +57,12 @@ android {
         }
     }
     // Static analysis runs in CI (lintDebug) and publishes its report; findings don't block the APK.
-    lint { checkReleaseBuilds = false; abortOnError = false; htmlReport = true; textReport = true; textOutput = file("build/reports/lint-results-debug.txt") }
+    lint {
+        checkReleaseBuilds = false; abortOnError = false; htmlReport = true; textReport = true
+        textOutput = file("build/reports/lint-results-debug.txt")
+        // False positive with this Kotlin/Compose pair: every flagged producer does assign `value`.
+        disable += "ProduceStateDoesNotAssignValue"
+    }
     // JVM screenshot tests (Robolectric + Roborazzi) render the real Compose UI to PNG in CI.
     testOptions { unitTests { isIncludeAndroidResources = true } }
 }

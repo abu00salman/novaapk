@@ -36,7 +36,7 @@ class StatusRepository(private val ctx: Context) {
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         if (!canQuery) return@runCatching Link.ON
         val connected = listOf(BluetoothProfile.A2DP, BluetoothProfile.HEADSET).any {
-            adapter.getProfileConnectionState(it) == BluetoothProfile.STATE_CONNECTED
+            adapter.getProfileConnectionState(it) == BluetoothAdapter.STATE_CONNECTED
         }
         if (connected) Link.CONNECTED else Link.ON
     }.getOrDefault(Link.OFF)

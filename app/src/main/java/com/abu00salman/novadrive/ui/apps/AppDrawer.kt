@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -114,12 +115,17 @@ fun AppsScreen(
                 ) {
                     Icon(if (driving) Icons.Rounded.Lock else Icons.Rounded.Search, null, tint = p.textDim)
                     Spacer(Modifier.width(10.dp))
-                    Box(Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
                         if (driving) Text(tr("Search is available when parked", "البحث متاح عند التوقف"), style = NovaType.label, color = p.textDim, maxLines = 1)
-                        else {
-                            if (query.isEmpty()) Text(tr("Search apps", "ابحث عن تطبيق"), style = NovaType.body, color = p.textDim)
-                            BasicTextField(query, { query = it }, singleLine = true, textStyle = NovaType.body.copy(color = p.text), cursorBrush = SolidColor(p.accent), modifier = Modifier.fillMaxWidth())
-                        }
+                        // The whole height of the box takes the tap, not just the line of text.
+                        else BasicTextField(query, { query = it }, singleLine = true, textStyle = NovaType.body.copy(color = p.text), cursorBrush = SolidColor(p.accent),
+                            modifier = Modifier.fillMaxSize(),
+                            decorationBox = { field ->
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                                    if (query.isEmpty()) Text(tr("Search apps", "ابحث عن تطبيق"), style = NovaType.body, color = p.textDim)
+                                    field()
+                                }
+                            })
                     }
                 }
                 Spacer(Modifier.width(12.dp))
@@ -129,7 +135,8 @@ fun AppsScreen(
                 ) {
                     Text(tr("System apps", "تطبيقات النظام"), style = NovaType.label, color = p.textDim)
                     Spacer(Modifier.width(8.dp))
-                    Switch(showSystem, { if (driving) onParkedOnly() else onShowSystem(it) },
+                    // The row is the control; the switch only shows the state.
+                    Switch(showSystem, null,
                         colors = SwitchDefaults.colors(checkedTrackColor = p.accent, checkedThumbColor = Color.White))
                 }
             }

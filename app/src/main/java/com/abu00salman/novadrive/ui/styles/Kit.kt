@@ -305,7 +305,7 @@ fun StatusIcons(ui: HomeUi, act: HomeActions, size: Dp = 24.dp) {
 
 @Composable
 private fun StatusGlyph(icon: ImageVector, tint: Color, size: Dp, onClick: () -> Unit) {
-    Box(Modifier.size(size + 20.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size((size + 20.dp).coerceAtLeast(40.dp)).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, null, tint = tint, modifier = Modifier.size(size))
     }
 }
@@ -451,7 +451,7 @@ fun SkinMedia(ui: HomeUi, act: HomeActions, modifier: Modifier, art: Dp = 96.dp,
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     UiDirection { MediaTitle(ui, act, 18.sp, Modifier.weight(1f)) }
                     Icon(Icons.Rounded.OpenInNew, tr("Queue & sources", "قائمة التشغيل"), tint = LocalSkin.current.text,
-                        modifier = Modifier.size(38.dp).clip(CircleShape).clickable(onClick = act.onMusicDetails).padding(8.dp))
+                        modifier = Modifier.size(44.dp).clip(CircleShape).clickable(onClick = act.onMusicDetails).padding(11.dp))
                 }
                 MediaBar(ui, Modifier.fillMaxWidth())
                 MediaButtons(ui, act, 54.dp, Modifier.fillMaxWidth())
