@@ -402,8 +402,16 @@ class ScreenshotTest {
                 val what = (n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.joinToString()
                     ?: n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.joinToString { it.text } ?: "?").take(40)
                 val at = "${(b.left / scale).toInt()},${(b.top / scale).toInt()} ${(b.width / scale).toInt()}x${(b.height / scale).toInt()}"
-                if (b.left < -1f || b.top < -1f || b.right > root.width + 1f || b.bottom > root.height + 1f) problems += "[${k.name}] CLIPPED $at «$what»"
-                else if (minOf(b.width, b.height) / scale < MIN_TARGET_DP) problems += "[${k.name}] SMALL $at «$what»"
+                // Items of a scrolling list may be partly scrolled out of view; that isn't a defect.
+                val scrolls = generateSequence(n.parent) { it.parent }.any { p ->
+                    p.config.contains(androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange) ||
+                        p.config.contains(androidx.compose.ui.semantics.SemanticsProperties.HorizontalScrollAxisRange) ||
+                        p.config.contains(androidx.compose.ui.semantics.SemanticsActions.ScrollBy)
+                }
+                // boundsInRoot is what is actually visible; size is what the control wanted.
+                val cut = n.size.width - b.width > 2f || n.size.height - b.height > 2f
+                if (b.left < -1f || b.top < -1f || b.right > root.width + 1f || b.bottom > root.height + 1f || (cut && !scrolls)) problems += "[${k.name}] CLIPPED $at of ${(n.size.width / scale).toInt()}x${(n.size.height / scale).toInt()} «$what»"
+                else if (minOf(n.size.width, n.size.height) / scale < MIN_TARGET_DP) problems += "[${k.name}] SMALL $at «$what»"
             }
         }
         java.io.File("build/screenshots").mkdirs()
