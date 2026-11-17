@@ -45,6 +45,7 @@ jobs:
           NOVA_KEYSTORE_PASSWORD: ${{ secrets.NOVA_KEYSTORE_PASSWORD }}
           NOVA_KEY_ALIAS: ${{ secrets.NOVA_KEY_ALIAS }}
           NOVA_KEY_PASSWORD: ${{ secrets.NOVA_KEY_PASSWORD }}
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleDebug :app:assembleRelease --no-daemon

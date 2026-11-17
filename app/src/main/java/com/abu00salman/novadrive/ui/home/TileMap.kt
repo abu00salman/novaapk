@@ -74,9 +74,16 @@ fun TileMap(
     onViewChange: ((LatLon) -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
-    if (LocalGoogleMap.current && lat != null && lon != null && remember { isOnline(ctx) }) {
-        GoogleEmbedMap(lat, lon, zoom, modifier)
-        return
+    if (LocalGoogleMap.current && lat != null && lon != null) {
+        if (remember { GoogleSdkMap.available(ctx) }) {
+            GoogleSdkMap(lat, lon, bearing, headingUp, zoom, onZoom, onTap, modifier, background, route, routeProgress, routeColor, destination, markerColor)
+            return
+        }
+        // Keyless embed can't draw our route, so during guidance the OSM map below is used.
+        if (route.isNullOrEmpty() && remember { isOnline(ctx) }) {
+            GoogleEmbedMap(lat, lon, zoom, modifier)
+            return
+        }
     }
     val tiles = remember { mutableStateMapOf<String, ImageBitmap>() }
     val zoomRef = rememberUpdatedState(zoom)

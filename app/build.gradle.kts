@@ -16,9 +16,13 @@ android {
         applicationId = "com.abu00salman.novadrive"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "2.5.0-beta3"
+        versionCode = 13
+        versionName = "2.5.0-beta4"
         resourceConfigurations += listOf("en", "ar")
+        // Google Maps SDK key, injected by CI from the MAPS_API_KEY secret. Never stored in the repository.
+        val mapsKey = System.getenv("MAPS_API_KEY").orEmpty()
+        manifestPlaceholders["MAPS_API_KEY"] = mapsKey
+        buildConfigField("boolean", "HAS_MAPS_KEY", (mapsKey.isNotBlank()).toString())
     }
 
     signingConfigs {
@@ -90,6 +94,8 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("com.google.maps.android:maps-compose:6.2.1")
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
