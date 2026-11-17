@@ -60,6 +60,8 @@ data class NovaSettings(
     val hideSystemBars: Boolean = true,
     /** Music and YouTube from the dock open inside NovaDrive instead of leaving it. */
     val inPlaceMedia: Boolean = true,
+    /** Home map cards show Google Maps (keyless web embed) when online; OSM tiles otherwise. */
+    val googleMap: Boolean = true,
     /** The navigation app (Google Maps, Waze…) opens beside NovaDrive in split screen, where the unit allows it. */
     val navBeside: Boolean = true,
 ) {
@@ -124,6 +126,7 @@ class SettingsRepository(ctx: Context) {
             voiceReply = b("voiceReply", true),
             hideSystemBars = b("hideBars", true),
             inPlaceMedia = b("inPlaceMedia", true),
+            googleMap = b("googleMap", true),
             navBeside = b("navBeside", true),
             voiceCommands = (s("voiceCmds") ?: "").split('\u001E').mapNotNull { e ->
                 val parts = e.split('\u001F'); if (parts.size == 2 && parts[0].isNotBlank()) com.abu00salman.novadrive.data.CustomCommand(parts[0], parts[1]) else null
@@ -170,6 +173,7 @@ class SettingsRepository(ctx: Context) {
             .putBoolean(k(p, "voiceReply"), n.voiceReply)
             .putBoolean(k(p, "hideBars"), n.hideSystemBars)
             .putBoolean(k(p, "inPlaceMedia"), n.inPlaceMedia)
+            .putBoolean(k(p, "googleMap"), n.googleMap)
             .putBoolean(k(p, "navBeside"), n.navBeside)
             .putString(k(p, "voiceCmds"), n.voiceCommands.joinToString("\u001E") { it.phrase.replace("\u001E", " ").replace("\u001F", " ") + "\u001F" + it.packageName })
             .apply()

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.5.0-beta3
+- خريطة Google (بدون مفتاح API) هي الخريطة الأساسية في بطاقات الخريطة عند توفر الإنترنت؛ OpenStreetMap احتياطي بدون إنترنت. خيار في الإعدادات.
+
 ## 2.5.0-beta2
 
 - Full screen: Android's status and navigation bars are hidden while NovaDrive is in front (swipe from the edge to show them; Settings › Appearance).

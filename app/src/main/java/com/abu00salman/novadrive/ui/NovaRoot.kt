@@ -188,6 +188,7 @@ fun NovaRoot(onVoice: () -> Unit) {
       androidx.compose.runtime.CompositionLocalProvider(
           com.abu00salman.novadrive.ui.components.LocalNovaAi provides aiCfg.novaEnabled,
           com.abu00salman.novadrive.ui.components.LocalCompactWindow provides compactWindow,
+          com.abu00salman.novadrive.ui.home.LocalGoogleMap provides settings.googleMap,
       ) {
         val p = LocalNova.current
         var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
