@@ -16,8 +16,8 @@ android {
         applicationId = "com.abu00salman.novadrive"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "2.5.0-beta4"
+        versionCode = 14
+        versionName = "2.5.0-beta5"
         resourceConfigurations += listOf("en", "ar")
         // Google Maps SDK key, injected by CI from the MAPS_API_KEY secret. Never stored in the repository.
         val mapsKey = System.getenv("MAPS_API_KEY").orEmpty()

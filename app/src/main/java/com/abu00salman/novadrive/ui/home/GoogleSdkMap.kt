@@ -33,7 +33,10 @@ import com.google.maps.android.compose.rememberCameraPositionState
  * Google Play services. Draws NovaDrive's own route, destination and car position on top.
  */
 object GoogleSdkMap {
-    fun available(ctx: Context): Boolean = BuildConfig.HAS_MAPS_KEY && runCatching {
+    /** Set when the SDK never finished loading (key not authorised, no billing, ...): fall back for this run. */
+    @Volatile var failed = false
+    val failedState = androidx.compose.runtime.mutableStateOf(false)
+    fun available(ctx: Context): Boolean = BuildConfig.HAS_MAPS_KEY && !failed && runCatching {
         GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(ctx) == ConnectionResult.SUCCESS
     }.getOrDefault(false)
 }
@@ -61,6 +64,12 @@ fun GoogleSdkMap(
             }
         }
     }
+    val loaded = remember { androidx.compose.runtime.mutableStateOf(false) }
+    // A key without Maps SDK / billing enabled shows an empty beige map and never reports "loaded".
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(10_000)
+        if (!loaded.value) { GoogleSdkMap.failed = true; GoogleSdkMap.failedState.value = true }
+    }
     val props = remember(night) {
         MapProperties(mapStyleOptions = if (night) MapStyleOptions(NIGHT_STYLE) else null, isBuildingEnabled = true, isTrafficEnabled = true)
     }
@@ -73,6 +82,7 @@ fun GoogleSdkMap(
             mapToolbarEnabled = false, rotationGesturesEnabled = false, tiltGesturesEnabled = false,
         ),
         onMapClick = { onTap() },
+        onMapLoaded = { loaded.value = true },
     ) {
         if (route != null && route.size >= 2) {
             val split = routeProgress.coerceIn(0, route.size - 1)

@@ -75,7 +75,8 @@ fun TileMap(
 ) {
     val ctx = LocalContext.current
     if (LocalGoogleMap.current && lat != null && lon != null) {
-        if (remember { GoogleSdkMap.available(ctx) }) {
+        val sdkFailed = GoogleSdkMap.failedState.value
+        if (!sdkFailed && remember { GoogleSdkMap.available(ctx) }) {
             GoogleSdkMap(lat, lon, bearing, headingUp, zoom, onZoom, onTap, modifier, background, route, routeProgress, routeColor, destination, markerColor)
             return
         }
