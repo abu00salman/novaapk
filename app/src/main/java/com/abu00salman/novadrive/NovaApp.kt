@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.stateIn
 
 class NovaApp : Application() {
@@ -137,6 +138,43 @@ class AppContainer(private val app: Application) {
 
     val network: StateFlow<NetState> by lazy {
         status.network().stateIn(scope, SharingStarted.WhileSubscribed(5_000), NetState())
+    }
+
+    val speedCameras by lazy { com.abu00salman.novadrive.data.SpeedCameraRepository(app).also { it.load() } }
+    private var camAnnounced: com.abu00salman.novadrive.data.nav.LatLon? = null
+    private var camRefreshAt = 0L
+    private var camBeepAt = 0L
+    private val camTone by lazy { android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 90) }
+
+    /** The speed camera (ساهر) ahead, with a spoken warning once per camera and a beep above its limit. */
+    val cameraAlert: StateFlow<com.abu00salman.novadrive.data.CameraAlert?> by lazy {
+        fix.map { f ->
+            val s = settings.current
+            if (f == null || !s.cameraAlerts) return@map null
+            val here = com.abu00salman.novadrive.data.nav.LatLon(f.lat, f.lon)
+            val now = System.currentTimeMillis()
+            if (now - camRefreshAt > 60_000) {
+                camRefreshAt = now
+                scope.launch { speedCameras.refreshIfNeeded(here, assistant.online()) }
+            }
+            val heading = f.bearing?.takeIf { f.speedKmh > 10f }
+            val a = com.abu00salman.novadrive.data.SpeedCameraRepository.ahead(here, heading, speedCameras.cameras)
+            if (a != null && a.distanceM < 550 && a.camera.at != camAnnounced) {
+                camAnnounced = a.camera.at
+                val m = (a.distanceM / 50).toInt() * 50
+                val lim = a.camera.maxKmh
+                speaker.speak(
+                    if (s.arabic) "كاميرا ساهر بعد $m متر" + (lim?.let { "، السرعة $it" } ?: "")
+                    else "Speed camera in $m metres" + (lim?.let { ", limit $it" } ?: ""), s.arabic,
+                )
+            }
+            val lim = a?.camera?.maxKmh
+            if (lim != null && f.speedKmh > lim + 2 && now - camBeepAt > 4_000) {
+                camBeepAt = now
+                runCatching { camTone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2, 400) }
+            }
+            a
+        }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
     }
 
     val iPhoneConnected: StateFlow<Boolean> by lazy {

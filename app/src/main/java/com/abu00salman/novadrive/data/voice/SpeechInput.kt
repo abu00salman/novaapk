@@ -16,7 +16,7 @@ import androidx.core.content.ContextCompat
 /** Opens the system's own recognition dialog (Google's window) — used only as a fallback. */
 fun interface SystemDialogLauncher {
     /** False when no activity can show it. The result comes back through [SpeechCallback]. */
-    fun launch(language: String, callback: SpeechCallback): Boolean
+    fun launch(language: String, preferOffline: Boolean, callback: SpeechCallback): Boolean
 }
 
 /**
@@ -46,15 +46,21 @@ class SpeechInput(private val ctx: Context, private val useSystemDialog: () -> B
         main.post {
             release()
             val my = ++token
-            val inApp = !useSystemDialog() && available() && hasMicPermission()
+            // Offline: the unit's on-device recognizer (Android 13+) works without internet, so it is
+            // used even when «أمرني» normally shows Google's window (which needs a connection).
+            val onDevice = preferOffline && onDeviceAvailable() && hasMicPermission()
+            val inApp = onDevice || (!useSystemDialog() && available() && hasMicPermission())
             if (!inApp) {
                 val d = dialog
-                if (d == null || !d.launch(language, guarded(my, callback))) {
+                if (d == null || !d.launch(language, preferOffline, guarded(my, callback))) {
                     callback.onError(if (!hasMicPermission() && available()) SpeechError.PERMISSION else SpeechError.UNAVAILABLE)
                 }
                 return@post
             }
-            val r = runCatching { SpeechRecognizer.createSpeechRecognizer(ctx) }.getOrNull()
+            val r = runCatching {
+                if (onDevice && Build.VERSION.SDK_INT >= 31) SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx)
+                else SpeechRecognizer.createSpeechRecognizer(ctx)
+            }.getOrNull()
             if (r == null) { callback.onError(SpeechError.UNAVAILABLE); return@post }
             recognizer = r
             val cb = guarded(my, callback)

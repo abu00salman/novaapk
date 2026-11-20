@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         nova.assistant.attach(window)
-        nova.assistant.speech.dialog = SystemDialogLauncher { language, cb -> launchDialog(language, cb) }
+        nova.assistant.speech.dialog = SystemDialogLauncher { language, offline, cb -> launchDialog(language, offline, cb) }
         nova.speaker.warmUp()
         nova.soundFx.warmUp()
         setContent { NovaRoot(onVoice = ::startVoice) }
@@ -129,13 +129,14 @@ class MainActivity : ComponentActivity() {
         nova.assistant.listen()
     }
 
-    private fun launchDialog(language: String, cb: SpeechCallback): Boolean {
+    private fun launchDialog(language: String, offline: Boolean, cb: SpeechCallback): Boolean {
         val arabic = language.startsWith("ar")
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
             .putExtra(RecognizerIntent.EXTRA_PROMPT, if (arabic) "أمرني… مثل: افتح يوتيوب، ودّني لأقرب محطة بنزين، كيف الجو" else "Ask me… e.g. \"open YouTube\", \"nearest fuel station\", \"weather\"")
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        if (offline) i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         return try {
             dialogCallback = cb
             voiceDialog.launch(i)

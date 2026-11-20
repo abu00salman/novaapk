@@ -508,6 +508,9 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
         Toggle(tr("Google map on the home screen", "خريطة Google في الشاشة الرئيسية"), tr("Map cards show Google Maps (no API key, needs internet). Off or offline: OpenStreetMap.",
             "بطاقات الخريطة تعرض خرائط Google (بدون مفتاح API، تحتاج إنترنت). عند الإيقاف أو بدون إنترنت: OpenStreetMap."), s.googleMap) { v -> c.settings.update { it.copy(googleMap = v) } }
         Gap()
+        Toggle(tr("Speed camera alerts (Saher)", "تنبيه كاميرات ساهر"), tr("Spoken warning ~500 m before fixed cameras and a beep above their limit. Cameras from OpenStreetMap, saved on the unit so it works offline; unmapped cameras can't be warned about.",
+            "تنبيه صوتي قبل الكاميرات الثابتة بحوالي 500 متر، وصفارة إذا تجاوزت سرعتها. الكاميرات من OpenStreetMap وتُحفظ في الجهاز لتعمل بدون إنترنت؛ الكاميرات غير المسجلة في الخريطة لا يمكن التنبيه عنها."), s.cameraAlerts) { v -> c.settings.update { it.copy(cameraAlerts = v) } }
+        Gap()
         Toggle(tr("Maps beside NovaDrive", "الخرائط بجانب NovaDrive"), tr("Google Maps / Waze opens with its own map and guidance in split screen, NovaDrive stays on the other side. Full screen if the unit can't split.",
             "تُفتح خرائط Google أو Waze بخريطتها وتوجيهها في نصف الشاشة، ويبقى NovaDrive في النصف الآخر. تُفتح بملء الشاشة إن لم تدعم الشاشة التقسيم."), s.navBeside) { v -> c.settings.update { it.copy(navBeside = v) } }
         Gap()

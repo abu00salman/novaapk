@@ -351,6 +351,7 @@ fun NovaRoot(onVoice: () -> Unit) {
                     }
                 }
             }
+            com.abu00salman.novadrive.ui.components.CameraBanner(c)
             // Brightness inside NovaDrive when dimming over other apps isn't allowed (never blocks touches).
             val dimAlpha = com.abu00salman.novadrive.data.ScreenDimmer.overlayAlpha(dimLevel)
             if (!overlayDims && dimAlpha > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dimAlpha)))

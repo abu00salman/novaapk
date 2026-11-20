@@ -16,8 +16,8 @@ android {
         applicationId = "com.abu00salman.novadrive"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "2.5.0-beta5"
+        versionCode = 15
+        versionName = "2.6.0-beta1"
         resourceConfigurations += listOf("en", "ar")
         // Google Maps SDK key, injected by CI from the MAPS_API_KEY secret. Never stored in the repository.
         val mapsKey = System.getenv("MAPS_API_KEY").orEmpty()
@@ -37,6 +37,8 @@ android {
     }
 
     buildTypes {
+        // With the stable key configured, test builds are signed with it too, so every APK updates in place.
+        debug { if (novaKeystore != null) signingConfig = signingConfigs.getByName("nova") }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
