@@ -1,0 +1,2 @@
+Layout audit 1024x600: 34 layouts, 1026 tappable controls, 0 problems
+
