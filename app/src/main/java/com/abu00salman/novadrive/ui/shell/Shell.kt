@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.shell
 
+import com.abu00salman.novadrive.ui.components.tapTarget
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -82,7 +83,7 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 
-enum class Screen { HOME, NAV, MUSIC, VEHICLE, APPS, SETTINGS }
+enum class Screen { HOME, NAV, MUSIC, VEHICLE, APPS, SETTINGS, VIDEO }
 
 /** Real-time "now", ticking on the minute boundary (no per-second recomposition). */
 @Composable
@@ -107,7 +108,8 @@ fun ShellLayout(
     chrome: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    DesignViewport(textScale = textScale) {
+    val compact = com.abu00salman.novadrive.ui.components.LocalCompactWindow.current
+    DesignViewport(designW = if (compact) com.abu00salman.novadrive.ui.components.COMPACT_DESIGN_W else 1280.dp, textScale = textScale) {
       CompositionLocalProvider(LocalIconScale provides iconScale.coerceIn(0.8f, 1.6f), LocalIconTint provides iconTint) {
         FixedLtr {
             if (!chrome) Box(Modifier.fillMaxSize()) { UiDirection(content) }
@@ -149,7 +151,7 @@ fun Rail(
             RailItem(Icons.Rounded.Navigation, tr("Navigation", "الملاحة"), home && mode == HomeMode.NAVIGATION || current == Screen.NAV) { onMode(HomeMode.NAVIGATION) }
             RailItem(Icons.Rounded.MusicNote, tr("Music", "الموسيقى"), home && mode == HomeMode.MUSIC || current == Screen.MUSIC) { onMode(HomeMode.MUSIC) }
             RailItem(Icons.Rounded.Phone, tr("Phone", "الهاتف"), false, onClick = onPhone)
-            RailItem(Icons.Rounded.AutoAwesome, "Nova AI", false, special = true, onClick = onVoice)
+            RailItem(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), false, special = true, onClick = onVoice)
             RailItem(Icons.Rounded.DirectionsCar, tr("Vehicle", "السيارة"), current == Screen.VEHICLE) { onSelect(Screen.VEHICLE) }
             RailItem(Icons.Rounded.Apps, tr("Apps", "التطبيقات"), current == Screen.APPS) { onSelect(Screen.APPS) }
             RailItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), current == Screen.SETTINGS) { onSelect(Screen.SETTINGS) }
@@ -216,7 +218,7 @@ fun TopBar(
     val date = remember(now, ar) { SimpleDateFormat(if (ar) "EEEE d MMMM yyyy" else "EEEE, d MMMM yyyy", loc).format(Date(now)) }
 
     Row(modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.nova_logo), null, Modifier.size(40.dp, 34.dp).clickable(onClick = onQuick))
+        Image(painterResource(R.drawable.nova_logo), null, Modifier.tapTarget(minWidth = 40.dp, onClick = onQuick).size(40.dp, 34.dp))
         Spacer(Modifier.width(12.dp))
         Text("NovaDrive", style = NovaType.title.copy(fontSize = 25.sp, fontWeight = FontWeight.SemiBold), color = p.text)
         Spacer(Modifier.weight(1f))

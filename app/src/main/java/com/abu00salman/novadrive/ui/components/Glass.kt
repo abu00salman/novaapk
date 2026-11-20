@@ -141,7 +141,7 @@ fun AppIcon(
 
 @Composable
 fun Pill(text: String, color: Color, modifier: Modifier = Modifier, icon: ImageVector? = null, onClick: (() -> Unit)? = null) {
-    Glass(modifier.height(36.dp), corner = 18.dp, tint = color, onClick = onClick) {
+    Glass(modifier.height(40.dp), corner = 20.dp, tint = color, onClick = onClick) {
         Row(
             Modifier.align(Alignment.Center).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically

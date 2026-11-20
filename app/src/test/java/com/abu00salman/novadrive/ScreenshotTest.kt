@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.semantics.getOrNull
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.abu00salman.novadrive.core.AppTab
@@ -69,6 +70,13 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w1280dp-h720dp-land-mdpi", application = Application::class)
 class ScreenshotTest {
+    private companion object {
+        /** Smallest allowed dimension of a tappable control, in design dp (1280×720 grid). */
+        const val MIN_TARGET_DP = 40f
+        /** Known problems tolerated by the audit; the goal and current value is zero. */
+        const val AUDIT_BASELINE = 0
+    }
+
     @get:Rule val compose = createComposeRule()
 
     private val ctx get() = ApplicationProvider.getApplicationContext<Application>()
@@ -213,15 +221,85 @@ class ScreenshotTest {
         HomeLayout(styled("classic", ui(true, guiding = false)).copy(bigApp = youtube), HomeMode.CAR, false, HomeActions())
     }
 
+    private val noAi = com.abu00salman.novadrive.ui.ai.NovaAiActions({}, {}, {}, {}, {}, {}, {})
+
     @Test fun novaAiPanel() = shot("36_nova_ai_panel_ar", Screen.HOME, dark = false, chrome = false) {
+        androidx.compose.runtime.CompositionLocalProvider(com.abu00salman.novadrive.ui.components.LocalNovaAi provides true) {
         androidx.compose.foundation.layout.Box {
             HomeLayout(styled("tesla", ui(true)), HomeMode.CAR, false, HomeActions())
             com.abu00salman.novadrive.ui.ai.NovaAiPanel(
-                com.abu00salman.novadrive.data.ai.AiUi(visible = true, status = com.abu00salman.novadrive.data.ai.AiStatus.SPEAKING,
-                    heard = "ودّني لأقرب محطة بنزين", reply = "أقرب محطة: محطة الدريس (1.2 كم). بدأت الملاحة.", engine = "Claude"),
-                {}, {}, {},
+                com.abu00salman.novadrive.data.voice.VoiceUi(visible = true, state = com.abu00salman.novadrive.data.voice.VoiceState.SPEAKING,
+                    heard = "كم عاصمة اليابان؟", reply = "عاصمة اليابان هي طوكيو، ويسكنها نحو 14 مليون نسمة.", provider = "ChatGPT"),
+                noAi,
             )
         }
+        }
+    }
+
+    @Test fun novaAiOffline() = shot("37_nova_ai_offline_ar", Screen.HOME, dark = false, chrome = false) {
+        androidx.compose.foundation.layout.Box {
+            HomeLayout(styled("tesla", ui(true)), HomeMode.CAR, false, HomeActions())
+            com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                com.abu00salman.novadrive.data.voice.VoiceUi(visible = true, state = com.abu00salman.novadrive.data.voice.VoiceState.ERROR, online = false,
+                    showKeyboard = true, canRetry = true, provider = "Claude",
+                    notice = "لا يوجد إنترنت: التعرف الصوتي غير متاح دون اتصال على هذا الجهاز. اكتب الأمر أو استخدم الأزرار."),
+                noAi,
+            )
+        }
+    }
+
+    @Test fun novaAiListening() = shot("38_nova_ai_listening_ar", Screen.HOME, dark = true, chrome = false) {
+        androidx.compose.foundation.layout.Box {
+            HomeLayout(styled("classic", ui(true)), HomeMode.CAR, false, HomeActions())
+            com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                com.abu00salman.novadrive.data.voice.VoiceUi(visible = true, state = com.abu00salman.novadrive.data.voice.VoiceState.LISTENING,
+                    partial = "افتح الخرائط وابحث عن", level = 0.6f, provider = "Claude"),
+                noAi,
+            )
+        }
+    }
+
+    @Test fun askMePanel() = shot("39_ask_me_ar", Screen.HOME, dark = true) {
+        androidx.compose.foundation.layout.Box {
+            HomeLayout(ui(true), HomeMode.CAR, false, HomeActions())
+            com.abu00salman.novadrive.ui.ai.NovaAiPanel(
+                com.abu00salman.novadrive.data.voice.VoiceUi(visible = true, state = com.abu00salman.novadrive.data.voice.VoiceState.IDLE,
+                    heard = "افتح الخرائط", reply = "تم، فتحت خرائط Google"),
+                noAi,
+            )
+        }
+    }
+
+    @Test fun widgets() = shot("40_widgets_ar", Screen.HOME, dark = true, chrome = false) {
+        HomeLayout(styled("widgets", ui(true)).copy(trip = com.abu00salman.novadrive.data.TripStats(42.7, 2520, 118f)), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun widgetsLight_en() = shot("41_widgets_light_en", Screen.HOME, dark = false, ar = false, chrome = false) {
+        HomeLayout(styled("widgets", ui(false)).copy(trip = com.abu00salman.novadrive.data.TripStats(12.3, 900, 96f),
+            styleOptions = com.abu00salman.novadrive.core.StyleOptions(dark = false)), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun widgetsEditing() = shot("42_widgets_edit_ar", Screen.HOME, dark = true, chrome = false) {
+        val u = styled("widgets", ui(true))
+        val skin = com.abu00salman.novadrive.ui.styles.skinFor(com.abu00salman.novadrive.core.UiStyles.get("widgets"), u.styleOptions, true)
+        androidx.compose.runtime.CompositionLocalProvider(com.abu00salman.novadrive.ui.styles.LocalSkin provides skin) {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                com.abu00salman.novadrive.ui.styles.SkinBackground()
+                com.abu00salman.novadrive.ui.components.FixedLtr {
+                    com.abu00salman.novadrive.ui.styles.WidgetsLayout(u, HomeActions(), startEditing = true)
+                }
+            }
+        }
+    }
+
+    @Test fun widgetsCustomBoard() = shot("43_widgets_custom_ar", Screen.HOME, dark = true, chrome = false) {
+        val board = com.abu00salman.novadrive.core.WidgetGrid.decode(
+            "MAP:LARGE,SPEED:SMALL,COMPASS:SMALL,NAV:WIDE,OBD:WIDE,CLOCK:SMALL,CALENDAR:SMALL,GFORCE:SMALL,SUN:SMALL")
+        HomeLayout(styled("widgets", ui(true)).copy(widgets = board), HomeMode.CAR, false, HomeActions())
+    }
+
+    @Test fun bmwDay() = shot("44_bmw_day_ar", Screen.HOME, dark = false) {
+        HomeLayout(styled("bmw", ui(true)).copy(styleOptions = com.abu00salman.novadrive.core.StyleOptions(dark = false)), HomeMode.CAR, false, HomeActions())
     }
 
     @Test fun tesla() = shot("20_tesla_ar", Screen.HOME, dark = false, chrome = false) {
@@ -260,6 +338,109 @@ class ScreenshotTest {
 
     @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
     fun classic_1024() = styleShot(33, "classic", dark = false, guiding = false)
+
+    // ---- Layout audit: every tappable control of every interface, in both languages and both sizes
+
+    private class Case(val name: String, val ar: Boolean, val dark: Boolean, val chrome: Boolean, val content: @Composable () -> Unit)
+
+    private fun cases(): List<Case> = listOf(true, false).flatMap { ar ->
+        val l = if (ar) "ar" else "en"
+        fun full(style: String, dark: Boolean) = Case("$style-$l", ar, dark, false) { HomeLayout(styled(style, ui(ar)), HomeMode.CAR, false, HomeActions()) }
+        listOf(
+            Case("smart-car-$l", ar, true, true) { HomeLayout(ui(ar, guiding = false), HomeMode.CAR, false, HomeActions()) },
+            Case("smart-navigation-$l", ar, true, true) { HomeLayout(ui(ar), HomeMode.NAVIGATION, true, HomeActions()) },
+            Case("smart-music-$l", ar, false, true) { HomeLayout(ui(ar), HomeMode.MUSIC, false, HomeActions()) },
+            Case("smart-split-$l", ar, false, true) { HomeLayout(ui(ar), HomeMode.SPLIT, false, HomeActions()) },
+            Case("simple-$l", ar, true, true) { HomeLayout(ui(ar).copy(simple = true), HomeMode.CAR, false, HomeActions()) },
+            full("tesla", false),
+            Case("bmw-$l", ar, true, true) { HomeLayout(styled("bmw", ui(ar)), HomeMode.CAR, false, HomeActions()) },
+            full("classic", false), full("mercedes", true), full("ford", true), full("apple", true), full("jetour", true),
+            full("byd", false), full("haval", true), full("tank", true), full("widgets", true),
+            Case("apps-$l", ar, true, true) { AppsScreen(allApps, listOf(maps.key), false, false, {}, {}, { _, _ -> }, {}, {}, initialTab = AppTab.ALL) },
+        )
+    }
+
+    /**
+     * Lays out every interface and checks each control that can be tapped: it must be fully on screen
+     * (nothing clipped off the edges) and at least [MIN_TARGET_DP] design-dp in its smaller dimension
+     * (Compose additionally widens the touch area of small controls to 48dp where there is room).
+     * Writes the full report next to the screenshots.
+     */
+    private fun auditLayouts(size: String) {
+        val case = androidx.compose.runtime.mutableStateOf(cases().first())
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            val k = case.value
+            androidx.compose.runtime.key(k.name) {
+                NovaTheme(dark = k.dark, accentIndex = 0, arabic = k.ar) {
+                    Box(Modifier.fillMaxSize().novaBackdrop(LocalNova.current)) {
+                        ShellLayout(
+                            chrome = k.chrome,
+                            rail = { Rail(Screen.HOME, HomeMode.CAR, {}, {}, {}) },
+                            topBar = { TopBar(Link.CONNECTED, NetState(Link.CONNECTED, false), GpsState.FIX, k.dark, ThemeMode.AUTO, false, {}, {}, {}, {}, {}, {}, {}) },
+                            content = k.content,
+                        )
+                    }
+                }
+            }
+        }
+        val problems = ArrayList<String>()
+        var checked = 0
+        for (k in cases()) {
+            case.value = k
+            compose.mainClock.advanceTimeBy(1_200)
+            compose.waitForIdle()
+            // A second pass so nothing of the previous layout is still attached.
+            compose.mainClock.advanceTimeBy(300)
+            compose.waitForIdle()
+            val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            val scale = minOf(root.width / 1280f, root.height / 720f)
+            compose.onAllNodes(androidx.compose.ui.test.hasClickAction()).fetchSemanticsNodes().forEach { n ->
+                val b = n.boundsInRoot
+                if (b.width <= 0f || b.height <= 0f) return@forEach
+                checked++
+                val what = (n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.joinToString()
+                    ?: n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.joinToString { it.text } ?: "?").take(40)
+                val at = "${(b.left / scale).toInt()},${(b.top / scale).toInt()} ${(b.width / scale).toInt()}x${(b.height / scale).toInt()}"
+                // Items of a scrolling list may be partly scrolled out of view; that isn't a defect.
+                val scrolls = generateSequence(n.parent) { it.parent }.any { p ->
+                    p.config.contains(androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange) ||
+                        p.config.contains(androidx.compose.ui.semantics.SemanticsProperties.HorizontalScrollAxisRange) ||
+                        p.config.contains(androidx.compose.ui.semantics.SemanticsActions.ScrollBy)
+                }
+                // boundsInRoot is what is actually visible; size is what the control wanted.
+                val cut = n.size.width - b.width > 2f || n.size.height - b.height > 2f
+                if (b.left < -1f || b.top < -1f || b.right > root.width + 1f || b.bottom > root.height + 1f || (cut && !scrolls)) problems += "[${k.name}] CLIPPED $at of ${(n.size.width / scale).toInt()}x${(n.size.height / scale).toInt()} «$what»"
+                else if (minOf(n.size.width, n.size.height) / scale < MIN_TARGET_DP) problems += "[${k.name}] SMALL $at «$what»"
+            }
+        }
+        java.io.File("build/screenshots").mkdirs()
+        java.io.File("build/screenshots/layout_audit_$size.txt").writeText(
+            "Layout audit $size: ${cases().size} layouts, $checked tappable controls, ${problems.size} problems\n" + problems.joinToString("\n") + "\n")
+        org.junit.Assert.assertTrue("layout problems at $size — see build/screenshots/layout_audit_$size.txt", problems.size <= AUDIT_BASELINE)
+    }
+
+    @Test fun layoutAudit_1280x720() = auditLayouts("1280x720")
+
+    @Test @Config(qualifiers = "w1024dp-h600dp-land-mdpi")
+    fun layoutAudit_1024x600() = auditLayouts("1024x600")
+
+    /** NovaDrive's half of a split screen beside Google Maps (640×720 window). */
+    @Test @Config(qualifiers = "w640dp-h720dp-port-mdpi")
+    fun compactSplit() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            androidx.compose.runtime.CompositionLocalProvider(com.abu00salman.novadrive.ui.components.LocalCompactWindow provides true) {
+                NovaTheme(dark = true, accentIndex = 0, arabic = true) {
+                    Box(Modifier.fillMaxSize().novaBackdrop(LocalNova.current)) {
+                        ShellLayout(chrome = false, rail = {}, topBar = {}) { HomeLayout(ui(true), HomeMode.CAR, false, HomeActions()) }
+                    }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onRoot().captureRoboImage("build/screenshots/45_split_beside_maps_ar.png")
+    }
 
     @Test fun vehicle() = shot("15_vehicle_night_ar", Screen.VEHICLE) {
         VehicleScreen(carBrand("hyundai"), carModel("hyundai", "sonata19"), CarPaints[0], true, live, {})

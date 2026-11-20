@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
@@ -36,6 +39,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -76,7 +83,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.map
 import com.abu00salman.novadrive.ui.home.DockSlot
 import com.abu00salman.novadrive.ui.home.HomeScreen
-import com.abu00salman.novadrive.ui.home.Shortcuts
+import com.abu00salman.novadrive.data.Shortcuts
 import com.abu00salman.novadrive.ui.home.SplitSheet
 import com.abu00salman.novadrive.ui.home.rememberShortcuts
 import com.abu00salman.novadrive.ui.music.MusicScreen
@@ -130,12 +137,12 @@ fun NovaRoot(onVoice: () -> Unit) {
         while (true) { delay(60_000); value = System.currentTimeMillis() }
     }
     val place = coarse ?: c.settings.lastLocation() ?: Pair(DEFAULT_LAT, DEFAULT_LON)
-    // The Tesla interface is always light and the BMW interface always dark, as in their designs.
+    // Tesla is always light; BMW is night unless day is chosen for it in Settings.
     val styleOpts by c.styleOptions.all.collectAsStateWithLifecycle()
     val uiStyle = com.abu00salman.novadrive.core.UiStyles.get(settings.uiStyle)
     val styleDark = when {
         uiStyle.id == "tesla" -> false
-        uiStyle.id == "bmw" -> true
+        uiStyle.id == "bmw" -> styleOpts["bmw"]?.dark ?: true
         uiStyle.customizable -> styleOpts[uiStyle.id]?.dark ?: uiStyle.defaultDark
         else -> null
     }
@@ -173,7 +180,16 @@ fun NovaRoot(onVoice: () -> Unit) {
     val sc = rememberShortcuts(c, settings, apps)
     CarPlayAutoLaunch(c, settings, sc)
 
+    val aiCfg by c.ai.config.collectAsStateWithLifecycle()
     NovaTheme(dark = dark, accentIndex = settings.accent, arabic = settings.arabic) {
+      // A window narrower than ~1.2:1 (split screen) gets the compact panel.
+      val conf = androidx.compose.ui.platform.LocalConfiguration.current
+      val compactWindow = conf.screenWidthDp < conf.screenHeightDp * 1.2f
+      androidx.compose.runtime.CompositionLocalProvider(
+          com.abu00salman.novadrive.ui.components.LocalNovaAi provides aiCfg.novaEnabled,
+          com.abu00salman.novadrive.ui.components.LocalCompactWindow provides compactWindow,
+          com.abu00salman.novadrive.ui.home.LocalGoogleMap provides settings.googleMap,
+      ) {
         val p = LocalNova.current
         var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
         var settingsStart by remember { mutableStateOf<String?>(null) }
@@ -212,7 +228,56 @@ fun NovaRoot(onVoice: () -> Unit) {
         )
         val modeState by modeVm.state.collectAsStateWithLifecycle()
         val onMode: (HomeMode) -> Unit = { modeVm.select(it); screen = Screen.HOME; settingsStart = null }
-        val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) }, onNav = { go(Screen.NAV) })
+        // Only the Smart interface has home modes; elsewhere Navigation and Music open their full pages,
+        // so choosing them always makes that content the biggest thing on screen.
+        val smartModes = settings.uiStyle == "smart" && !settings.simple()
+        val railMode: (HomeMode) -> Unit = { m ->
+            if (smartModes || m == HomeMode.CAR) onMode(m)
+            else go(when (m) { HomeMode.MUSIC -> Screen.MUSIC; HomeMode.NAVIGATION -> Screen.NAV; else -> Screen.HOME })
+        }
+        val actions = Actions(c, settings, sc, driving, onApps = { go(Screen.APPS) }, onNav = { go(Screen.NAV) },
+            onInPlace = { id ->
+                when {
+                    !settings.inPlaceMedia -> false
+                    id == "music" -> { railMode(HomeMode.MUSIC); true }
+                    id == "youtube" -> { go(Screen.VIDEO); true }
+                    else -> false
+                }
+            })
+        // Interface sounds (BMW's luxury pack by default; every interface has its own setup).
+        val fx = c.soundFx
+        LaunchedEffect(settings.uiStyle, screen) {
+            if (screen == Screen.HOME) { delay(700); fx.interfaceShown(settings.uiStyle) }
+        }
+        val navKey = Triple(screen, modeState.mode, quick || split)
+        var prevNav by remember { mutableStateOf(navKey) }
+        LaunchedEffect(navKey) {
+            val prev = prevNav; prevNav = navKey
+            if (prev == navKey) return@LaunchedEffect
+            val closedOverlay = prev.third && !navKey.third
+            val backHome = navKey.first == Screen.HOME && prev.first != Screen.HOME
+            fx.play(if (closedOverlay || backHome) com.abu00salman.novadrive.core.SoundEvent.BACK else com.abu00salman.novadrive.core.SoundEvent.NAV)
+        }
+        val tripState by c.navEngine.state.collectAsStateWithLifecycle()
+        var tripWas by remember { mutableStateOf<com.abu00salman.novadrive.data.nav.NavState.Status?>(null) }
+        LaunchedEffect(tripState?.status) {
+            val now = tripState?.status
+            if (tripWas == null && now == com.abu00salman.novadrive.data.nav.NavState.Status.GUIDING) fx.play(com.abu00salman.novadrive.core.SoundEvent.CONFIRM)
+            if (now == com.abu00salman.novadrive.data.nav.NavState.Status.ARRIVED && tripWas != now) fx.chime(com.abu00salman.novadrive.core.ChimeTriggers.ARRIVAL)
+            tripWas = now
+        }
+        val btNow by c.bluetooth.collectAsStateWithLifecycle()
+        var btWas by remember { mutableStateOf(btNow) }
+        LaunchedEffect(btNow) {
+            if (btWas != com.abu00salman.novadrive.data.Link.CONNECTED && btNow == com.abu00salman.novadrive.data.Link.CONNECTED) fx.chime(com.abu00salman.novadrive.core.ChimeTriggers.BLUETOOTH)
+            btWas = btNow
+        }
+        val iphoneNow by c.iPhoneConnected.collectAsStateWithLifecycle()
+        var iphoneWas by remember { mutableStateOf(iphoneNow) }
+        LaunchedEffect(iphoneNow) {
+            if (!iphoneWas && iphoneNow) fx.chime(com.abu00salman.novadrive.core.ChimeTriggers.IPHONE)
+            iphoneWas = iphoneNow
+        }
         // In-app voice actions ("show the map", "open settings", "simple interface") from «أمرني».
         LaunchedEffect(Unit) {
             c.voiceActions.collect { cmd ->
@@ -233,13 +298,14 @@ fun NovaRoot(onVoice: () -> Unit) {
         val dimLevel by c.controls.dimmer.level.collectAsStateWithLifecycle()
         val overlayDims = remember(perms) { c.controls.dimmer.canOverlay() }
         LaunchedEffect(perms) { c.controls.dimmer.apply() }
-        Box(Modifier.fillMaxSize().novaBackdrop(p)) {
-            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        Box(Modifier.fillMaxSize().novaBackdrop(p).tapSounds { fx.play(com.abu00salman.novadrive.core.SoundEvent.TAP) }) {
+            // The keyboard is not part of the insets: it floats over the launcher instead of squeezing it.
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))) {
                 ShellLayout(
                     railRight = settings.railRight, textScale = settings.textScale, iconScale = settings.iconScale,
                     iconTint = com.abu00salman.novadrive.ui.components.IconTints.getOrNull(settings.iconTint),
-                    chrome = !(uiStyle.fullScreen && screen == Screen.HOME),
-                    rail = { Rail(screen, modeState.mode, go, onMode, onPhone = actions::phone, onVoice = onVoice) },
+                    chrome = !((uiStyle.fullScreen || compactWindow) && screen == Screen.HOME),
+                    rail = { Rail(screen, modeState.mode, go, railMode, onPhone = actions::phone, onVoice = onVoice) },
                     topBar = {
                         TopBar(
                             bt = bt, net = net, gps = gps, dark = dark, themeMode = settings.themeMode, use24h = settings.use24h,
@@ -265,9 +331,13 @@ fun NovaRoot(onVoice: () -> Unit) {
                             SplitSheet(c, settings) { split = false }
                         }
                         val aiState by c.assistant.ui.collectAsStateWithLifecycle()
-                        com.abu00salman.novadrive.ui.ai.NovaAiPanel(
-                            aiState, onListen = onVoice, onStop = { c.assistant.interrupt() }, onClose = { c.assistant.close() },
-                        )
+                        val aiActions = remember {
+                            com.abu00salman.novadrive.ui.ai.NovaAiActions(
+                                onListen = onVoice, onStop = c.assistant::stop, onRetry = c.assistant::retry, onReplay = c.assistant::replay,
+                                onAsk = c.assistant::ask, onKeyboard = c.assistant::showKeyboard, onClose = c.assistant::close,
+                            )
+                        }
+                        com.abu00salman.novadrive.ui.ai.NovaAiPanel(aiState, aiActions)
                         if (c.safeMode && screen == Screen.HOME) Box(Modifier.fillMaxSize()) {
                             Pill(
                                 tr("Safe mode — tap for options", "الوضع الآمن — اضغط للخيارات"), p.danger,
@@ -281,10 +351,12 @@ fun NovaRoot(onVoice: () -> Unit) {
                     }
                 }
             }
+            com.abu00salman.novadrive.ui.components.CameraBanner(c)
             // Brightness inside NovaDrive when dimming over other apps isn't allowed (never blocks touches).
             val dimAlpha = com.abu00salman.novadrive.data.ScreenDimmer.overlayAlpha(dimLevel)
             if (!overlayDims && dimAlpha > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dimAlpha)))
         }
+      }
     }
 }
 
@@ -341,6 +413,8 @@ private fun Routes(
                 onSettings = { openSettings(null) },
                 onPhone = a::phone,
                 onVoice = onVoice,
+                onWidgets = c.widgets::set,
+                onTripReset = c.trip::reset,
                 onCarPlay = {
                     val slot = ui.dock.firstOrNull { it.id == "carplay" && it.app != null }
                     when {
@@ -369,8 +443,8 @@ private fun Routes(
                 },
                 onBrightness = { level ->
                     // Ask once to dim over every app; NovaDrive itself dims immediately either way.
-                    if (!c.controls.dimmer.canOverlay() && !askedWriteSettings) {
-                        askedWriteSettings = true
+                    if (!c.controls.dimmer.canOverlay() && !askedOverlay) {
+                        askedOverlay = true
                         toast(ctx, if (settings.arabic) "فعّل «الظهور فوق التطبيقات» لـ NovaDrive ليتغير سطوع الشاشة في كل التطبيقات" else "Allow NovaDrive to display over other apps to dim every screen")
                         c.controls.dimmer.requestOverlayPermission()
                     }
@@ -434,6 +508,7 @@ private fun Routes(
             )
         }
         Screen.APPS -> AppsScreen(
+            frequent = c.usage.ranked.collectAsStateWithLifecycle().value,
             apps = apps, favorites = settings.favorites, showSystem = settings.showSystemApps, driving = lockEdits,
             onLaunch = a::launch,
             onToggleFavorite = c.settings::toggleFavorite,
@@ -442,11 +517,21 @@ private fun Routes(
             onParkedOnly = { toast(ctx, if (settings.arabic) "متاح عند التوقف" else "Available when parked") },
         )
         Screen.SETTINGS -> SettingsScreen(c, settings, lockEdits, settingsStart) { go(Screen.HOME) }
+        Screen.VIDEO -> com.abu00salman.novadrive.ui.video.VideoScreen(
+            driving = driving,
+            onHome = { go(Screen.HOME) },
+            onOpenApp = { c.apps.byPackage(com.abu00salman.novadrive.ui.home.YOUTUBE_PKG)?.let(a::launch) ?: toast(ctx, if (settings.arabic) "تطبيق YouTube غير مثبت" else "YouTube app isn't installed") },
+            onOpenBeside = { c.apps.byPackage(com.abu00salman.novadrive.ui.home.YOUTUBE_PKG)?.let(a::openBeside) ?: toast(ctx, if (settings.arabic) "تطبيق YouTube غير مثبت" else "YouTube app isn't installed") },
+        )
     }
 }
 
 /** Every outward action, each falling back gracefully when an app or service is missing. */
-private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val driving: Boolean, val onApps: () -> Unit, val onNav: () -> Unit) {
+private class Actions(
+    val c: AppContainer, val s: NovaSettings, val sc: Shortcuts, val driving: Boolean, val onApps: () -> Unit, val onNav: () -> Unit,
+    /** Shows a dock item's content inside NovaDrive (Music, YouTube); false = open its app. */
+    val onInPlace: (String) -> Boolean = { false },
+) {
     private val ar get() = s.arabic
     private fun say(en: String, a: String) = toast(c.appContext, if (ar) a else en)
 
@@ -528,6 +613,9 @@ private class Actions(val c: AppContainer, val s: NovaSettings, val sc: Shortcut
         when {
             slot.id == "apps" -> onApps()
             slot.id == "phone" -> phone()
+            onInPlace(slot.id) -> {}
+            // Google Maps / Waze with its own map and guidance, next to NovaDrive (full screen if the unit can't split).
+            slot.id == "maps" && app != null && s.navBeside -> { if (!c.controls.launchAdjacent(c.apps.intentFor(app))) launch(app) }
             app != null -> launch(app)
             slot.storePackage != null -> {
                 val pkg = slot.storePackage
@@ -559,7 +647,7 @@ private fun CarPlayAutoLaunch(c: AppContainer, settings: NovaSettings, sc: Short
     }
 }
 
-private var askedWriteSettings = false
+private var askedOverlay = false
 
 /** The hosting activity, unwrapping any ContextWrapper (needed to dim the launcher window). */
 private fun android.content.Context.findActivity(): android.app.Activity? {
@@ -569,4 +657,27 @@ private fun android.content.Context.findActivity(): android.app.Activity? {
         c = c.baseContext
     }
     return null
+}
+
+/**
+ * Calls [onTap] for every quick tap anywhere (without consuming it), so the interface can click.
+ * Drags, scrolls and long presses don't count.
+ */
+private fun Modifier.tapSounds(onTap: () -> Unit): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val start = down.position
+            val t0 = down.uptimeMillis
+            var moved = false
+            var up = false
+            while (!up) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                val ch = e.changes.firstOrNull { it.id == down.id } ?: break
+                if ((ch.position - start).getDistance() > viewConfiguration.touchSlop) moved = true
+                if (ch.changedToUp()) { up = true; if (!moved && ch.uptimeMillis - t0 < 350) onTap() }
+                if (e.changes.size > 1) moved = true
+            }
+        }
+    }
 }

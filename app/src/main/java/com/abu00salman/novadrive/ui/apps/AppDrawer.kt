@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Navigation
@@ -90,13 +92,15 @@ fun AppsScreen(
     onParkedOnly: () -> Unit,
     modifier: Modifier = Modifier,
     initialTab: AppTab? = null,
+    /** App keys by use, most used first. */
+    frequent: List<String> = emptyList(),
 ) {
     val p = LocalNova.current
     var query by rememberSaveable { mutableStateOf("") }
-    var tab by rememberSaveable { mutableStateOf(initialTab ?: if (favorites.isEmpty()) AppTab.ALL else AppTab.FAVORITES) }
+    var tab by rememberSaveable { mutableStateOf(initialTab ?: if (favorites.isNotEmpty()) AppTab.FAVORITES else if (frequent.isNotEmpty()) AppTab.FREQUENT else AppTab.ALL) }
     var selected by remember { mutableStateOf<String?>(null) }
     val q = if (driving) "" else query
-    val shown = remember(apps, tab, favorites, q, showSystem) { filterApps(apps, tab, favorites, q, showSystem) }
+    val shown = remember(apps, tab, favorites, q, showSystem, frequent) { filterApps(apps, tab, favorites, q, showSystem, frequent) }
 
     Glass(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp)) {
@@ -111,12 +115,17 @@ fun AppsScreen(
                 ) {
                     Icon(if (driving) Icons.Rounded.Lock else Icons.Rounded.Search, null, tint = p.textDim)
                     Spacer(Modifier.width(10.dp))
-                    Box(Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
                         if (driving) Text(tr("Search is available when parked", "البحث متاح عند التوقف"), style = NovaType.label, color = p.textDim, maxLines = 1)
-                        else {
-                            if (query.isEmpty()) Text(tr("Search apps", "ابحث عن تطبيق"), style = NovaType.body, color = p.textDim)
-                            BasicTextField(query, { query = it }, singleLine = true, textStyle = NovaType.body.copy(color = p.text), cursorBrush = SolidColor(p.accent), modifier = Modifier.fillMaxWidth())
-                        }
+                        // The whole height of the box takes the tap, not just the line of text.
+                        else BasicTextField(query, { query = it }, singleLine = true, textStyle = NovaType.body.copy(color = p.text), cursorBrush = SolidColor(p.accent),
+                            modifier = Modifier.fillMaxSize(),
+                            decorationBox = { field ->
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                                    if (query.isEmpty()) Text(tr("Search apps", "ابحث عن تطبيق"), style = NovaType.body, color = p.textDim)
+                                    field()
+                                }
+                            })
                     }
                 }
                 Spacer(Modifier.width(12.dp))
@@ -126,7 +135,8 @@ fun AppsScreen(
                 ) {
                     Text(tr("System apps", "تطبيقات النظام"), style = NovaType.label, color = p.textDim)
                     Spacer(Modifier.width(8.dp))
-                    Switch(showSystem, { if (driving) onParkedOnly() else onShowSystem(it) },
+                    // The row is the control; the switch only shows the state.
+                    Switch(showSystem, null,
                         colors = SwitchDefaults.colors(checkedTrackColor = p.accent, checkedThumbColor = Color.White))
                 }
             }
@@ -134,6 +144,7 @@ fun AppsScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
                     Triple(AppTab.FAVORITES, Icons.Rounded.Star, tr("Favorites", "المفضلة")),
+                    Triple(AppTab.FREQUENT, Icons.Rounded.History, tr("Frequent", "المتكررة")),
                     Triple(AppTab.NAVIGATION, Icons.Rounded.Navigation, tr("Navigation", "الملاحة")),
                     Triple(AppTab.MEDIA, Icons.Rounded.MusicNote, tr("Media", "الوسائط")),
                     Triple(AppTab.CAR, Icons.Rounded.DirectionsCar, tr("Car", "السيارة")),
@@ -161,6 +172,7 @@ fun AppsScreen(
             Spacer(Modifier.height(10.dp))
             if (shown.isEmpty()) Text(
                 when {
+                    tab == AppTab.FREQUENT -> tr("Apps you open from NovaDrive will appear here.", "ستظهر هنا التطبيقات التي تفتحها من NovaDrive.")
                     tab == AppTab.FAVORITES -> tr("No favorites yet — long-press an app in any tab to add it.", "لا توجد مفضلة بعد — اضغط مطولاً على أي تطبيق لإضافته.")
                     q.isNotBlank() -> tr("No apps match your search.", "لا توجد تطبيقات مطابقة للبحث.")
                     else -> tr("No installed apps in this category.", "لا توجد تطبيقات مثبتة في هذا التصنيف.")

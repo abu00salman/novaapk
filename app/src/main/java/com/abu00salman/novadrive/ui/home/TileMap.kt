@@ -74,6 +74,18 @@ fun TileMap(
     onViewChange: ((LatLon) -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
+    if (LocalGoogleMap.current && lat != null && lon != null) {
+        val sdkFailed = GoogleSdkMap.failedState.value
+        if (!sdkFailed && remember { GoogleSdkMap.available(ctx) }) {
+            GoogleSdkMap(lat, lon, bearing, headingUp, zoom, onZoom, onTap, modifier, background, route, routeProgress, routeColor, destination, markerColor)
+            return
+        }
+        // Keyless embed can't draw our route, so during guidance the OSM map below is used.
+        if (route.isNullOrEmpty() && remember { isOnline(ctx) }) {
+            GoogleEmbedMap(lat, lon, zoom, modifier)
+            return
+        }
+    }
     val tiles = remember { mutableStateMapOf<String, ImageBitmap>() }
     val zoomRef = rememberUpdatedState(zoom)
     val onTapRef = rememberUpdatedState(onTap)
@@ -230,4 +242,51 @@ fun compassLabel(bearing: Float, arabic: Boolean): String {
     val i = (((bearing % 360) + 360) % 360 / 45f + 0.5f).toInt() % 8
     return if (arabic) listOf("شمال", "شمال شرق", "شرق", "جنوب شرق", "جنوب", "جنوب غرب", "غرب", "شمال غرب")[i]
     else listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")[i]
+}
+
+
+/** True in the app when the user picked Google Maps for map cards; false in previews/tests. */
+val LocalGoogleMap = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+private fun isOnline(ctx: android.content.Context): Boolean = runCatching {
+    val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java) ?: return@runCatching false
+    val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return@runCatching false
+    caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+}.getOrDefault(false)
+
+/**
+ * Google Maps through its public, keyless embed page in a WebView. Re-centres only after the car moved
+ * ~250 m (and at most every 20 s) so the page isn't reloaded constantly.
+ */
+@android.annotation.SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun GoogleEmbedMap(lat: Double, lon: Double, zoom: Float, modifier: Modifier) {
+    val last = remember { doubleArrayOf(Double.NaN, Double.NaN, 0.0, -1.0) }
+    androidx.compose.ui.viewinterop.AndroidView(
+        modifier = modifier,
+        factory = { c ->
+            android.webkit.WebView(c).apply {
+                setBackgroundColor(android.graphics.Color.BLACK)
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                webViewClient = android.webkit.WebViewClient()
+            }
+        },
+        update = { wv ->
+            val now = android.os.SystemClock.elapsedRealtime().toDouble()
+            val z = zoom.toInt().coerceIn(3, 20)
+            val moved = last[0].isNaN() || distanceM(last[0], last[1], lat, lon) > 250.0
+            if (z.toDouble() != last[3] || (moved && now - last[2] > 20_000)) {
+                last[0] = lat; last[1] = lon; last[2] = now; last[3] = z.toDouble()
+                wv.loadUrl("https://maps.google.com/maps?q=$lat,$lon&z=$z&output=embed")
+            }
+        },
+    )
+}
+
+private fun distanceM(a: Double, b: Double, c: Double, d: Double): Double {
+    val r = 6_371_000.0
+    val dLat = Math.toRadians(c - a); val dLon = Math.toRadians(d - b)
+    val h = Math.sin(dLat / 2).let { it * it } + Math.cos(Math.toRadians(a)) * Math.cos(Math.toRadians(c)) * Math.sin(dLon / 2).let { it * it }
+    return 2 * r * Math.asin(Math.sqrt(h))
 }

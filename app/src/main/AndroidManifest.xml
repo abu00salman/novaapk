@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Nova AI: speech recognition inside the app (asked the first time the microphone is used). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Nova AI: "call <name>" looks the number up and opens the dialer (asked only when used). -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Screen dimmer over every app (brightness on units that ignore Android's setting). -->
@@ -17,9 +19,6 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission
-        android:name="android.permission.WRITE_SETTINGS"
-        tools:ignore="ProtectedPermissions" />
 
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
@@ -27,9 +26,18 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
+    <!-- Speech recognition and text-to-speech services NovaDrive talks to. -->
+    <queries>
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
+
     <application
         android:name=".NovaApp"
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:targetApi="31"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -45,7 +53,7 @@
             android:clearTaskOnLaunch="true"
             android:resizeableActivity="true"
             android:screenOrientation="sensorLandscape"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustNothing"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|locale|layoutDirection"
             tools:ignore="DiscouragedApi,LockedOrientationActivity">
             <intent-filter>
@@ -66,5 +74,6 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <meta-data android:name="com.google.android.geo.API_KEY" android:value="${MAPS_API_KEY}" />
     </application>
 </manifest>

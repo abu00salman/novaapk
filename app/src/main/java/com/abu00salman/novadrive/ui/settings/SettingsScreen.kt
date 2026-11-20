@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +34,11 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.MonitorHeart
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PhoneIphone
@@ -61,6 +68,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.abu00salman.novadrive.AppContainer
+import com.abu00salman.novadrive.data.HealthItem
+import com.abu00salman.novadrive.data.UpdateCenter
+import com.abu00salman.novadrive.core.NovaBackup
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import com.abu00salman.novadrive.core.UiStyles
+import com.abu00salman.novadrive.core.StyleSounds
+import com.abu00salman.novadrive.core.SoundPacks
+import com.abu00salman.novadrive.core.SoundGroup
+import com.abu00salman.novadrive.core.SoundEvent
+import com.abu00salman.novadrive.core.StagedSound
+import com.abu00salman.novadrive.core.ChimeTriggers
 import com.abu00salman.novadrive.BuildConfig
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.unit.sp
@@ -100,7 +118,7 @@ import com.abu00salman.novadrive.ui.theme.NovaType
 import com.abu00salman.novadrive.ui.theme.tr
 import java.util.Locale
 
-private enum class Section { CAR, APPEARANCE, SHORTCUTS, VOICE, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, ABOUT }
+private enum class Section { CAR, APPEARANCE, SCENES, SHORTCUTS, VOICE, SOUND, BACKUP, DIAGNOSTICS, CARPLAY, DRIVING, VEHICLE, PROFILES, SETUP, LAUNCHER, EXPERIMENTAL, ABOUT }
 
 @Composable
 fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: String? = null, onClose: () -> Unit) {
@@ -112,6 +130,8 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
     Box(
         Modifier.fillMaxSize().background(p.bgBottom.copy(alpha = 0.97f))
             .clickable(remember { MutableInteractionSource() }, null) { }
+            // Only Settings makes room for the keyboard; the rest of NovaDrive keeps its size.
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.Companion.ime)
     ) {
         Row(Modifier.fillMaxSize().padding(20.dp)) {
             // Navigation column
@@ -128,14 +148,19 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                     val items = listOf(
                         Triple(Section.CAR, Icons.Rounded.DirectionsCar, Pair("Car", "السيارة")),
                         Triple(Section.APPEARANCE, Icons.Rounded.Palette, Pair("Appearance", "المظهر")),
+                        Triple(Section.SCENES, Icons.Rounded.Dashboard, Pair("Scenes & QuickSwitch", "المشاهد والتبديل السريع")),
                         Triple(Section.SHORTCUTS, Icons.Rounded.Widgets, Pair("Shortcuts", "الاختصارات")),
-                        Triple(Section.VOICE, Icons.Rounded.AutoAwesome, Pair("Nova AI", "Nova AI")),
+                        Triple(Section.VOICE, Icons.Rounded.Mic, Pair("Ask me (voice)", "أمرني")),
+                        Triple(Section.SOUND, Icons.AutoMirrored.Rounded.VolumeUp, Pair("Sound Experience", "تجربة الأصوات")),
                         Triple(Section.CARPLAY, Icons.Rounded.PhoneIphone, Pair("CarPlay", "كاربلاي")),
                         Triple(Section.DRIVING, Icons.Rounded.DirectionsCar, Pair("Driving", "القيادة")),
                         Triple(Section.VEHICLE, Icons.Rounded.Speed, Pair("Vehicle (OBD-II)", "المركبة (OBD-II)")),
                         Triple(Section.PROFILES, Icons.Rounded.Person, Pair("Profiles", "الملفات الشخصية")),
                         Triple(Section.SETUP, Icons.Rounded.VerifiedUser, Pair("Permissions", "الأذونات")),
                         Triple(Section.LAUNCHER, Icons.Rounded.Restore, Pair("Launcher", "المشغّل")),
+                        Triple(Section.BACKUP, Icons.Rounded.Backup, Pair("Backup & updates", "النسخ والتحديثات")),
+                        Triple(Section.DIAGNOSTICS, Icons.Rounded.MonitorHeart, Pair("Diagnostics", "التشخيص")),
+                        Triple(Section.EXPERIMENTAL, Icons.Rounded.Science, Pair("Experimental", "تجريبي")),
                         Triple(Section.ABOUT, Icons.Rounded.Info, Pair("About", "حول")),
                     )
                     items.forEach { (sec, icon, names) ->
@@ -162,6 +187,11 @@ fun SettingsScreen(c: AppContainer, s: NovaSettings, driving: Boolean, start: St
                                 Section.APPEARANCE -> Appearance(c, s)
                                 Section.SHORTCUTS -> ShortcutsSection(c, s)
                                 Section.VOICE -> VoiceSection(c, s)
+                                Section.EXPERIMENTAL -> ExperimentalSection(c, s)
+                                Section.SOUND -> SoundSection(c, s)
+                                Section.SCENES -> ScenesSection(c, s)
+                                Section.BACKUP -> BackupSection(c, s)
+                                Section.DIAGNOSTICS -> DiagnosticsSection(c)
                                 Section.CARPLAY -> CarPlaySection(c, s)
                                 Section.DRIVING -> DrivingSection(c, s)
                                 Section.VEHICLE -> VehicleSection(c, s)
@@ -273,6 +303,24 @@ private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /** Light/dark, accent, wallpaper and font of one of the eight new interfaces, saved per interface. */
+/** BMW keeps its design; only night/day and YouTube in the bottom apps can be changed. */
+@Composable
+private fun BmwOptions(c: AppContainer) {
+    val all by c.styleOptions.all.collectAsStateWithLifecycle()
+    val o = all["bmw"] ?: com.abu00salman.novadrive.core.StyleOptions()
+    Column {
+        Header(tr("BMW interface", "واجهة BMW"), tr("Saved for this interface only.", "يُحفظ لهذه الواجهة فقط."))
+        Choice(listOf(true to tr("Night", "ليلي"), false to tr("Day", "نهاري")), o.dark ?: true) { v ->
+            c.styleOptions.update("bmw") { it.copy(dark = v) }
+        }
+        Gap()
+        Toggle(tr("YouTube in the bottom apps", "YouTube ضمن التطبيقات بالأسفل"),
+            tr("Next to Music; hidden while driving.", "بجانب الموسيقى، ويختفي أثناء القيادة."), o.showYoutube) { v ->
+            c.styleOptions.update("bmw") { it.copy(showYoutube = v) }
+        }
+    }
+}
+
 @Composable
 private fun StyleCustomizer(c: AppContainer, style: com.abu00salman.novadrive.core.UiStyle) {
     val p = LocalNova.current
@@ -428,8 +476,8 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
     val p = LocalNova.current
     Column {
         Header(tr("Interface", "الواجهات"),
-            tr("Twelve home interfaces. Tesla and BMW keep their fixed look; the eight new ones can be customised below. Your choice is saved.",
-                "اثنتا عشرة واجهة. Tesla وBMW بتصميم ثابت، والواجهات الثماني الجديدة قابلة للتخصيص بالأسفل. يُحفظ اختيارك تلقائيًا."))
+            tr("Thirteen home interfaces. Tesla and BMW keep their design (BMW offers day/night); the others can be customised below. Your choice is saved.",
+                "ثلاث عشرة واجهة. Tesla وBMW بتصميمهما (مع ليلي/نهاري لـBMW)، وبقية الواجهات قابلة للتخصيص بالأسفل. يُحفظ اختيارك تلقائيًا."))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             com.abu00salman.novadrive.core.UiStyles.all.chunked(4).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -445,7 +493,26 @@ private fun Appearance(c: AppContainer, s: NovaSettings) {
         if (current.customizable) {
             Gap()
             StyleCustomizer(c, current)
+        } else if (current.id == "bmw") {
+            Gap()
+            BmwOptions(c)
         }
+        Gap()
+        Header(tr("Screen & apps", "الشاشة والتطبيقات"), null)
+        Toggle(tr("Full screen", "ملء الشاشة"), tr("Hide Android's status and navigation bars while NovaDrive is in front. Swipe from the edge to show them.",
+            "إخفاء شريط الحالة والتنقل في أندرويد أثناء ظهور NovaDrive. اسحب من حافة الشاشة لإظهارهما."), s.hideSystemBars) { v -> c.settings.update { it.copy(hideSystemBars = v) } }
+        Gap()
+        Toggle(tr("Music and YouTube inside NovaDrive", "الموسيقى ويوتيوب داخل NovaDrive"), tr("The dock opens them on the home screen (YouTube only when parked). Off: they open their own apps.",
+            "الشريط يفتحهما في الشاشة الرئيسية (يوتيوب عند التوقف فقط). عند الإيقاف: يُفتحان في تطبيقاتهما."), s.inPlaceMedia) { v -> c.settings.update { it.copy(inPlaceMedia = v) } }
+        Gap()
+        Toggle(tr("Google map on the home screen", "خريطة Google في الشاشة الرئيسية"), tr("Map cards show Google Maps (no API key, needs internet). Off or offline: OpenStreetMap.",
+            "بطاقات الخريطة تعرض خرائط Google (بدون مفتاح API، تحتاج إنترنت). عند الإيقاف أو بدون إنترنت: OpenStreetMap."), s.googleMap) { v -> c.settings.update { it.copy(googleMap = v) } }
+        Gap()
+        Toggle(tr("Speed camera alerts (Saher)", "تنبيه كاميرات ساهر"), tr("Spoken warning ~500 m before fixed cameras and a beep above their limit. Cameras from OpenStreetMap, saved on the unit so it works offline; unmapped cameras can't be warned about.",
+            "تنبيه صوتي قبل الكاميرات الثابتة بحوالي 500 متر، وصفارة إذا تجاوزت سرعتها. الكاميرات من OpenStreetMap وتُحفظ في الجهاز لتعمل بدون إنترنت؛ الكاميرات غير المسجلة في الخريطة لا يمكن التنبيه عنها."), s.cameraAlerts) { v -> c.settings.update { it.copy(cameraAlerts = v) } }
+        Gap()
+        Toggle(tr("Maps beside NovaDrive", "الخرائط بجانب NovaDrive"), tr("Google Maps / Waze opens with its own map and guidance in split screen, NovaDrive stays on the other side. Full screen if the unit can't split.",
+            "تُفتح خرائط Google أو Waze بخريطتها وتوجيهها في نصف الشاشة، ويبقى NovaDrive في النصف الآخر. تُفتح بملء الشاشة إن لم تدعم الشاشة التقسيم."), s.navBeside) { v -> c.settings.update { it.copy(navBeside = v) } }
         Gap()
         Header(tr("Theme", "السمة"), tr("Auto follows sunrise and sunset at your location.", "التلقائي يتبع الشروق والغروب حسب موقعك."))
         Choice(
@@ -666,7 +733,7 @@ private fun PermissionsSection(c: AppContainer) {
     val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { c.refreshPermissions() }
     val hasLoc = remember(perms) { c.location.hasPermission() }
     val hasMedia = remember(perms) { MediaRepository.hasAccess(ctx) }
-    val canWrite = remember(perms) { c.controls.canWriteSettings() }
+    val canOverlay = remember(perms) { c.controls.dimmer.canOverlay() }
 
     @Composable
     fun status(ok: Boolean) = Box(Modifier.size(14.dp).clip(CircleShape).background(if (ok) p.ok else p.danger))
@@ -680,8 +747,8 @@ private fun PermissionsSection(c: AppContainer) {
         RowItem(tr("Media info access", "الوصول لمعلومات الوسائط"), tr("Track title & artwork (notification access)", "اسم المقطع والصورة (الوصول للإشعارات)"),
             onClick = { c.controls.openNotificationAccess() }) { status(hasMedia) }
         Gap()
-        RowItem(tr("Modify system settings", "تعديل إعدادات النظام"), tr("System-wide brightness slider", "التحكم بسطوع النظام"),
-            onClick = { c.controls.requestWriteSettings() }) { status(canWrite) }
+        RowItem(tr("Display over other apps", "الظهور فوق التطبيقات"), tr("Brightness in every app and the optional QuickSwitch bar", "السطوع في كل التطبيقات وشريط QuickSwitch الاختياري"),
+            onClick = { c.controls.dimmer.requestOverlayPermission() }) { status(canOverlay) }
         Gap()
         RowItem(tr("Location services", "خدمات الموقع"), tr("Make sure GPS is switched on", "تأكد أن GPS مفعّل"), onClick = { c.controls.openLocationSettings() })
     }
@@ -749,8 +816,14 @@ private fun AboutSection(c: AppContainer) {
         RowItem(tr("Memory", "الذاكرة"), String.format(Locale.US, "%.1f GB RAM", c.controls.totalRamGb()))
         Gap()
         Spacer(Modifier.height(18.dp))
-        Text(tr("Developed by abu00salman", "تطوير abu00salman"), style = NovaType.title, color = p.text)
-        Text("github.com/abu00salman", style = NovaType.label, color = p.textDim)
+        Text(tr("Developed by iRaMzi", "تطوير iRaMzi"), style = NovaType.title, color = p.text)
+        Spacer(Modifier.height(6.dp))
+        Pill("X · @iRaMzi7", p.accent) {
+            runCatching {
+                ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://x.com/iRaMzi7"))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
     }
 }
 
@@ -807,19 +880,28 @@ private fun EditButton(icon: ImageVector, label: String, enabled: Boolean, tint:
 }
 
 
-/** Nova AI: engine (local / ChatGPT / Claude) and keys, voice, examples and the user's own phrases. */
+/** Nova AI › AI provider: exactly one agent answers general questions; saved across restarts. */
 @Composable
 private fun AiEngineSettings(c: AppContainer) {
     val p = LocalNova.current
     val cfg by c.ai.config.collectAsStateWithLifecycle()
-    Text(tr("AI engine", "محرك الذكاء الاصطناعي"), style = NovaType.label, color = p.textDim)
-    Spacer(Modifier.height(6.dp))
+    Header(tr("AI provider", "وكيل الذكاء الاصطناعي"), tr("General questions go only to the provider chosen here — never to several, never switched automatically.",
+        "الأسئلة العامة تُرسل فقط للوكيل المختار هنا — ليس لعدة خدمات، ولا يتم التبديل تلقائيًا."))
     Choice(
-        listOf(com.abu00salman.novadrive.data.ai.AiProvider.LOCAL to tr("Local commands only", "الأوامر المحلية فقط"),
-            com.abu00salman.novadrive.data.ai.AiProvider.OPENAI to "ChatGPT (OpenAI API)",
-            com.abu00salman.novadrive.data.ai.AiProvider.ANTHROPIC to "Claude (Anthropic API)"),
+        listOf(com.abu00salman.novadrive.data.ai.AiProvider.LOCAL to tr("Google / local voice", "Google / الصوت المحلي"),
+            com.abu00salman.novadrive.data.ai.AiProvider.OPENAI to "ChatGPT",
+            com.abu00salman.novadrive.data.ai.AiProvider.ANTHROPIC to "Claude"),
         cfg.provider,
     ) { v -> c.ai.update { it.copy(provider = v) } }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        when (cfg.provider) {
+            com.abu00salman.novadrive.data.ai.AiProvider.LOCAL -> tr("Google is used here to turn speech into text, and Nova's local commands run it. It is not a chat assistant: open questions need ChatGPT or Claude.",
+                "يُستخدم Google هنا لتحويل الكلام إلى نص، وتنفّذه أوامر نوفا المحلية. ليس وكيل محادثة: الأسئلة العامة تحتاج ChatGPT أو Claude.")
+            com.abu00salman.novadrive.data.ai.AiProvider.OPENAI -> tr("ChatGPT (OpenAI API) answers questions; car commands still run locally.", "ChatGPT (OpenAI API) يجيب على الأسئلة، وأوامر السيارة تبقى محلية.")
+            com.abu00salman.novadrive.data.ai.AiProvider.ANTHROPIC -> tr("Claude (Anthropic API) answers questions; car commands still run locally.", "Claude (Anthropic API) يجيب على الأسئلة، وأوامر السيارة تبقى محلية.")
+        }, style = NovaType.small, color = p.textDim,
+    )
     if (cfg.provider != com.abu00salman.novadrive.data.ai.AiProvider.LOCAL) {
         val openAi = cfg.provider == com.abu00salman.novadrive.data.ai.AiProvider.OPENAI
         Gap()
@@ -840,11 +922,244 @@ private fun AiEngineSettings(c: AppContainer) {
             cfg.shareLocation) { v -> c.ai.update { it.copy(shareLocation = v) } }
         Gap()
         Text(
-            tr("Keys are stored encrypted on this unit only (Android Keystore) and are not part of the APK. Or point to your own backend proxy that holds the key. API usage is billed by OpenAI/Anthropic separately from ChatGPT Plus or Claude Pro subscriptions.",
-                "يُحفظ المفتاح مشفّرًا على هذا الجهاز فقط (Android Keystore) وليس داخل ملف APK، أو استخدم خادمًا وسيطًا خاصًا بك يحفظ المفتاح. استخدام الـ API يُحاسَب لدى OpenAI أو Anthropic بشكل منفصل عن اشتراكات ChatGPT Plus أو Claude Pro."),
+            tr("Keys are stored encrypted on this unit only (Android Keystore), never logged, never backed up and not part of the APK. Or point to your own backend proxy that holds the key. API usage is billed by OpenAI/Anthropic separately from ChatGPT Plus or Claude Pro subscriptions.",
+                "يُحفظ المفتاح مشفّرًا على هذا الجهاز فقط (Android Keystore)، لا يُكتب في السجلات ولا يُنسخ احتياطيًا وليس داخل ملف APK، أو استخدم خادمًا وسيطًا خاصًا بك يحفظ المفتاح. استخدام الـ API يُحاسَب لدى OpenAI أو Anthropic بشكل منفصل عن اشتراكات ChatGPT Plus أو Claude Pro."),
             style = NovaType.small, color = p.textDim,
         )
     }
+}
+
+/** «أمرني»: Google's official voice → local commands, or Google Assistant / Gemini. No API. */
+@Composable
+private fun AskMeSettings(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ctx = LocalContext.current
+    val ar = LocalArabic.current
+    val cfg by c.ai.config.collectAsStateWithLifecycle()
+    val tts by c.speaker.status.collectAsStateWithLifecycle()
+    var ttsR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    val scope = rememberCoroutineScope()
+    androidx.compose.runtime.LaunchedEffect(Unit) { c.speaker.warmUp() }
+    Header(tr("Ask me", "أمرني"), tr("Voice commands through Google's official speech recognition — no API key or subscription. Car commands run on the unit, even offline.",
+        "أوامر صوتية عبر التعرف الصوتي الرسمي من Google — دون مفتاح API أو اشتراك. أوامر السيارة تُنفّذ على الجهاز، حتى دون إنترنت."))
+    if (cfg.novaEnabled) {
+        Text(tr("Nova AI (experimental) is on and handles the voice button. Turn it off in Settings › Experimental to use these options.",
+            "Nova AI (تجريبي) مفعّل ويتولى زر الصوت. أوقفه من الإعدادات ← تجريبي لاستخدام هذه الخيارات."), style = NovaType.label, color = p.warn)
+        Gap()
+    }
+    Text(tr("The voice button opens", "زر الصوت يفتح"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(listOf(
+        com.abu00salman.novadrive.data.ai.VoiceButton.COMMANDS to tr("Google voice + commands", "أوامر Google الصوتية"),
+        com.abu00salman.novadrive.data.ai.VoiceButton.ASSISTANT to "Google Assistant",
+        com.abu00salman.novadrive.data.ai.VoiceButton.GEMINI to "Gemini",
+    ), cfg.voiceButton) { v -> c.ai.update { it.copy(voiceButton = v) } }
+    Spacer(Modifier.height(6.dp))
+    val hasGoogle = remember { com.abu00salman.novadrive.data.ai.GoogleVoice.hasGoogle(ctx) }
+    val hasGemini = remember { com.abu00salman.novadrive.data.ai.GoogleVoice.hasGemini(ctx) }
+    StatusLine(hasGoogle, if (hasGoogle) tr("Google app installed", "تطبيق Google مثبت") else tr("Google app not installed — install it for voice and Assistant", "تطبيق Google غير مثبت — ثبّته للتعرف الصوتي والمساعد"))
+    StatusLine(hasGemini, if (hasGemini) tr("Gemini installed", "Gemini مثبت") else tr("Gemini not installed (Google Assistant is used instead)", "Gemini غير مثبت (يُستخدم Google Assistant بدلًا منه)"))
+    Gap()
+    Toggle(tr("Send other questions to Google", "إرسال الأسئلة الأخرى إلى Google"),
+        tr("A sentence that isn't a car command (\"what's the capital of Japan?\") opens in the Google app, which answers it.",
+            "الجملة التي ليست أمرًا للسيارة («كم عاصمة اليابان؟») تُفتح في تطبيق Google ليجيب عليها."),
+        cfg.unknownToGoogle) { v -> c.ai.update { it.copy(unknownToGoogle = v) } }
+    Gap()
+    Toggle(tr("Answer out loud", "الرد بالصوت"), null, s.voiceReply) { v -> c.settings.update { it.copy(voiceReply = v) } }
+    Spacer(Modifier.height(6.dp))
+    StatusLine(tts.ready && !tts.failed && (!ar || tts.arabic), when {
+        tts.failed -> tr("Text-to-speech engine failed to start", "تعذّر تشغيل محرك النطق")
+        !tts.ready -> tr("Text-to-speech starting…", "محرك النطق يبدأ…")
+        else -> (tts.engine ?: "TTS") + if (tts.arabic) tr(" · Arabic voice installed", " · الصوت العربي مثبت") else tr(" · no Arabic voice", " · لا يوجد صوت عربي")
+    })
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Pill(tr("Test voice", "اختبار الصوت"), p.accent) { scope.launch { ttsR = com.abu00salman.novadrive.data.voice.NovaDiagnostics(c).tts() } }
+        Pill(tr("Voice settings", "إعدادات النطق"), p.textDim) { c.speaker.openSettings() }
+    }
+    ResultLine(ttsR)
+}
+
+/** Settings › Experimental: Nova AI (ChatGPT / Claude) — off until switched on here. */
+@Composable
+private fun ExperimentalSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val cfg by c.ai.config.collectAsStateWithLifecycle()
+    Column {
+        Header(tr("Experimental", "تجريبي"), tr("Features still being tested. They are off by default and don't affect the rest of NovaDrive.",
+            "ميزات ما زالت قيد التجربة. مطفأة افتراضيًا ولا تؤثر على بقية NovaDrive."))
+        Toggle("Nova AI", tr("AI voice assistant with ChatGPT or Claude (your own API key). When on, it replaces «Ask me» on the voice button.",
+            "مساعد صوتي بالذكاء الاصطناعي عبر ChatGPT أو Claude (بمفتاح API خاص بك). عند تفعيله يحل محل «أمرني» في زر الصوت."),
+            cfg.novaEnabled) { v -> c.ai.update { it.copy(novaEnabled = v) }; if (!v) c.assistant.close() }
+        if (cfg.novaEnabled) {
+            Gap()
+            AiEngineSettings(c)
+            Gap()
+            NovaVoiceSettings(c, s)
+        } else {
+            Spacer(Modifier.height(6.dp))
+            Text(tr("Off: the voice button uses «Ask me» (Google).", "مطفأ: زر الصوت يستخدم «أمرني» (Google)."), style = NovaType.small, color = p.textDim)
+        }
+    }
+}
+
+/** A diagnostic/test result line (green ✓ / red ✗). */
+@Composable
+private fun ResultLine(r: com.abu00salman.novadrive.data.voice.DiagResult?) {
+    val p = LocalNova.current
+    if (r == null) return
+    Spacer(Modifier.height(4.dp))
+    Text((if (r.ok) "✓ " else "✗ ") + r.detail, style = NovaType.label, color = if (r.ok) p.ok else p.danger)
+}
+
+@Composable
+private fun StatusLine(ok: Boolean, text: String) {
+    val p = LocalNova.current
+    Text((if (ok) "● " else "○ ") + text, style = NovaType.label, color = if (ok) p.ok else p.warn)
+}
+
+/** Nova AI › recognition, voice output, conversation, connection and diagnostics. */
+@Composable
+private fun NovaVoiceSettings(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    val cfg by c.ai.config.collectAsStateWithLifecycle()
+    val tts by c.speaker.status.collectAsStateWithLifecycle()
+    val net by c.network.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val diag = remember { com.abu00salman.novadrive.data.voice.NovaDiagnostics(c) }
+    var running by remember { mutableStateOf<String?>(null) }
+    var micR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    var recR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    var ttsR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    var apiR by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    var convR by remember { mutableStateOf<List<String>>(emptyList()) }
+    var convDone by remember { mutableStateOf<com.abu00salman.novadrive.data.voice.DiagResult?>(null) }
+    val micPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { c.refreshPermissions() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { c.speaker.warmUp() }
+    fun run(tag: String, block: suspend () -> Unit) {
+        if (running != null) return
+        running = tag
+        scope.launch { try { block() } finally { running = null } }
+    }
+    val speech = c.assistant.speech
+    val online = c.assistant.online()
+
+    // ── Voice recognition
+    Header(tr("Voice recognition", "التعرف الصوتي"), tr("Speech is turned into text by the unit's recognizer (Google on most units), then routed to a local command or the AI.",
+        "يُحوَّل الكلام إلى نص بخدمة التعرف في الجهاز (Google في أغلب الأجهزة)، ثم يُوجَّه لأمر محلي أو للذكاء الاصطناعي."))
+    Choice(listOf(true to tr("Inside NovaDrive", "داخل NovaDrive"), false to tr("Google window", "نافذة Google")), cfg.inAppSpeech) { v -> c.ai.update { it.copy(inAppSpeech = v) } }
+    Gap()
+    Toggle(tr("Prefer on-device recognition", "تفضيل التعرف على الجهاز (دون إنترنت)"),
+        tr("Always tried automatically when there's no internet. Works only if the unit has offline speech for the language.",
+            "يُجرَّب تلقائيًا دائمًا عند انقطاع الإنترنت. يعمل فقط إذا كان الجهاز يملك التعرف دون إنترنت لهذه اللغة."),
+        cfg.preferOfflineSpeech) { v -> c.ai.update { it.copy(preferOfflineSpeech = v) } }
+    Gap()
+    StatusLine(speech.available(), if (speech.available()) tr("Speech recognizer installed", "خدمة التعرف الصوتي مثبتة") else tr("No speech recognizer — install the Google app", "لا توجد خدمة تعرف صوتي — ثبّت تطبيق Google"))
+    StatusLine(speech.onDeviceAvailable(), if (speech.onDeviceAvailable()) tr("On-device recognition available", "التعرف دون إنترنت متاح") else tr("On-device recognition not reported by this unit", "الجهاز لا يوفّر تعرفًا دون إنترنت"))
+    StatusLine(speech.hasMicPermission(), if (speech.hasMicPermission()) tr("Microphone allowed", "الميكروفون مسموح") else tr("Microphone not allowed yet", "الميكروفون غير مسموح بعد"))
+    if (!speech.hasMicPermission()) {
+        Spacer(Modifier.height(6.dp))
+        Pill(tr("Allow microphone", "السماح بالميكروفون"), p.accent) { micPerm.launch(Manifest.permission.RECORD_AUDIO) }
+    }
+    Gap()
+
+    // ── Voice output
+    Header(tr("Voice output", "النطق الصوتي"), tr("Replies are spoken by the unit's own text-to-speech (no paid voice service).", "تُنطق الردود بمحرك النطق في الجهاز نفسه (دون خدمة صوت مدفوعة)."))
+    Toggle(tr("Answer out loud", "الرد بالصوت"), null, s.voiceReply) { v -> c.settings.update { it.copy(voiceReply = v) } }
+    Gap()
+    Choice(listOf(com.abu00salman.novadrive.data.VoiceLang.AUTO to tr("Automatic", "تلقائي"),
+        com.abu00salman.novadrive.data.VoiceLang.ARABIC to "العربية", com.abu00salman.novadrive.data.VoiceLang.ENGLISH to "English"), cfg.voice.lang) { v ->
+        c.ai.update { it.copy(voice = it.voice.copy(lang = v)) }
+    }
+    Gap()
+    Text(tr("Voice", "الصوت"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { Pill(tr("Best installed", "أفضل صوت مثبت"), if (cfg.voice.voiceName.isBlank()) p.accent else p.textDim) { c.ai.update { it.copy(voice = it.voice.copy(voiceName = "")) } } }
+        items(tts.voices.size) { i ->
+            val (name, label) = tts.voices[i]
+            Pill(label, if (cfg.voice.voiceName == name) p.accent else p.textDim) { c.ai.update { it.copy(voice = it.voice.copy(voiceName = name)) } }
+        }
+    }
+    Gap()
+    Text(tr("Speed", "سرعة النطق") + " · ${"%.1f".format(cfg.voice.rate)}×", style = NovaType.label, color = p.textDim)
+    androidx.compose.material3.Slider(cfg.voice.rate, { v -> c.ai.update { it.copy(voice = it.voice.copy(rate = (v * 10).toInt() / 10f)) } }, valueRange = 0.6f..1.6f)
+    Text(tr("Voice volume", "مستوى صوت النطق") + " · ${(cfg.voice.volume * 100).toInt()}%", style = NovaType.label, color = p.textDim)
+    androidx.compose.material3.Slider(cfg.voice.volume, { v -> c.ai.update { it.copy(voice = it.voice.copy(volume = v)) } }, valueRange = 0.2f..1f)
+    Text(tr("Audio channel", "قناة الصوت"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(listOf(com.abu00salman.novadrive.data.VoiceChannel.MEDIA to tr("Media (recommended)", "الوسائط (موصى به)"),
+        com.abu00salman.novadrive.data.VoiceChannel.NAVIGATION to tr("Navigation", "الملاحة")), cfg.voice.channel) { v ->
+        c.ai.update { it.copy(voice = it.voice.copy(channel = v)) }
+    }
+    Gap()
+    StatusLine(tts.ready && !tts.failed, when {
+        tts.failed -> tr("Text-to-speech engine failed to start", "تعذّر تشغيل محرك النطق")
+        !tts.ready -> tr("Text-to-speech starting…", "محرك النطق يبدأ…")
+        else -> (tts.engine ?: "TTS") + if (tts.arabic) tr(" · Arabic voice installed", " · الصوت العربي مثبت") else tr(" · no Arabic voice", " · لا يوجد صوت عربي")
+    })
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Pill(if (running == "tts") tr("Speaking…", "ينطق…") else tr("Test voice", "اختبار الصوت"), p.accent) { run("tts") { ttsR = diag.tts() } }
+        Pill(tr("Voice settings", "إعدادات النطق"), p.textDim) { c.speaker.openSettings() }
+    }
+    ResultLine(ttsR)
+    Gap()
+
+    // ── Conversation
+    Header(tr("Conversation", "المحادثة"), null)
+    Toggle(tr("Keep context", "الاحتفاظ بالسياق"), tr("Follow-up questions understand what was said before (last 6 exchanges).", "أسئلة المتابعة تفهم ما قيل قبلها (آخر 6 تبادلات)."), cfg.keepContext) { v -> c.ai.update { it.copy(keepContext = v) } }
+    Gap()
+    Toggle(tr("Continue the conversation", "متابعة المحادثة"), tr("After a reply is spoken, Nova listens again for your next question.", "بعد نطق الرد يستمع نوفا مجددًا لسؤالك التالي."), cfg.followUp) { v -> c.ai.update { it.copy(followUp = v) } }
+    Spacer(Modifier.height(6.dp))
+    Text(tr("Interrupt a reply any time by pressing the microphone or Stop.", "يمكنك مقاطعة الرد في أي وقت بالضغط على الميكروفون أو «إيقاف»."), style = NovaType.small, color = p.textDim)
+    Gap()
+    Text(tr("Listening time", "مدة الاستماع"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(listOf(8 to "8s", 12 to "12s", 20 to "20s"), cfg.listenTimeoutSec) { v -> c.ai.update { it.copy(listenTimeoutSec = v) } }
+    Gap()
+    Text(tr("Answer timeout", "مهلة الرد"), style = NovaType.label, color = p.textDim)
+    Spacer(Modifier.height(6.dp))
+    Choice(listOf(20 to "20s", 30 to "30s", 60 to "60s"), cfg.replyTimeoutSec) { v -> c.ai.update { it.copy(replyTimeoutSec = v) } }
+    Gap()
+    Pill(tr("Clear conversation", "مسح المحادثة"), p.danger) { c.assistant.clearConversation(); com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تم مسح المحادثة" else "Conversation cleared") }
+    Gap()
+
+    // ── Connection
+    Header(tr("Connection", "الاتصال"), null)
+    StatusLine(online, if (online) tr("Internet connected", "الإنترنت متصل") + (if (net.wifi == com.abu00salman.novadrive.data.Link.CONNECTED) " · Wi-Fi" else if (net.cellular) " · 4G" else "")
+        else tr("No internet — offline mode: local commands only", "لا يوجد إنترنت — وضع عدم الاتصال: الأوامر المحلية فقط"))
+    StatusLine(cfg.hasOpenAiKey, "OpenAI API · " + if (cfg.hasOpenAiKey) tr("key saved (not tested)", "المفتاح محفوظ (لم يُختبر)") else tr("no key", "لا يوجد مفتاح"))
+    StatusLine(cfg.hasClaudeKey, "Anthropic API · " + if (cfg.hasClaudeKey) tr("key saved (not tested)", "المفتاح محفوظ (لم يُختبر)") else tr("no key", "لا يوجد مفتاح"))
+    Spacer(Modifier.height(6.dp))
+    Pill(if (running == "api") tr("Testing…", "جارٍ الاختبار…") else tr("Test connection", "اختبار الاتصال"), p.accent) { run("api") { apiR = diag.api() } }
+    ResultLine(apiR)
+    Gap()
+
+    // ── Diagnostics
+    Header(tr("Diagnostics", "التشخيص"), tr("Each test does the real thing and reports what actually happened.", "كل اختبار ينفّذ العملية فعليًا ويعرض النتيجة الحقيقية."))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Pill(if (running == "mic") tr("Speak now…", "تكلّم الآن…") else tr("Test microphone & recognition", "اختبار الميكروفون والتعرف"), p.accent) {
+            run("mic") { val (m, r) = diag.speech(); micR = m; recR = r }
+        }
+        Pill(tr("Test API", "اختبار API"), p.accent) { run("api") { apiR = diag.api() } }
+        Pill(tr("Test speech", "اختبار النطق"), p.accent) { run("tts") { ttsR = diag.tts() } }
+    }
+    ResultLine(micR)
+    ResultLine(recR)
+    Gap()
+    Pill(if (running == "conv") tr("Running 5 conversations…", "تجري 5 محادثات…") else tr("Test 5 conversations in a row", "اختبار خمس محادثات متتابعة"), p.accent2) {
+        run("conv") {
+            convR = emptyList(); convDone = null
+            convDone = diag.conversation { i, r -> convR = convR + ((if (r.ok) "✓ " else "✗ ") + "$i · " + r.detail) }
+        }
+    }
+    Spacer(Modifier.height(4.dp))
+    Text(tr("Uses 5 small API requests with the selected provider.", "يستخدم 5 طلبات API صغيرة مع الوكيل المختار."), style = NovaType.small, color = p.textDim)
+    convR.forEach { Text(it, style = NovaType.small, color = if (it.startsWith("✓")) p.ok else p.danger, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+    ResultLine(convDone)
 }
 
 /** Masked API-key entry; the saved key is never shown again. */
@@ -878,27 +1193,13 @@ private fun VoiceSection(c: AppContainer, s: NovaSettings) {
     var phrase by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     Column {
-        Header("Nova AI", tr("Tap Nova AI in the side bar (or the microphone) and speak. Car commands run locally and instantly; open questions go to the AI you choose below.",
-            "اضغط Nova AI في القائمة الجانبية (أو الميكروفون) وتكلّم. أوامر السيارة تُنفّذ محليًا وفورًا، والأسئلة العامة تذهب للذكاء الاصطناعي الذي تختاره بالأسفل."))
-        AiEngineSettings(c)
+        AskMeSettings(c, s)
         Gap()
         Text(tr("Try:", "جرّب:"), style = NovaType.label, color = p.textDim)
         Spacer(Modifier.height(6.dp))
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val ex = if (ar) com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_AR else com.abu00salman.novadrive.data.VoiceCommands.EXAMPLES_EN
             items(ex.size) { i -> Pill("«${ex[i]}»", p.accent) }
-        }
-        Gap()
-        Toggle(tr("Answer out loud", "الرد بالصوت"),
-            tr("Uses the unit's text-to-speech. Install the Arabic voice from voice settings if replies sound English.",
-                "يستخدم محرك النطق في الجهاز. إذا كان الرد بلكنة إنجليزية ثبّت الصوت العربي من إعدادات النطق."),
-            s.voiceReply) { v -> c.settings.update { it.copy(voiceReply = v) } }
-        Gap()
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Pill(tr("Test voice", "تجربة الصوت"), p.accent) {
-                c.speaker.speak(if (ar) "مرحباً، أنا نوفا. جاهز لأوامرك." else "Hi, I'm Nova. Ready when you are.", ar)
-            }
-            Pill(tr("Voice settings", "إعدادات النطق"), p.textDim) { c.speaker.openSettings() }
         }
         Gap()
         Header(tr("My commands", "أوامري الخاصة"), tr("When you say the phrase, the chosen app opens.", "عندما تقول العبارة يُفتح التطبيق الذي اخترته."))
@@ -923,4 +1224,400 @@ private fun VoiceSection(c: AppContainer, s: NovaSettings) {
         }
         phrase = ""; picking = false
     }, onDismiss = { picking = false })
+}
+
+
+// ============================================================================ Sound Experience
+
+private fun SoundEvent.title(ar: Boolean) = "%02d · %s".format(number, if (ar) this.ar else en)
+
+private fun displayName(ctx: android.content.Context, uri: android.net.Uri): String =
+    runCatching {
+        ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else null }
+    }.getOrNull() ?: uri.lastPathSegment.orEmpty()
+
+/** Settings › Sound Experience: interface sound effects, set up separately for every interface. */
+@Composable
+private fun SoundSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    val g by c.sounds.global.collectAsStateWithLifecycle()
+    val all by c.sounds.styles.collectAsStateWithLifecycle()
+    val filesVersion by c.sounds.filesVersion.collectAsStateWithLifecycle()
+    var editing by rememberSaveable { mutableStateOf(s.uiStyle) }
+    val st = all[editing] ?: StyleSounds(SoundPacks.defaultFor(editing))
+    var importFor by remember { mutableStateOf<SoundEvent?>(null) }
+    var staged by remember { mutableStateOf<Pair<SoundEvent, StagedSound>?>(null) }
+    var confirmReset by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    fun say(en: String, a: String) = com.abu00salman.novadrive.ui.toast(ctx, if (ar) a else en)
+
+    // One file for one sound: checked and previewed before it replaces the default.
+    val pickSound = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val ev = importFor
+        if (uri == null || ev == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openInputStream(uri)?.use { c.sounds.stage(displayName(ctx, uri), it) } }.getOrNull()
+            }
+            if (result == null) say("Couldn't use that file: it must be a valid MP3, WAV or OGG up to 3 MB", "تعذّر استخدام الملف: يجب أن يكون MP3 أو WAV أو OGG سليمًا وحتى 3 ميغابايت")
+            else staged = ev to result
+        }
+    }
+    // A whole pack (ZIP): every numbered file is checked, then used.
+    val pickZip = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val done = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openInputStream(uri)?.use { c.sounds.importZip(editing, it) } }.getOrNull().orEmpty()
+            }
+            if (done.isEmpty()) say("No valid sounds (01…08) found in that ZIP", "لم أجد أصواتًا سليمة (01…08) في ملف ZIP")
+            else say("Imported: " + done.sortedBy { it.number }.joinToString(" ") { "%02d".format(it.number) }, "تم استيراد: " + done.sortedBy { it.number }.joinToString(" ") { "%02d".format(it.number) })
+        }
+    }
+    val exportZip = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val n = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openOutputStream(uri)?.use { c.sounds.exportZip(editing, it, c.soundFx::openBuiltIn) } }.getOrNull() ?: -1
+            }
+            if (n < 0) say("Export failed", "فشل التصدير") else say("Exported $n sounds", "تم تصدير $n أصوات")
+        }
+    }
+
+    Column {
+        Header(tr("Sound Experience", "تجربة الأصوات"),
+            tr("Quiet interface sounds. Each interface has its own pack and settings — BMW uses NovaDrive Luxury v4 by default; the others stay silent until you choose a pack.",
+                "مؤثرات صوتية هادئة للواجهة. لكل واجهة حزمتها وإعداداتها — BMW تستخدم NovaDrive Luxury v4 افتراضيًا، وبقية الواجهات صامتة حتى تختار لها حزمة."))
+        Toggle(tr("Sound effects", "المؤثرات الصوتية"), tr("Master switch for all interfaces.", "المفتاح الرئيسي لكل الواجهات."), g.enabled) { v -> c.sounds.setGlobal { it.copy(enabled = v) } }
+        Gap()
+        Text(tr("Volume", "مستوى الصوت") + " · ${(g.volume * 100).toInt()}%", style = NovaType.label, color = p.textDim)
+        androidx.compose.material3.Slider(g.volume, { v -> c.sounds.setGlobal { it.copy(volume = (v * 20).toInt() / 20f) } }, valueRange = 0f..1f)
+        Text(tr("Effects play at the media volume and never pause your music; they stay silent during calls, guidance and Nova's voice.",
+            "المؤثرات تعمل بمستوى صوت الوسائط ولا توقف الموسيقى، وتصمت أثناء المكالمات والتوجيه الصوتي وصوت نوفا."), style = NovaType.small, color = p.textDim)
+        Gap()
+
+        Header(tr("Interface", "الواجهة"), tr("Choose which interface's sounds to edit.", "اختر الواجهة التي تريد تعديل أصواتها."))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(UiStyles.all.size) { i ->
+                val u = UiStyles.all[i]
+                Pill(if (ar) u.ar else u.en, if (u.id == editing) p.accent else p.textDim) { editing = u.id }
+            }
+        }
+        Gap()
+        Text(tr("Sound pack for this interface", "الحزمة الصوتية لهذه الواجهة"), style = NovaType.label, color = p.textDim)
+        Spacer(Modifier.height(6.dp))
+        Choice(listOf(
+            SoundPacks.LUXURY to "NovaDrive Luxury v4",
+            SoundPacks.CUSTOM to tr("My sounds only", "أصواتي فقط"),
+            SoundPacks.NONE to tr("None (silent)", "بدون (صامت)"),
+        ), st.pack) { v -> c.sounds.update(editing) { it.copy(pack = v) } }
+        Gap()
+        listOf(
+            Triple(SoundGroup.WELCOME, tr("Welcome & start sounds", "أصوات الترحيب وبدء التشغيل"), tr("Once per session (Welcome, or Start/Ready if Welcome is off). Silent while driving.", "مرة واحدة في كل جلسة (الترحيب، أو بدء التشغيل إن أوقفت الترحيب). صامتة أثناء القيادة.")),
+            Triple(SoundGroup.TOUCH, tr("Button sounds", "أصوات الضغط"), tr("A soft tick on taps.", "نقرة خفيفة عند اللمس.")),
+            Triple(SoundGroup.NAV, tr("Navigation sounds", "أصوات التنقل"), tr("Between pages, and when going back.", "عند الانتقال بين الصفحات وعند الرجوع.")),
+        ).forEach { (gr, title, sub) ->
+            val members = SoundEvent.entries.filter { it.group == gr }
+            Toggle(title, sub, members.any { st.on(it) }) { v ->
+                c.sounds.update(editing) { it.copy(off = if (v) it.off - members.toSet() else it.off + members) }
+            }
+            Gap()
+        }
+
+        Header(tr("Sounds", "الأصوات"), tr("Each sound is independent: turn it off, preview it, or replace it with your own MP3/WAV/OGG file — it plays instead of the default immediately.",
+            "كل صوت مستقل: عطّله أو عاينه أو استبدله بملفك MP3 أو WAV أو OGG — يعمل بدل الافتراضي فورًا."))
+        SoundEvent.entries.forEach { e ->
+            val has = remember(editing, e, filesVersion, st.pack) { c.soundFx.hasSound(editing, e) }
+            val imported = remember(editing, e, filesVersion) { c.sounds.fileFor(editing, e) }
+            RowItem(
+                e.title(ar),
+                when {
+                    imported != null -> tr("Your file: ", "ملفك: ") + imported.name
+                    has -> tr("Default (NovaDrive Luxury v4)", "الافتراضي (NovaDrive Luxury v4)")
+                    st.pack == SoundPacks.LUXURY -> tr("No sound", "لا يوجد صوت")
+                    else -> tr("No sound — choose a file", "لا يوجد صوت — اختر ملفًا")
+                },
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill(if (st.on(e)) tr("On", "مفعّل") else tr("Off", "معطّل"), if (st.on(e)) p.ok else p.textDim) {
+                        c.sounds.update(editing) { it.copy(off = if (e in it.off) it.off - e else it.off + e) }
+                    }
+                    if (has) Pill(tr("Preview", "معاينة"), p.accent) { c.soundFx.preview(editing, e) }
+                    Pill(tr("Choose file", "اختيار ملف"), p.accent2) { importFor = e; pickSound.launch(arrayOf("audio/*", "application/ogg", "application/octet-stream")) }
+                    if (imported != null) Pill(tr("Reset", "إعادة"), p.danger) { c.sounds.removeImported(editing, e); say("Back to the default", "عاد الصوت الافتراضي") }
+                }
+            }
+            Gap()
+        }
+
+        Header(tr("Pack", "الحزمة"), tr("Import or export this interface's sounds as a ZIP (files named 01_…08_…).", "استيراد أو تصدير أصوات هذه الواجهة كملف ZIP (الملفات مرقّمة 01_…08_…)."))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Import ZIP", "استيراد ZIP"), p.accent2) { pickZip.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) }
+            Pill(tr("Export my pack", "تصدير حزمتي"), p.accent2) { exportZip.launch("NovaDrive_${editing}_sounds.zip") }
+            Pill(tr("Reset this interface's pack", "إعادة حزمة هذه الواجهة"), p.danger) { confirmReset = "style" }
+        }
+        Gap()
+
+        Header(tr("Special chime", "النغمة المميزة"),
+            tr("Never plays on ordinary taps. Choose the moments that deserve it.", "لا تعمل عند اللمس العادي. اختر اللحظات التي تستحقها."))
+        listOf(
+            ChimeTriggers.ARRIVAL to tr("Arriving at the destination", "الوصول إلى الوجهة"),
+            ChimeTriggers.BLUETOOTH to tr("Bluetooth connected", "اتصال البلوتوث"),
+            ChimeTriggers.IPHONE to tr("iPhone connected", "اتصال الآيفون"),
+        ).forEach { (key, label) ->
+            Toggle(label, null, key in st.chime) { v -> c.sounds.update(editing) { it.copy(chime = if (v) it.chime + key else it.chime - key) } }
+            Gap()
+        }
+
+        Pill(tr("Restore all sound settings", "استعادة كل إعدادات الأصوات"), p.danger) { confirmReset = "all" }
+        Gap()
+        Text(tr("Sounds 01–08 of NovaDrive Luxury v4 are original NovaDrive sounds synthesised from oscillators; 07 and 08 are modelled on a BMW-style character but are not BMW recordings and are not endorsed by BMW. Files you import stay on this unit only.",
+            "أصوات NovaDrive Luxury v4 (01–08) أصلية من NovaDrive مولّدة بالتركيب الصوتي؛ الصوتان 07 و08 مصمَّمان بطابع قريب من BMW لكنهما ليسا تسجيلات BMW ولا برعايتها. الملفات التي تستوردها تبقى على هذا الجهاز فقط."),
+            style = NovaType.small, color = p.textDim)
+    }
+
+    // Hear a file before choosing it.
+    staged?.let { (ev, f) ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { c.sounds.discard(f); staged = null },
+            containerColor = p.bgBottom,
+            title = { Text(ev.title(ar), color = p.text) },
+            text = {
+                Column {
+                    Text(f.sourceName, style = NovaType.body, color = p.text, maxLines = 2)
+                    Text("%.1f s · %s".format(f.durationMs / 1000.0, f.ext.uppercase()), style = NovaType.label, color = p.textDim)
+                    Spacer(Modifier.height(10.dp))
+                    Pill(tr("Preview", "معاينة"), p.accent) { c.soundFx.previewFile(f.file) }
+                }
+            },
+            confirmButton = {
+                Pill(tr("Use this sound", "استخدم هذا الصوت"), p.ok) {
+                    if (c.sounds.commit(editing, ev, f)) say("Saved — it plays now", "تم الحفظ — يعمل الآن") else say("Couldn't save the file", "تعذّر حفظ الملف")
+                    staged = null
+                }
+            },
+            dismissButton = { Pill(tr("Cancel", "إلغاء"), p.textDim) { c.sounds.discard(f); staged = null } },
+        )
+    }
+    confirmReset?.let { kind ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmReset = null },
+            containerColor = p.bgBottom,
+            title = { Text(if (kind == "all") tr("Restore all sound settings?", "استعادة كل إعدادات الأصوات؟") else tr("Reset this interface's pack?", "إعادة حزمة هذه الواجهة؟"), color = p.text) },
+            text = { Text(tr("Your imported sounds will be removed.", "ستُحذف الأصوات التي استوردتها."), color = p.textDim) },
+            confirmButton = {
+                Pill(tr("Reset", "إعادة"), p.danger) {
+                    if (kind == "all") c.sounds.resetAll() else c.sounds.resetStyle(editing)
+                    confirmReset = null
+                }
+            },
+            dismissButton = { Pill(tr("Cancel", "إلغاء"), p.textDim) { confirmReset = null } },
+        )
+    }
+}
+
+
+// ============================================================================ Scenes & QuickSwitch
+
+/** NOVA Scenes (saved dashboards of this profile) and the optional QuickSwitch bar over other apps. */
+@Composable
+private fun ScenesSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    val all by c.scenes.all.collectAsStateWithLifecycle()
+    val scenes = all[s.profileId].orEmpty()
+    var name by remember { mutableStateOf("") }
+    val qsOn by c.quickSwitch.enabled.collectAsStateWithLifecycle()
+    val perms by c.permissions.collectAsStateWithLifecycle()
+    val canOverlay = remember(perms) { c.quickSwitch.canOverlay() }
+    Column {
+        Header(tr("NOVA Scenes", "مشاهد نوفا"),
+            tr("Save the dashboard as it is now — interface, home mode, theme, dock and widget board — and bring it back with one tap, from Quick controls or by voice (\"scene <name>\"). Scenes belong to the active profile.",
+                "احفظ اللوحة كما هي الآن — الواجهة ووضع الرئيسية والسمة والشريط ولوحة الويدجت — وأعدها بضغطة واحدة من التحكم السريع أو بالصوت («مشهد <الاسم>»). المشاهد خاصة بالملف النشط."))
+        if (scenes.isEmpty()) Text(tr("No scenes yet.", "لا توجد مشاهد بعد."), style = NovaType.label, color = p.textDim)
+        scenes.forEach { sc ->
+            val style = UiStyles.get(sc.uiStyle)
+            RowItem(sc.name, (if (ar) style.ar else style.en) + " · " + sc.dock.size + tr(" dock apps", " في الشريط")) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill(tr("Apply", "تفعيل"), p.accent) { c.applyScene(sc); com.abu00salman.novadrive.ui.toast(ctx, (if (ar) "تم تفعيل مشهد " else "Scene ") + sc.name) }
+                    Pill(tr("Delete", "حذف"), p.danger) { c.scenes.delete(sc.name) }
+                }
+            }
+            Gap()
+        }
+        Field(tr("Scene name, e.g. \"Road trip\"", "اسم المشهد، مثل: «رحلة»"), name) { name = it }
+        Gap()
+        Pill(tr("Save current dashboard as a scene", "احفظ اللوحة الحالية كمشهد"), p.accent) {
+            if (c.scenes.saveCurrent(name)) { name = ""; com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تم حفظ المشهد" else "Scene saved") }
+            else com.abu00salman.novadrive.ui.toast(ctx, if (ar) "اكتب اسمًا للمشهد" else "Type a name for the scene")
+        }
+        Text(tr("Up to 8 scenes; saving with an existing name replaces it.", "حتى 8 مشاهد، والحفظ باسم موجود يستبدله."), style = NovaType.small, color = p.textDim)
+        Gap()
+
+        Header(tr("NOVA QuickSwitch & Mini Player", "التبديل السريع والمشغّل المصغّر"),
+            tr("A small handle at the screen edge while another app is open (CarPlay, maps, music). Tap it to jump to NovaDrive, navigation, CarPlay or music and to control the current track. It folds back by itself and never shows over NovaDrive.",
+                "مقبض صغير على حافة الشاشة عندما يكون تطبيق آخر مفتوحًا (كاربلاي، الخرائط، الموسيقى). اضغطه للانتقال إلى NovaDrive أو الملاحة أو كاربلاي أو الموسيقى وللتحكم بالمقطع الحالي. ينطوي تلقائيًا ولا يظهر فوق NovaDrive."))
+        Toggle(tr("Show QuickSwitch over other apps", "إظهار التبديل السريع فوق التطبيقات"), tr("Drag the handle up or down to move it.", "اسحب المقبض للأعلى أو الأسفل لتحريكه."), qsOn) { v ->
+            c.quickSwitch.setEnabled(v)
+            if (v && !c.quickSwitch.canOverlay()) c.controls.dimmer.requestOverlayPermission()
+        }
+        if (qsOn && !canOverlay) {
+            Spacer(Modifier.height(6.dp))
+            Pill(tr("Allow \"display over other apps\"", "اسمح بـ«الظهور فوق التطبيقات»"), p.warn) { c.controls.dimmer.requestOverlayPermission() }
+        }
+    }
+}
+
+// ============================================================================ Backup & updates
+
+@Composable
+private fun BackupSection(c: AppContainer, s: NovaSettings) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun say(en: String, a: String) = com.abu00salman.novadrive.ui.toast(ctx, if (ar) a else en)
+    var pendingImport by remember { mutableStateOf<String?>(null) }
+    var check by remember { mutableStateOf<UpdateCenter.Check?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    var beta by rememberSaveable { mutableStateOf(BuildConfig.VERSION_NAME.contains('-')) }
+    val whatsNew by androidx.compose.runtime.produceState<Pair<String, String>?>(null) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { ctx.assets.open("CHANGELOG.md").bufferedReader().use { it.readText() } }.getOrNull()?.let(UpdateCenter::latestSection)
+        }
+    }
+
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openOutputStream(uri)?.use { it.write(NovaBackup.export(ctx, BuildConfig.VERSION_NAME).toByteArray()) } != null }.getOrDefault(false)
+            }
+            if (ok) say("Backup saved", "تم حفظ النسخة الاحتياطية") else say("Couldn't save the backup", "تعذّر حفظ النسخة الاحتياطية")
+        }
+    }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readNBytesCompat(NovaBackup.MAX_BYTES + 1) }?.toString(Charsets.UTF_8) }.getOrNull()
+            }
+            if (text == null) say("Couldn't read that file", "تعذّرت قراءة الملف") else pendingImport = text
+        }
+    }
+
+    Column {
+        Header(tr("NOVA Backup", "النسخ الاحتياطي"),
+            tr("One file with every setting: profiles, interfaces, dock, widgets, scenes, sounds and voice options. API keys are never included; photos and imported sound files stay on this unit.",
+                "ملف واحد فيه كل الإعدادات: الملفات الشخصية والواجهات والشريط والويدجت والمشاهد والأصوات وخيارات الصوت. مفاتيح API لا تُضمَّن أبدًا، والصور وملفات الأصوات المستوردة تبقى على هذا الجهاز."))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Export settings", "تصدير الإعدادات"), p.accent) { exporter.launch("NovaDrive-backup-${BuildConfig.VERSION_NAME}.json") }
+            Pill(tr("Import settings", "استيراد الإعدادات"), p.accent2) { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+        }
+        Gap()
+
+        Header(tr("NOVA Update Center", "مركز التحديث"), tr("Checks NovaDrive's own GitHub releases only when you tap. Nothing is downloaded or installed automatically.",
+            "يفحص إصدارات NovaDrive على GitHub فقط عندما تضغط. لا يُنزَّل أو يُثبَّت شيء تلقائيًا."))
+        RowItem(tr("Installed version", "الإصدار المثبت"), "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · ${BuildConfig.BUILD_TYPE}")
+        Gap()
+        Toggle(tr("Include beta releases", "تضمين الإصدارات التجريبية"), null, beta) { beta = it }
+        Gap()
+        Pill(if (checking) tr("Checking…", "جارٍ الفحص…") else tr("Check for updates", "التحقق من التحديثات"), p.accent) {
+            if (!checking) { checking = true; scope.launch { check = UpdateCenter.check(BuildConfig.VERSION_NAME, beta); checking = false } }
+        }
+        when (val r = check) {
+            null -> {}
+            is UpdateCenter.Check.UpToDate -> Text("✓ " + tr("You have the latest version", "لديك أحدث إصدار"), style = NovaType.label, color = p.ok)
+            UpdateCenter.Check.NoReleases -> Text(tr("No published release found yet.", "لا يوجد إصدار منشور بعد."), style = NovaType.label, color = p.textDim)
+            is UpdateCenter.Check.Failed -> Text("✗ " + tr("Couldn't reach GitHub", "تعذّر الوصول إلى GitHub") + " (${r.reason})", style = NovaType.label, color = p.danger)
+            is UpdateCenter.Check.Available -> {
+                Spacer(Modifier.height(6.dp))
+                Text(tr("New version: ", "إصدار جديد: ") + r.release.name + if (r.release.prerelease) tr(" (beta)", " (تجريبي)") else "", style = NovaType.title, color = p.accent)
+                if (r.release.notes.isNotBlank()) Text(r.release.notes.take(700), style = NovaType.small, color = p.textDim)
+                Spacer(Modifier.height(6.dp))
+                Pill(tr("Open the release page", "افتح صفحة الإصدار"), p.accent) {
+                    if (!c.controls.start(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(r.release.url))))
+                        say("No browser on this unit", "لا يوجد متصفح على هذا الجهاز")
+                }
+            }
+        }
+        whatsNew?.let { (title, body) ->
+            Gap()
+            Header(tr("What's new in ", "الجديد في ") + title)
+            Text(body.take(1800), style = NovaType.small, color = p.textDim)
+        }
+    }
+
+    pendingImport?.let { text ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            containerColor = p.bgBottom,
+            title = { Text(tr("Import these settings?", "استيراد هذه الإعدادات؟"), color = p.text) },
+            text = { Text(tr("Current settings are replaced and NovaDrive restarts. Saved API keys are kept.", "ستُستبدل الإعدادات الحالية ويُعاد تشغيل NovaDrive. مفاتيح API المحفوظة تبقى."), color = p.textDim) },
+            confirmButton = {
+                Pill(tr("Import and restart", "استيراد وإعادة التشغيل"), p.accent) {
+                    val r = NovaBackup.import(ctx, text)
+                    pendingImport = null
+                    when (r) {
+                        is NovaBackup.Result.Ok -> NovaBackup.restart(ctx)
+                        is NovaBackup.Result.Invalid -> when (r.reason) {
+                            NovaBackup.Reason.NEWER_FORMAT -> say("This backup is from a newer NovaDrive — update first", "هذه النسخة من إصدار أحدث — حدّث NovaDrive أولًا")
+                            NovaBackup.Reason.TOO_BIG -> say("The file is too big to be a NovaDrive backup", "الملف أكبر من أن يكون نسخة NovaDrive")
+                            else -> say("That isn't a valid NovaDrive backup — nothing was changed", "الملف ليس نسخة NovaDrive صالحة — لم يتغير شيء")
+                        }
+                    }
+                }
+            },
+            dismissButton = { Pill(tr("Cancel", "إلغاء"), p.textDim) { pendingImport = null } },
+        )
+    }
+}
+
+/** Reads at most [max] bytes (InputStream.readNBytes needs API 33). */
+private fun java.io.InputStream.readNBytesCompat(max: Int): ByteArray {
+    val out = java.io.ByteArrayOutputStream()
+    val buf = ByteArray(16 * 1024)
+    while (out.size() < max) {
+        val n = read(buf, 0, minOf(buf.size, max - out.size()))
+        if (n < 0) break
+        out.write(buf, 0, n)
+    }
+    return out.toByteArray()
+}
+
+// ============================================================================ Diagnostics
+
+@Composable
+private fun DiagnosticsSection(c: AppContainer) {
+    val p = LocalNova.current
+    val ar = LocalArabic.current
+    val ctx = LocalContext.current
+    var tick by remember { mutableStateOf(0) }
+    val items by androidx.compose.runtime.produceState(emptyList<HealthItem>(), tick) {
+        value = withContext(Dispatchers.Default) { c.health.snapshot() }
+    }
+    Column {
+        Header(tr("NOVA Diagnostics", "تشخيص نوفا"), tr("Measured on this unit right now. Nothing is estimated, collected or uploaded.", "قياسات فعلية من هذا الجهاز الآن. لا شيء تقديري، ولا يُجمع أو يُرفع شيء."))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill(tr("Refresh", "تحديث"), p.accent) { tick++ }
+            Pill(tr("Copy report", "نسخ التقرير"), p.accent2) {
+                val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+                cm?.setPrimaryClip(android.content.ClipData.newPlainText("NovaDrive diagnostics", c.health.report()))
+                com.abu00salman.novadrive.ui.toast(ctx, if (ar) "تم نسخ التقرير" else "Report copied")
+            }
+        }
+        Gap()
+        items.forEach { h ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(12.dp).clip(CircleShape).background(when (h.ok) { true -> p.ok; false -> p.danger; null -> p.textDim.copy(alpha = 0.4f) }))
+                Spacer(Modifier.width(12.dp))
+                Text(if (ar) h.ar else h.en, style = NovaType.body, color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.width(12.dp))
+                Text(h.value, style = NovaType.label, color = p.textDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
 }

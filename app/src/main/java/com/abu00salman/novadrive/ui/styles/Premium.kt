@@ -1,5 +1,6 @@
 package com.abu00salman.novadrive.ui.styles
 
+import com.abu00salman.novadrive.ui.components.tapTarget
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.TurnRight
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Navigation
@@ -88,54 +91,79 @@ import kotlin.math.sqrt
 @Composable
 internal fun MercedesLayout(ui: HomeUi, act: HomeActions) {
     val k = LocalSkin.current
+    // Glass tiles let the map show through, as on MBUX's "zero layer".
+    val glass = k.surface.copy(alpha = if (k.dark) 0.80f else 0.86f)
     Box(Modifier.fillMaxSize()) {
-        SkinMap(ui, act, Modifier.fillMaxSize(), focusY = 0.48f, guidance = false, frame = false)
-        // Vignette so overlays stay readable over the map.
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to k.bg[0].copy(alpha = 0.85f), 0.18f to Color.Transparent, 0.62f to Color.Transparent, 1f to k.bg[0].copy(alpha = 0.92f))))
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to k.bg[0].copy(alpha = 0.9f), 0.14f to Color.Transparent)))
-        Row(Modifier.fillMaxSize()) {
-            // MBUX-style left menu
+        SkinMap(ui, act, Modifier.fillMaxSize(), focusY = 0.42f, guidance = false, frame = false)
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to k.bg[0].copy(alpha = 0.78f), 0.16f to Color.Transparent, 0.58f to Color.Transparent, 1f to k.bg[0].copy(alpha = 0.88f))))
+        Row(Modifier.fillMaxSize().padding(12.dp)) {
+            // MBUX left menu: a clear glass column with large, labelled targets.
             Column(
-                Modifier.width(104.dp).fillMaxHeight().padding(vertical = 18.dp),
+                Modifier.width(118.dp).fillMaxHeight().clip(RoundedCornerShape(30.dp)).background(glass)
+                    .border(1.dp, Brush.verticalGradient(listOf(k.accent.copy(alpha = 0.5f), k.accent2.copy(alpha = 0.25f))), RoundedCornerShape(30.dp))
+                    .padding(vertical = 10.dp),
                 verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 MbuxItem(Icons.Rounded.Home, tr("Home", "الرئيسية"), true) {}
                 menuItems(act).forEach { m -> MbuxItem(m.icon, m.label, false, m.special, m.onClick) }
             }
-            Column(Modifier.weight(1f).fillMaxHeight().padding(end = 22.dp, top = 14.dp, bottom = 16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Row(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(24.dp)).background(glass).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                     val clock = rememberClock(ui.use24h)
                     UiDirection {
-                        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.clickable(onClick = act.onQuick)) {
-                            Text(clock.time, style = st(40.sp, FontWeight.Light), maxLines = 1)
-                            Text(" " + clock.ampm + "   " + clock.dateShort, style = st(16.sp, color = k.dim), maxLines = 1, softWrap = false, modifier = Modifier.padding(bottom = 7.dp))
+                        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.tapTarget(onClick = act.onQuick)) {
+                            Text(clock.time, style = st(38.sp, FontWeight.Light), maxLines = 1)
+                            Text(" " + clock.ampm + "   " + clock.dateShort, style = st(17.sp, color = k.dim), maxLines = 1, softWrap = false, modifier = Modifier.padding(bottom = 6.dp))
                         }
                     }
                     Spacer(Modifier.weight(1f))
-                    WeatherLine(ui, 24.sp, 28.dp)
-                    Spacer(Modifier.width(14.dp))
-                    StatusIcons(ui, act)
+                    WeatherLine(ui, 24.sp, 30.dp)
+                    Spacer(Modifier.width(12.dp))
+                    StatusIcons(ui, act, 26.dp)
+                    Spacer(Modifier.width(6.dp))
+                    SRound(Icons.Rounded.Tune, tr("Quick controls", "التحكم السريع"), 48.dp, onClick = act.onQuick)
+                    Spacer(Modifier.width(8.dp))
+                    SRound(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), 48.dp, filled = true, onClick = act.onSettings)
                 }
                 ui.nav?.let { nav ->
-                    Spacer(Modifier.height(10.dp))
-                    SCard(Modifier.width(420.dp), onClick = act.onNavCard, corner = 22.dp) {
+                    Spacer(Modifier.height(12.dp))
+                    SCard(Modifier.width(500.dp), onClick = act.onNavCard, corner = 24.dp, fill = glass) {
                         UiDirection {
-                            Column(Modifier.padding(14.dp)) {
-                                Text(nav.primary, style = st(26.sp, FontWeight.SemiBold), maxLines = 1)
-                                nav.secondary?.let { Text(it, style = st(15.sp, color = k.dim), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                nav.eta?.let { Text(it, style = st(13.sp, color = k.accent), maxLines = 1) }
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                val icon = nav.maneuver
+                                if (icon != null) androidx.compose.foundation.Image(icon, null, Modifier.size(56.dp))
+                                else Icon(Icons.Rounded.TurnRight, null, tint = k.accent, modifier = Modifier.size(52.dp))
+                                Spacer(Modifier.width(14.dp))
+                                Column {
+                                    Text(nav.primary, style = st(30.sp, FontWeight.SemiBold), maxLines = 1)
+                                    nav.secondary?.let { Text(it, style = st(17.sp, color = k.dim), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                    nav.eta?.let { Text(it, style = st(15.sp, color = k.accent), maxLines = 1) }
+                                }
                             }
                         }
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                Row(Modifier.fillMaxWidth().height(176.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    SkinMedia(ui, act, Modifier.weight(1.25f).fillMaxHeight(), art = 120.dp)
-                    SCard(Modifier.weight(0.5f).fillMaxHeight(), onClick = act.onVehicle) { Box(Modifier.align(Alignment.Center)) { SpeedText(ui, 50.sp, act) } }
-                    SCard(Modifier.weight(1f).fillMaxHeight(), corner = 26.dp) {
+                Row(Modifier.fillMaxWidth().height(222.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    SCard(Modifier.weight(1.3f).fillMaxHeight(), fill = glass, corner = 28.dp) {
+                        Row(Modifier.fillMaxSize().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            MediaArt(ui, act, 150.dp, 20.dp)
+                            Spacer(Modifier.width(16.dp))
+                            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
+                                UiDirection { MediaTitle(ui, act, 21.sp) }
+                                MediaBar(ui, Modifier.fillMaxWidth())
+                                MediaButtons(ui, act, 58.dp, Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
+                    SCard(Modifier.weight(0.55f).fillMaxHeight(), onClick = act.onVehicle, fill = glass, corner = 28.dp) {
+                        Box(Modifier.align(Alignment.Center)) { SpeedText(ui, 62.sp, act) }
+                    }
+                    SCard(Modifier.weight(1.05f).fillMaxHeight(), fill = glass, corner = 28.dp) {
                         Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             ui.dock.chunked(3).take(2).forEach { row ->
-                                Row(Modifier.weight(1f).fillMaxWidth()) { row.forEach { s -> AppItem(s, act, Modifier.weight(1f).fillMaxHeight(), 44.dp, 12.sp) } }
+                                Row(Modifier.weight(1f).fillMaxWidth()) { row.forEach { s -> AppItem(s, act, Modifier.weight(1f).fillMaxHeight(), 56.dp, 14.sp) } }
                             }
                         }
                     }
@@ -148,14 +176,15 @@ internal fun MercedesLayout(ui: HomeUi, act: HomeActions) {
 @Composable
 private fun MbuxItem(icon: ImageVector, label: String, active: Boolean, special: Boolean = false, onClick: () -> Unit) {
     val k = LocalSkin.current
-    Column(Modifier.width(92.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.width(106.dp).clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick).padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            Modifier.size(50.dp).clip(CircleShape)
-                .background(if (special) Brush.sweepGradient(listOf(k.accent, k.accent2, k.accent)) else if (active) Brush.linearGradient(listOf(k.accent.copy(alpha = 0.5f), k.accent2.copy(alpha = 0.4f))) else Brush.linearGradient(listOf(k.surface, k.surface)))
-                .border(1.dp, if (active) k.accent else k.border, CircleShape),
+            Modifier.size(56.dp).clip(CircleShape)
+                .background(if (special) Brush.sweepGradient(listOf(k.accent, k.accent2, k.accent)) else if (active) Brush.linearGradient(listOf(k.accent, k.accent2)) else Brush.linearGradient(listOf(k.surfaceHi, k.surfaceHi)))
+                .border(1.dp, if (active) Color.White.copy(alpha = 0.6f) else k.border, CircleShape),
             contentAlignment = Alignment.Center,
-        ) { Icon(icon, label, tint = if (active || special) Color.White else k.text, modifier = Modifier.size(26.dp)) }
-        UiDirection { Text(label, style = st(12.sp, FontWeight.Medium, if (active) k.accent else k.dim), maxLines = 1) }
+        ) { Icon(icon, label, tint = if (active || special) Color.White else k.text, modifier = Modifier.size(28.dp)) }
+        Spacer(Modifier.height(3.dp))
+        UiDirection { Text(label, style = st(14.sp, FontWeight.SemiBold, if (active) k.accent else k.text), maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -174,7 +203,7 @@ internal fun FordLayout(ui: HomeUi, act: HomeActions) {
             val clock = rememberClock(ui.use24h)
             ui.weather?.takeIf { ui.showWeather }?.let { Text("${Math.round(it.tempC)}°", style = st(20.sp, FontWeight.Medium)) }
             Spacer(Modifier.weight(1f))
-            UiDirection { Text(clock.time + " " + clock.ampm, style = st(22.sp, FontWeight.SemiBold), modifier = Modifier.clickable(onClick = act.onQuick)) }
+            UiDirection { Text(clock.time + " " + clock.ampm, style = st(22.sp, FontWeight.SemiBold), modifier = Modifier.tapTarget(onClick = act.onQuick)) }
             Spacer(Modifier.weight(1f))
             StatusIcons(ui, act, 20.dp)
         }
@@ -204,7 +233,7 @@ internal fun FordLayout(ui: HomeUi, act: HomeActions) {
         Row(Modifier.fillMaxWidth().height(96.dp).background(k.surface).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             SyncBarItem(Icons.Rounded.Home, tr("Home", "الرئيسية"), true) {}
             ui.dock.forEach { s -> Box(Modifier.weight(1f).fillMaxHeight()) { AppItem(s, act, Modifier.fillMaxSize(), 42.dp, 12.sp) } }
-            SyncBarItem(Icons.Rounded.AutoAwesome, "Nova AI", false, act.onVoice)
+            SyncBarItem(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), false, act.onVoice)
             SyncBarItem(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), false, act.onSettings)
         }
     }
@@ -247,16 +276,16 @@ internal fun AppleLayout(ui: HomeUi, act: HomeActions) {
     val k = LocalSkin.current
     Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Sidebar
-        SCard(Modifier.width(112.dp).fillMaxHeight(), corner = 32.dp) {
+        SCard(Modifier.width(126.dp).fillMaxHeight(), corner = 32.dp) {
             Column(Modifier.fillMaxSize().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 val clock = rememberClock(ui.use24h)
-                Text(clock.time, style = st(24.sp, FontWeight.SemiBold), maxLines = 1, modifier = Modifier.clickable(onClick = act.onQuick))
+                Text(clock.time, style = st(24.sp, FontWeight.SemiBold), maxLines = 1, modifier = Modifier.tapTarget(onClick = act.onQuick))
                 StatusIcons(ui, act, 16.dp)
                 Spacer(Modifier.height(6.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
                     ui.dock.take(5).forEach { s -> AppItem(s, act, Modifier.size(78.dp), 62.dp, 0.sp, labels = false) }
                 }
-                SRound(Icons.Rounded.AutoAwesome, "Nova AI", 58.dp, filled = true, onClick = act.onVoice)
+                SRound(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), 58.dp, filled = true, onClick = act.onVoice)
             }
         }
         // Dashboard
@@ -319,7 +348,7 @@ internal fun JetourLayout(ui: HomeUi, act: HomeActions) {
             JetourTab(tr("Apps", "التطبيقات"), false, act.onApps)
             Spacer(Modifier.weight(1f))
             StatusIcons(ui, act)
-            SRound(Icons.Rounded.AutoAwesome, "Nova AI", 46.dp, filled = true, onClick = act.onVoice)
+            SRound(com.abu00salman.novadrive.ui.components.voiceIcon(), com.abu00salman.novadrive.ui.components.voiceName(), 46.dp, filled = true, onClick = act.onVoice)
             Spacer(Modifier.width(8.dp))
             SRound(Icons.Rounded.Settings, tr("Settings", "الإعدادات"), 46.dp, onClick = act.onSettings)
         }
@@ -363,7 +392,7 @@ internal fun JetourLayout(ui: HomeUi, act: HomeActions) {
 @Composable
 private fun JetourTab(label: String, active: Boolean, onClick: () -> Unit) {
     val k = LocalSkin.current
-    Column(Modifier.clickable(onClick = onClick).padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.defaultMinSize(minHeight = 44.dp).clickable(onClick = onClick).padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         UiDirection { Text(label, style = st(17.sp, if (active) FontWeight.Bold else FontWeight.Medium, if (active) k.text else k.dim), maxLines = 1) }
         Spacer(Modifier.height(4.dp))
         Box(Modifier.width(28.dp).height(3.dp).clip(CircleShape).background(if (active) k.accent else Color.Transparent))
@@ -386,7 +415,7 @@ internal fun BydLayout(ui: HomeUi, act: HomeActions) {
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly,
         ) {
             val clock = rememberClock(ui.use24h)
-            Text(clock.time, style = st(18.sp, FontWeight.Bold), maxLines = 1, modifier = Modifier.clickable(onClick = act.onQuick))
+            Text(clock.time, style = st(18.sp, FontWeight.Bold), maxLines = 1, modifier = Modifier.tapTarget(onClick = act.onQuick))
             menuItems(act).forEach { m -> SRound(m.icon, m.label, 54.dp, filled = m.special, onClick = m.onClick) }
         }
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -538,7 +567,7 @@ private fun TankGauge(modifier: Modifier, value: String, label: String) {
  * ("--") when the unit has no such sensor.
  */
 @Composable
-private fun Inclinometer(modifier: Modifier) {
+internal fun Inclinometer(modifier: Modifier) {
     val k = LocalSkin.current
     val ctx = LocalContext.current
     var pitch by remember { mutableStateOf<Float?>(null) }

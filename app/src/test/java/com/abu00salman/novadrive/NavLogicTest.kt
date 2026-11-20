@@ -114,10 +114,10 @@ class NavLogicTest {
         assertEquals(null, StyleOptionsRepository.decode(StyleOptionsRepository.encode(StyleOptions())).bigApp)
     }
 
-    @Test fun twelveInterfacesWithFixedTeslaAndBmw() {
-        assertEquals(12, UiStyles.all.size)
-        assertEquals(12, UiStyles.all.map { it.id }.toSet().size)
-        assertTrue(UiStyles.all.filter { it.customizable }.map { it.id }.containsAll(listOf("classic", "mercedes", "ford", "apple", "jetour", "byd", "haval", "tank")))
+    @Test fun thirteenInterfacesWithFixedTeslaAndBmw() {
+        assertEquals(13, UiStyles.all.size)
+        assertEquals(13, UiStyles.all.map { it.id }.toSet().size)
+        assertTrue(UiStyles.all.filter { it.customizable }.map { it.id }.containsAll(listOf("classic", "mercedes", "ford", "apple", "jetour", "byd", "haval", "tank", "widgets")))
         assertTrue(!UiStyles.get("tesla").customizable && !UiStyles.get("bmw").customizable)
         assertEquals("smart", UiStyles.get("unknown").id)
     }

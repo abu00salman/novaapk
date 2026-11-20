@@ -16,9 +16,13 @@ android {
         applicationId = "com.abu00salman.novadrive"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "2.2.0"
+        versionCode = 15
+        versionName = "2.6.0-beta1"
         resourceConfigurations += listOf("en", "ar")
+        // Google Maps SDK key, injected by CI from the MAPS_API_KEY secret. Never stored in the repository.
+        val mapsKey = System.getenv("MAPS_API_KEY").orEmpty()
+        manifestPlaceholders["MAPS_API_KEY"] = mapsKey
+        buildConfigField("boolean", "HAS_MAPS_KEY", (mapsKey.isNotBlank()).toString())
     }
 
     signingConfigs {
@@ -33,6 +37,8 @@ android {
     }
 
     buildTypes {
+        // With the stable key configured, test builds are signed with it too, so every APK updates in place.
+        debug { if (novaKeystore != null) signingConfig = signingConfigs.getByName("nova") }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -56,9 +62,28 @@ android {
             )
         }
     }
-    lint { checkReleaseBuilds = false; abortOnError = false }
+    // Static analysis runs in CI (lintDebug) and publishes its report; findings don't block the APK.
+    lint {
+        checkReleaseBuilds = false; abortOnError = false; htmlReport = true; textReport = true
+        textOutput = file("build/reports/lint-results-debug.txt")
+        // False positive with this Kotlin/Compose pair: every flagged producer does assign `value`.
+        disable += "ProduceStateDoesNotAssignValue"
+    }
     // JVM screenshot tests (Robolectric + Roborazzi) render the real Compose UI to PNG in CI.
     testOptions { unitTests { isIncludeAndroidResources = true } }
+}
+
+// The Update Center shows "What's new" from the repository's own CHANGELOG.md, bundled as an asset.
+abstract class CopyChangelog : DefaultTask() {
+    @get:InputFile abstract val source: RegularFileProperty
+    @get:OutputDirectory abstract val out: DirectoryProperty
+    @TaskAction fun run() { source.get().asFile.copyTo(out.get().file("CHANGELOG.md").asFile, overwrite = true) }
+}
+val copyChangelog = tasks.register<CopyChangelog>("copyChangelog") {
+    source.set(rootProject.layout.projectDirectory.file("CHANGELOG.md"))
+}
+androidComponents {
+    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(copyChangelog, CopyChangelog::out) }
 }
 
 // Screenshot tests write PNGs Gradle doesn't track, so never skip or restore them from cache.
@@ -71,6 +96,8 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("com.google.maps.android:maps-compose:6.2.1")
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")

@@ -4,7 +4,9 @@ import com.abu00salman.novadrive.data.AppCategory
 import com.abu00salman.novadrive.data.AppEntry
 
 /** Every action the dock can hold, in the order offered in Settings. */
-val DOCK_CHOICES = listOf("maps", "carplay", "auto", "music", "phone", "radio", "youtube", "netflix", "apps")
+/** "smart" is the Smart Dock slot: the app the driver opens most that isn't already in the dock. */
+const val SMART_SLOT = "smart"
+val DOCK_CHOICES = listOf("maps", "carplay", "auto", "music", "phone", "radio", "youtube", "netflix", SMART_SLOT, "apps")
 const val DOCK_MAX = 6
 
 /** A dock entry the user pointed at a specific installed app: "app:<package>". */
@@ -50,7 +52,15 @@ fun <T> resolveDock(ids: List<String>, driving: Boolean, packageOf: (String) -> 
     return out
 }
 
-enum class AppTab { FAVORITES, NAVIGATION, MEDIA, CAR, TOOLS, ALL }
+enum class AppTab { FAVORITES, FREQUENT, NAVIGATION, MEDIA, CAR, TOOLS, ALL }
+
+/**
+ * Smart Dock: the most-used app ([frequent] = app keys, most used first) that no other dock slot
+ * already shows; video apps are skipped while driving. Null until NovaDrive has seen some use.
+ */
+fun smartDockApp(frequent: List<String>, apps: List<AppEntry>, taken: Set<String>, driving: Boolean): AppEntry? =
+    frequent.asSequence().mapNotNull { k -> apps.firstOrNull { it.key == k } }
+        .firstOrNull { it.packageName !in taken && !(driving && isVideoApp(it.packageName, it.label)) }
 
 /** App-library filter: favorites keep the user's order, other tabs are alphabetical. */
 fun filterApps(
@@ -59,10 +69,13 @@ fun filterApps(
     favorites: List<String>,
     query: String,
     showSystem: Boolean,
+    /** App keys by use, most used first (the Frequent tab). */
+    frequent: List<String> = emptyList(),
 ): List<AppEntry> {
     val q = query.trim()
     val base = when (tab) {
         AppTab.FAVORITES -> favorites.mapNotNull { k -> apps.firstOrNull { it.key == k } }
+        AppTab.FREQUENT -> frequent.mapNotNull { k -> apps.firstOrNull { it.key == k } }.take(18)
         AppTab.ALL -> apps.filter { showSystem || !it.system }
         AppTab.NAVIGATION -> apps.filter { it.category == AppCategory.NAVIGATION }
         AppTab.MEDIA -> apps.filter { it.category == AppCategory.MEDIA }

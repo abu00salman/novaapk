@@ -1,5 +1,62 @@
 # Changelog
 
+## 2.6.0-beta1
+- تنبيه كاميرات ساهر: تنبيه صوتي قبل الكاميرا بحوالي 500 متر، شريط علوي بالمسافة والسرعة المحددة، وصفارة عند التجاوز. البيانات من OpenStreetMap وتُحفظ لتعمل بدون إنترنت.
+- أوامر «أمرني» بدون إنترنت: يستخدم التعرف الصوتي داخل الجهاز (أندرويد 13+) أو حزمة Google بلا إنترنت، والأوامر المحلية (افتح يوتيوب، الخرائط، الموسيقى…) تعمل دون اتصال.
+- مفتاح توقيع ثابت: عند إضافة أسرار التوقيع في GitHub تُوقَّع كل النسخ به فتُحدَّث فوق بعضها.
+
+## 2.5.0-beta5
+- إذا لم تكتمل خريطة Google خلال 10 ثوانٍ (مفتاح غير مفعّل أو بدون فوترة) يرجع التطبيق تلقائيًا لخريطة Google المضمّنة أو OpenStreetMap بدل خريطة فارغة.
+
+## 2.5.0-beta4
+- خريطة Google الحقيقية (Maps SDK) في كل الشاشات عند وجود مفتاح MAPS_API_KEY في CI: خط المسار، الوجهة، موقع السيارة، الزحام، وضع ليلي، ولفّ مع الاتجاه. بدون مفتاح: خريطة Google المضمّنة، وأثناء التوجيه الداخلي OpenStreetMap ليظهر المسار.
+
+## 2.5.0-beta3
+- خريطة Google (بدون مفتاح API) هي الخريطة الأساسية في بطاقات الخريطة عند توفر الإنترنت؛ OpenStreetMap احتياطي بدون إنترنت. خيار في الإعدادات.
+
+## 2.5.0-beta2
+
+- Full screen: Android's status and navigation bars are hidden while NovaDrive is in front (swipe from the edge to show them; Settings › Appearance).
+- Music and YouTube open inside NovaDrive: the Music button makes the player the biggest thing on screen in every interface, and YouTube plays on the home screen (YouTube mobile site, parked only — paused and covered while moving).
+- Google Maps / Waze open beside NovaDrive in split screen with their own map and guidance; NovaDrive's half becomes a compact panel (time, speed, the navigation app's next turn, player, large shortcuts).
+- Mercedes interface: clear glass side menu with larger labelled buttons, a status bar with Quick controls and Settings, larger glass tiles over the map, bigger app icons and the navigation app's maneuver icon.
+
+## 2.5.0-beta1 — NovaDrive NEXT
+
+**New**
+- **NOVA Scenes**: save the dashboard (interface, home mode, theme, dock, widget board) and restore it with one tap from Quick controls, Settings or by voice ("scene <name>" / «مشهد <الاسم>»). Per driver profile, up to 8.
+- **NOVA QuickSwitch + Mini Player** (optional, off by default): a small handle over other apps that opens a bar to jump to NovaDrive, navigation, CarPlay or music and control the current track. Needs "display over other apps"; never shown over NovaDrive.
+- **Smart Dock** slot ("Most used") and a **Frequent** tab in the app library, ranked by what is actually opened from NovaDrive (kept on the unit, recent use counts more).
+- **NOVA Backup**: export / import every setting as one JSON file. API keys are never exported and never overwritten; an invalid file changes nothing.
+- **NOVA Update Center**: installed version, "What's new" from the bundled changelog, and an on-demand check of NovaDrive's own GitHub releases (nothing is downloaded or installed automatically).
+- **NOVA Diagnostics**: measured cold-start time and memory, storage, permissions, services and connections, with a copyable report.
+
+**Fixed / improved**
+- Removed the unused "Modify system settings" permission and its prompts (brightness uses the screen dimmer); Quick controls and Permissions now offer "display over other apps" instead.
+- App icons are cached and only re-decoded for packages that changed, so app-list refreshes are much cheaper.
+- Shortcut resolution (configurable package mapping) is shared by the UI, voice and the overlay.
+- Layout audit in CI: every tappable control of all 13 interfaces, Arabic and English, at 1280×720 and 1024×600, is checked for clipping and minimum size.
+
+**CI / release**
+- Android lint report, SHA-256 checksums, debug builds always named `-debug`, pre-release tags published as pre-releases, superseded runs cancelled.
+
+## 2.3.0-beta2
+
+- «أمرني» is back on the voice button: Google's official speech recognition with local commands, or Google Assistant / Gemini; other questions open in the Google app. No API.
+- Nova AI moved to Settings › Experimental and is off by default.
+- BMW: day mode (night stays the default) and YouTube beside Music in its bottom apps.
+- New Widgets interface: 18 live gauges/readings, phone-style sizes and flow, edit mode (add, remove, resize, reorder), GPS trip computer, Hijri date, sunrise/sunset.
+
+## 2.3.0-beta1 — Nova AI voice repair
+
+- Voice session state machine with numbered sessions, timeouts and cancellation: the microphone never stays stuck on "listening" or "speaking".
+- Speech recognition inside NovaDrive (no Google window; the window remains as a fallback option).
+- Replies are spoken reliably: per-utterance completion, best installed Arabic voice, rate/volume/channel settings, audio focus.
+- One selected provider (ChatGPT or Claude), restored after restart; clear API error messages; Stop cancels the request.
+- Offline mode: local commands without internet or API credit, typing and quick commands when speech needs internet.
+- Local commands match whole words and leave general questions to the AI; compound commands supported.
+- New Nova AI panel and settings with real diagnostics. Acceptance tests for the voice pipeline.
+
 ## 2.2.0 — NovaDrive NEXT (official)
 
 **New**

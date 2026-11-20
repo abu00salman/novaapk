@@ -43,6 +43,8 @@ object UiStyles {
             listOf(0xFFE11D2E, 0xFF3B82F6, 0xFFF59E0B, 0xFF10B981, 0xFFE5E7EB)),
         UiStyle("tank", "TANK", "واجهة TANK", true, true, true,
             listOf(0xFFD9A441, 0xFF9CB65A, 0xFFE07B39, 0xFF7FB3D5, 0xFFE8E2D0)),
+        UiStyle("widgets", "Widgets", "واجهة الويدجت", true, true, true,
+            listOf(0xFF0A84FF, 0xFF30D158, 0xFFFF9F0A, 0xFFFF375F, 0xFFBF5AF2)),
     )
 
     fun get(id: String): UiStyle = all.firstOrNull { it.id == id } ?: all[0]
@@ -65,6 +67,8 @@ data class StyleOptions(
     val bigApp: String? = null,
     /** 0 = normal, 1 = large icon on the big shortcut. */
     val bigSize: Int = 0,
+    /** BMW: YouTube in the bottom apps, next to Music. */
+    val showYoutube: Boolean = true,
 ) {
     companion object {
         const val WALLPAPER_PRESETS = 4
@@ -90,7 +94,7 @@ class StyleOptionsRepository(ctx: Context) {
     companion object {
         fun encode(o: StyleOptions) = listOf(
             when (o.dark) { true -> "1"; false -> "0"; null -> "" }, o.accent, o.wallpaper, o.font, o.wallpaperVersion,
-            o.bigApp.orEmpty(), o.bigSize,
+            o.bigApp.orEmpty(), o.bigSize, if (o.showYoutube) "1" else "0",
         ).joinToString("|")
 
         fun decode(s: String?): StyleOptions {
@@ -104,6 +108,7 @@ class StyleOptionsRepository(ctx: Context) {
                 wallpaperVersion = p.getOrNull(4)?.toLongOrNull() ?: 0,
                 bigApp = p.getOrNull(5)?.takeIf { it.isNotBlank() },
                 bigSize = p.getOrNull(6)?.toIntOrNull() ?: 0,
+                showYoutube = p.getOrNull(7) != "0",
             )
         }
     }

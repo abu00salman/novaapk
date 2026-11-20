@@ -43,8 +43,6 @@ class SystemControls(private val ctx: Context) {
     }
 
     // ---- Brightness ---------------------------------------------------------------------
-    fun canWriteSettings(): Boolean = Settings.System.canWrite(ctx)
-
     /** Brightness through [ScreenDimmer], which works even where the unit ignores Android's setting. */
     val dimmer = ScreenDimmer(ctx)
 
@@ -52,10 +50,6 @@ class SystemControls(private val ctx: Context) {
 
     @Suppress("UNUSED_PARAMETER")
     fun setBrightness(fraction: Float, window: Window?) = dimmer.set(fraction)
-
-    fun requestWriteSettings() = start(
-        Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + ctx.packageName))
-    )
 
     // ---- System panels ------------------------------------------------------------------
     fun openWifi() = if (Build.VERSION.SDK_INT >= 29) start(Intent(Settings.Panel.ACTION_WIFI))

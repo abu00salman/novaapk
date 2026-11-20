@@ -3,7 +3,7 @@
 Native Android car launcher (Kotlin + Jetpack Compose) designed for the
 **Tech Caravan Android 16 head unit** (Allwinner A133, 4 GB RAM, 1280×720).
 
-**Developed by abu00salman**
+**Developed by iRaMzi (@iRaMzi7 on X)**
 
 ![NovaDrive home — Arabic, night](docs/screenshots/01_home_ar_dark.png)
 
@@ -88,11 +88,18 @@ Add repo secrets: `NOVA_KEYSTORE_BASE64`, `NOVA_KEYSTORE_PASSWORD`, `NOVA_KEY_AL
 | Media | `MediaSessionManager` + media keys | keys work without permission (BT Music) |
 | CarPlay | Launches ZLink/DiPlay; USB vendor 0x05AC detection | wireless CarPlay can't be observed |
 | Split screen | `FLAG_ACTIVITY_LAUNCH_ADJACENT` | depends on unit's multi‑window |
-| Volume / brightness | `AudioManager` / `Settings.System` | brightness falls back to window‑only |
+| Volume / brightness | `AudioManager` / screen-dimmer overlay | dims every app with "display over other apps", otherwise NovaDrive only |
 | Vehicle data | ELM327 Bluetooth, SAE J1979 Mode 01 (0C, 0D, 05, 2F, 04, 01) + ATRV | **read‑only**, opt‑in; unsupported PIDs show "Not reported" |
-| Voice | `RecognizerIntent` + AR/EN command parser | needs a recognizer (Google app) |
+| Voice («أمرني») | Google speech recognition + AR/EN local commands | optional experimental Nova AI (ChatGPT / Claude, your own key) |
 | Profiles | Per‑profile theme, language, favorites, shortcuts | |
 | Crash recovery | Crash counter → Safe Mode + restore stock launcher | |
+| Scenes | Saved dashboards per profile | interface, home mode, theme, dock, widget board |
+| QuickSwitch + mini player | `TYPE_APPLICATION_OVERLAY` + `MediaController` | optional, off by default; only over other apps |
+| Smart Dock / Frequent tab | Launches counted on the unit | recent use counts more; nothing leaves the unit |
+| Backup | JSON export/import through the system file picker | API keys never exported |
+| Update Center | GitHub Releases API, on demand | opens the release page; installs nothing |
+| Diagnostics | `Process.getStartElapsedRealtime`, `Debug.MemoryInfo`, `StatFs` | measured on the unit |
+| Interface sounds | `SoundPool` / `MediaPlayer` | per interface; silent during calls, guidance and voice |
 
 ## Architecture
 ```
@@ -118,7 +125,15 @@ These depend on the head unit and can't be verified in CI: real GPS speed, Bluet
 state, ZLink/DiPlay launching and wired-iPhone detection, Android Auto through ZLink,
 Google Maps guidance notifications, media-session artwork/queues, OBD-II with an ELM327
 adapter (which PIDs the Sonata reports), Geocoder city names, split-screen support,
-system brightness, and the speech recognizer.
+the screen dimmer, the speech recognizer, text-to-speech voices, interface sounds through the
+unit's speakers, and the QuickSwitch overlay (including opening apps from it on Android 14+).
+
+## Automated checks (CI)
+Every push builds debug and release APKs, runs the unit tests and Android lint, and renders the
+real Compose UI. A layout audit lays out all 13 interfaces in Arabic and English at 1280×720 and
+1024×600 and fails if any tappable control is clipped or smaller than 40 dp. Screenshots, the audit
+report, the lint report and SHA-256 checksums are published to the `screenshots*` / `apk*` branches.
+A debug-signed APK is always named `-debug`; a `-signed` APK exists only when the signing secrets are set.
 
 ## Safety
 NOVA never touches vehicle controls, CAN bus or the head unit's MCU. OBD support only
